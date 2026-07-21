@@ -1,28 +1,59 @@
-# AACE Excelência Mobile 1.2.0
+# AACE Excelência Mobile 1.3.0
 
-Aplicativo móvel em React Native, Expo e TypeScript para apoiar a gestão dos parceiros AACE PR/SC.
+Aplicativo em React Native, Expo e TypeScript para apoiar a gestão dos parceiros AACE PR/SC.
 
-## Principal novidade
-A tela **Gestão Assistida** compara metas e resultados, calcula automaticamente o semáforo, prioriza a visita, registra diagnóstico, gera planos de ação e salva um relatório que retroalimenta a próxima visita.
+## Novidade da v1.3.0
 
-## Executar
+A versão agora gera uma aplicação web estática compatível com o Vercel. Foram adicionados o suporte do React Native Web, o comando de build, a pasta de saída `dist` e a configuração de SPA no `vercel.json`.
+
+## Executar localmente
+
 ```bash
-npm install
+npm ci
 npm start
 ```
 
+Para abrir diretamente no navegador:
+
+```bash
+npm run web
+```
+
+## Gerar a versão web
+
+```bash
+npm run build:web
+```
+
+O resultado será criado na pasta `dist`.
+
+## Publicar no Vercel
+
+1. Coloque **os arquivos deste projeto na raiz do repositório GitHub**. O `package.json` e o `vercel.json` precisam aparecer diretamente na página inicial do repositório.
+2. No Vercel, importe esse repositório.
+3. Em **Root Directory**, deixe `./` quando os arquivos estiverem na raiz.
+4. O Vercel usará automaticamente:
+   - instalação: `npm ci`;
+   - build: `npm run build:web`;
+   - saída: `dist`.
+5. Faça o deploy.
+
+Consulte também `docs/DEPLOY_VERCEL.md`.
+
 ## Credenciais de demonstração
+
 - `regional@aace.app`
 - `coordenador@aace.app`
 - `gerente@aace.app`
 - Senha: `Aace@2026`
 
 ## Validação
+
 ```bash
 npm run typecheck
-npx expo export --platform android
-npx expo export --platform ios
+npm run build:web
 ```
 
-## Observação
-Esta entrega contém o código-fonte do app. A geração de APK/AAB ou pacote iOS assinado depende das credenciais Expo, Google Play e Apple da organização.
+## Limite atual
+
+Esta é uma versão demonstrativa e guarda os dados localmente no aparelho ou navegador. Ainda não há servidor, banco de dados compartilhado ou autenticação real de produção.

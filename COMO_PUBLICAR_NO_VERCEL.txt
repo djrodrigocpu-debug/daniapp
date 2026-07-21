@@ -1,0 +1,15 @@
+AACE EXCELÊNCIA v1.3.0 — PUBLICAÇÃO NO VERCEL
+
+1. Extraia este ZIP.
+2. Envie TODOS os arquivos extraídos para a raiz do repositório GitHub.
+3. Confirme que package.json e vercel.json aparecem na página inicial do repositório.
+4. No Vercel, importe o repositório ou abra o projeto já existente.
+5. Em Root Directory, use ./ se os arquivos estiverem na raiz.
+6. Clique em Deploy ou Redeploy.
+
+A configuração já está no projeto:
+- Install Command: npm ci
+- Build Command: npm run build:web
+- Output Directory: dist
+
+Se o Vercel disser que não encontrou package.json, a Root Directory está errada.

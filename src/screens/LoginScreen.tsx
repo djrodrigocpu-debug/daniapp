@@ -36,7 +36,7 @@ export function LoginScreen() {
           <View style={styles.logo}><Text style={styles.logoText}>A</Text></View>
           <Text style={styles.brand}>AACE Excelência</Text>
           <Text style={styles.tagline}>Avaliar. Comprovar. Evoluir.</Text>
-          <View style={styles.version}><Text style={styles.versionText}>APP MOBILE · VERSÃO 1.0</Text></View>
+          <View style={styles.version}><Text style={styles.versionText}>APP MOBILE + WEB · VERSÃO 1.3</Text></View>
         </View>
 
         <View style={styles.card}>
@@ -75,7 +75,7 @@ export function LoginScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  container: { flex: 1, padding: spacing.xl, justifyContent: 'center' },
+  container: { flex: 1, width: '100%', maxWidth: 560, alignSelf: 'center', padding: spacing.xl, justifyContent: 'center' },
   brandBlock: { alignItems: 'center', marginBottom: spacing.xl },
   logo: { width: 62, height: 62, borderRadius: 20, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', ...shadow },
   logoText: { color: colors.white, fontSize: 34, fontWeight: '900' },

@@ -3,10 +3,12 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useApp } from '../context/AppContext';
 import { colors, radius, spacing } from '../theme';
 import { formatDate } from '../utils/format';
 import { EmptyState } from '../components/EmptyState';
+import type { RootStackParamList } from '../types';
 
 type WindowKey = 'today' | 'week' | 'month';
 type AgendaItem = {
@@ -33,7 +35,7 @@ function atDayStart(value: Date): Date {
 }
 
 export function AgendaScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { visibleOperations, data } = useApp();
   const [windowKey, setWindowKey] = useState<WindowKey>('week');
   const [showCompleted, setShowCompleted] = useState(false);

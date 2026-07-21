@@ -1,23 +1,23 @@
-# AACE Excelência Mobile 1.1
+# AACE Excelência Mobile 1.3.0
 
 ## Nome da versão
 
-**Agenda e Prazos**
+**Publicação Web no Vercel**
 
 ## Propósito
 
-Dar previsibilidade à execução do Programa de Excelência AACE, reunindo auditorias previstas, planos de ação e vencimentos em uma agenda operacional única.
+Disponibilizar o MVP Expo também pelo navegador, sem retirar a compatibilidade com Android e iOS, e eliminar a página vazia observada no deploy anterior.
 
 ## Entregas centrais
 
-1. Nova aba Agenda.
-2. Visões de hoje, 7 dias e 30 dias.
-3. Priorização automática de itens vencidos.
-4. Indicadores de auditorias, ações e prazos críticos.
-5. Inclusão opcional de ações concluídas.
-6. Acesso direto ao detalhamento da operação.
-7. Preservação integral das funcionalidades da versão 1.0.
+1. Suporte a React Native Web.
+2. Build de produção web para a pasta `dist`.
+3. Configuração de SPA no Vercel.
+4. Instalação determinística com `npm ci`.
+5. Node.js 22 definido para o ambiente de build.
+6. Layout centralizado para uso em telas maiores.
+7. Preservação das funcionalidades da v1.2.0.
 
 ## Definição de pronto
 
-A versão 1.1 está pronta quando a agenda apresentar corretamente os compromissos visíveis conforme a hierarquia do usuário e permitir navegar para a operação relacionada sem erros de tipagem ou de bundle.
+A versão está pronta quando uma instalação limpa concluir o typecheck, gerar `dist/index.html` e o bundle web sem referências ausentes, com `vercel.json` na raiz do repositório.
