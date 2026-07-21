@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "AACE Excelência",
+    "slug": "aace-excelencia",
+    "scheme": "aaceexcelencia",
+    "version": "1.2.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F4F5F7"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.aace.excelencia",
+      "buildNumber": "3",
+      "infoPlist": {
+        "NSCameraUsageDescription": "O AACE Excelência utiliza a câmera para registrar evidências das auditorias realizadas nas operações.",
+        "NSPhotoLibraryUsageDescription": "O AACE Excelência permite selecionar imagens para comprovar as avaliações realizadas."
+      }
+    },
+    "android": {
+      "package": "com.aace.excelencia",
+      "versionCode": 3,
+      "permissions": [
+        "CAMERA"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#D71920",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permita que o AACE Excelência acesse suas imagens para anexar comprovações.",
+          "cameraPermission": "Permita que o AACE Excelência use a câmera para registrar comprovações.",
+          "microphonePermission": false
+        }
+      ],
+      "expo-document-picker",
+      "expo-font"
+    ],
+    "extra": {
+      "release": "1.2.0",
+      "releaseName": "Gestão Assistida"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "product": "AACE Excelência Mobile",
+  "version": "1.1.0",
+  "releaseName": "Agenda e Prazos",
+  "releaseDate": "2026-07-20",
+  "targetPlatforms": [
+    "android",
+    "ios"
+  ],
+  "status": "MVP funcional para piloto",
+  "storageMode": "local-device",
+  "backendIncluded": false,
+  "validation": {
+    "typescript": "passed",
+    "expoPublicConfig": "passed",
+    "androidBundle": "passed",
+    "iosBundle": "passed",
+    "expoDoctor": "18/20; two online checks unavailable"
+  }
+}
