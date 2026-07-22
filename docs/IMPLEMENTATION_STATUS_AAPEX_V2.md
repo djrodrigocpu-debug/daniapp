@@ -48,8 +48,36 @@
 
 ---
 
-## Fase 1 — Fundação da camada corporativa — *pendente*
-## Fase 2 — Modelo de dados e migrations — *pendente*
+## Fase 1 — Fundação da camada corporativa — **CONCLUÍDA**
+
+**Feito:** config tipada (`src/config/env.ts`) com validação e bloqueio de service
+role; feature flags (ranking travado); `AppError`+`Result<T>`; modelo de domínio
+corporativo (4 perfis, versionamento, workflow); contratos de repositório
+(strangler); cliente Supabase só-anon; `.env.example`; `.gitignore` endurecido.
+**Segurança:** senha demo `Aace@2026` removida do bundle/README/telas; login demo
+sem credencial, gated por `featureFlags.demoMode`.
+**Testes:** 20 (env, featureFlags, client, varredura de segredos T03/T30). typecheck OK.
+**Commit:** `feat: adiciona fundacao corporativa e remove senha demo do bundle` (`d7d3369`).
+
+## Fase 2 — Modelo de dados e migrations — **CONCLUÍDA (com ressalva de execução)**
+
+**Feito:** migrations SQL versionadas em `supabase/migrations/`:
+- `0001_core_schema.sql` — 28 tabelas (§11.2), enums, UUIDs, índices, FKs,
+  idempotency_key, row_version, vínculo `auth.users`.
+- `0002_rls_policies.sql` — RLS deny-by-default + funções de autorização
+  (`has_operation_access`, `can_validate` sem autoaprovação), indicadores admin-only.
+- `0003_integrity_triggers.sql` — indicador usado não deletável (T05), template
+  travado (T06), avaliação aprovada imutável (T07), audit_logs/snapshots append-only
+  (T25), row_version/updated_at automáticos.
+- `0001_core_schema.down.sql` — reversão.
+- `supabase/seed/0001_seed_catalog.sql` — 24 temas + 12 indicadores (seed, P05).
+
+**Testes:** 17 estáticos (`src/db/migrations.test.ts`) validando invariantes de
+esquema, RLS, gatilhos e seed.
+**Ressalva:** execução em banco real (T01/T02/T19 no servidor) é `BLOQUEADO POR
+DEPENDÊNCIA EXTERNA` (P09/DEP-03) — requer projeto Supabase provisionado.
+**Commit:** `feat: cria modelo de dados e migrations iniciais`.
+
 ## Fase 3 — Autenticação individual — *pendente*
 ## Fase 4 — RBAC e RLS — *pendente*
 ## Fases 5–13 — Administração e domínio — *pendente*
