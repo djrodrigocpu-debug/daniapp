@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { initialData, demoPassword } from '../data/mock';
+import { initialData } from '../data/mock';
+import { featureFlags } from '../config/runtime';
 import { themes } from '../data/catalog';
 import {
   ActionPlan,
@@ -105,11 +106,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return data.operations.filter((operation) => operation.managerId === currentUser.id);
   }, [currentUser, data.operations]);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, _password: string) => {
+    // AAPEX V2: a autenticação corporativa (Supabase Auth) é implementada na
+    // camada de repositório (Fase 3). Este caminho é EXCLUSIVO do modo
+    // demonstração de desenvolvimento e não valida senha embutida — a senha
+    // única de demo foi removida do bundle (§9.2, T30).
+    if (!featureFlags.demoMode) {
+      return {
+        ok: false,
+        message: 'Autenticação corporativa não configurada neste ambiente. Configure o Supabase (.env).',
+      };
+    }
     const normalized = email.trim().toLowerCase();
     const user = data.users.find((item) => item.email.toLowerCase() === normalized);
-    if (!user || password !== demoPassword) {
-      return { ok: false, message: 'E-mail ou senha inválidos.' };
+    if (!user) {
+      return { ok: false, message: 'E-mail não encontrado no ambiente de demonstração.' };
     }
     setCurrentUser(user);
     await AsyncStorage.setItem(USER_KEY, user.id);

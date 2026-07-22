@@ -4,10 +4,12 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
-import { demoPassword } from '../data/mock';
+import { featureFlags } from '../config/runtime';
 import { colors, radius, shadow, spacing } from '../theme';
 import { AppButton } from '../components/AppButton';
 
+// Atalhos de perfil disponíveis SOMENTE no modo demonstração de desenvolvimento
+// (Masterplan §9.3: build corporativo não inclui atalhos de demonstração).
 const demoAccounts = [
   { label: 'Gerência Regional', email: 'regional@aace.app' },
   { label: 'Coordenação', email: 'coordenador@aace.app' },
@@ -16,8 +18,8 @@ const demoAccounts = [
 
 export function LoginScreen() {
   const { login } = useApp();
-  const [email, setEmail] = useState('gerente@aace.app');
-  const [password, setPassword] = useState(demoPassword);
+  const [email, setEmail] = useState(featureFlags.demoMode ? 'gerente@aace.app' : '');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [secure, setSecure] = useState(true);
 
@@ -58,15 +60,19 @@ export function LoginScreen() {
 
           <AppButton title="Entrar" onPress={() => void handleLogin()} loading={loading} style={styles.loginButton} />
 
-          <Text style={styles.demoTitle}>Perfis demonstrativos</Text>
-          <View style={styles.demoRow}>
-            {demoAccounts.map((account) => (
-              <Pressable key={account.email} onPress={() => { setEmail(account.email); setPassword(demoPassword); }} style={styles.demoButton}>
-                <Text style={styles.demoLabel}>{account.label}</Text>
-              </Pressable>
-            ))}
-          </View>
-          <Text style={styles.passwordHint}>Senha de demonstração: {demoPassword}</Text>
+          {featureFlags.demoMode ? (
+            <>
+              <Text style={styles.demoTitle}>Perfis demonstrativos (desenvolvimento)</Text>
+              <View style={styles.demoRow}>
+                {demoAccounts.map((account) => (
+                  <Pressable key={account.email} onPress={() => { setEmail(account.email); setPassword(''); }} style={styles.demoButton}>
+                    <Text style={styles.demoLabel}>{account.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Text style={styles.passwordHint}>Modo demonstração local — sem autenticação corporativa.</Text>
+            </>
+          ) : null}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

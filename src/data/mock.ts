@@ -2,7 +2,11 @@ import { AppData, AssessmentAnswer, Evaluation, Operation, TrafficLight, User } 
 import { themes } from './catalog';
 import { indicatorDefinitions, indicatorResults } from './performance';
 
-export const demoPassword = 'Aace@2026';
+// AAPEX V2 (Masterplan §9.2, §9.3; Anexo D — T30):
+// A senha única de demonstração foi REMOVIDA do bundle. Estes dados são seeds
+// exclusivos do modo demonstração de DESENVOLVIMENTO (gated por
+// `featureFlags.demoMode`) e não representam autenticação real. O build
+// corporativo usa Supabase Auth (ver `src/domain/repositories/AuthRepository`).
 
 export const users: User[] = [
   { id: 'U01', name: 'Gerência Regional AACE', email: 'regional@aace.app', role: 'regional', region: 'PR/SC', avatarInitials: 'GR' },
