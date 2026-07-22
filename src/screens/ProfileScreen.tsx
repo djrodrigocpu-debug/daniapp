@@ -6,6 +6,7 @@ import { AppButton } from '../components/AppButton';
 import { useApp } from '../context/AppContext';
 import { colors, radius, spacing } from '../theme';
 import { roleLabel } from '../utils/format';
+import { appVersion, dataModeLabel } from '../domain/version/appVersion';
 
 export function ProfileScreen() {
   const { currentUser, logout, resetDemo, visibleOperations } = useApp();
@@ -30,8 +31,8 @@ export function ProfileScreen() {
       <View style={styles.infoCard}>
         <Info icon="map-outline" label="Área de atuação" value={currentUser.region} />
         <Info icon="business-outline" label="Operações visíveis" value={`${visibleOperations.length}`} />
-        <Info icon="phone-portrait-outline" label="Versão do aplicativo" value="1.2.0" />
-        <Info icon="cloud-offline-outline" label="Modo de dados" value="Demonstração local" last />
+        <Info icon="phone-portrait-outline" label="Versão do aplicativo" value={appVersion()} />
+        <Info icon="cloud-offline-outline" label="Modo de dados" value={dataModeLabel()} last />
       </View>
 
       <View style={styles.notice}>
