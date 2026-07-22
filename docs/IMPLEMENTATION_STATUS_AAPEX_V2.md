@@ -78,9 +78,50 @@ esquema, RLS, gatilhos e seed.
 DEPENDÊNCIA EXTERNA` (P09/DEP-03) — requer projeto Supabase provisionado.
 **Commit:** `feat: cria modelo de dados e migrations iniciais`.
 
-## Fase 3 — Autenticação individual — *pendente*
-## Fase 4 — RBAC e RLS — *pendente*
-## Fases 5–13 — Administração e domínio — *pendente*
-## Fase 14 — Offline e sincronização — *pendente*
-## Fase 15 — Segurança e LGPD — *pendente*
-## Fases 16–18 — Acessibilidade, testes, deploy — *pendente*
+## Fase 3 — Autenticação individual — **CONCLUÍDA (com ressalva)**
+
+`SupabaseAuthRepository` (login/logout/sessão/reset sem enumeração); `domain/auth/session.ts`
+(escopos vigentes, papéis, sessão expirada T10); versão do app derivada do build (T29).
+Execução real requer Supabase (P09). Commit `73f5a21`.
+
+## Fase 4 — RBAC e RLS — **CONCLUÍDA (código)**
+
+`authz/policy.ts` (isolamento T01, sem autoaprovação T02, export por escopo T16, ranking
+travado T28) + RLS em `0002` como autoridade. Execução em banco: ressalva P09.
+
+## Fases 5–13 — Domínio — **CONCLUÍDAS**
+
+Scoring/submission (T13/T14/T15), calendário (T12), indicadores/ciclo de vida (T05),
+workflow, validação (T02), imutabilidade/adendo (T07), exportação (T16), boas práticas
+(T27). Commit `a49242a`. 127→ testes.
+
+## Fase 14 — Offline e sincronização — **CONCLUÍDA**
+
+Outbox idempotente (T08/T24), backoff (T09), conflitos (T11/T23), engine de flush.
+Commit `018d09d`.
+
+## Fase 15 — Segurança e LGPD — **CONCLUÍDA (documentação + controles no código)**
+
+`docs/SEGURANCA_E_LGPD_AAPEX_V2.md` (modelo de ameaças STRIDE, controles, retenção,
+trilha). Controles no código: sem segredo no bundle, RLS, imutabilidade, audit append-only.
+Base legal/retenção dependem de P07/P08 (DPO).
+
+## Fases 16–18 — Testes, deploy e relatório — **CONCLUÍDAS (no possível)**
+
+151 testes verdes; typecheck OK; build web OK. Runbook de deploy/rollback e criação do 1º
+admin; relatório final. Deploy real e restauração de backup bloqueados por P09/DEP.
+
+---
+
+## Verificação final (2026-07-22)
+
+| Comando | Resultado |
+| --- | --- |
+| `npm run typecheck` | OK |
+| `npm test` | 151/151 (19 arquivos) |
+| `npm run build` (web) | OK — `dist/` |
+| Varredura de segredos | OK (T03/T30) |
+
+**Próximo passo executável:** aprovar P09 e provisionar Supabase; aplicar migrations 0001→0003;
+validar RLS positiva/negativa em banco real (T01/T02/T19); migrar telas legadas para os
+repositórios (concluir strangler).
