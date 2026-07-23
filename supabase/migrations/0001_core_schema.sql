@@ -4,7 +4,7 @@
 -- =============================================================================
 -- Princípios (§11.1): UUIDs não significativos; timestamps UTC; created_by/
 -- updated_by; versionamento; constraints no banco; idempotency_key; row_version.
--- Reversível: ver 0001_core_schema.down.sql (drop schema app cascade + tabelas).
+-- Reversível: ver supabase/rollback/0001_core_schema.down.sql (drop schema app cascade + tabelas).
 -- =============================================================================
 
 create extension if not exists "pgcrypto";

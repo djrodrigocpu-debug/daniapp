@@ -17,7 +17,7 @@ const SUPA = join(HERE, '..', '..', 'supabase');
 const schema = readFileSync(join(SUPA, 'migrations', '0001_core_schema.sql'), 'utf8');
 const rls = readFileSync(join(SUPA, 'migrations', '0002_rls_policies.sql'), 'utf8');
 const triggers = readFileSync(join(SUPA, 'migrations', '0003_integrity_triggers.sql'), 'utf8');
-const down = readFileSync(join(SUPA, 'migrations', '0001_core_schema.down.sql'), 'utf8');
+const down = readFileSync(join(SUPA, 'rollback', '0001_core_schema.down.sql'), 'utf8');
 const seed = readFileSync(join(SUPA, 'seed', '0001_seed_catalog.sql'), 'utf8');
 
 const REQUIRED_TABLES = [

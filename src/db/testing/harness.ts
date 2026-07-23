@@ -20,7 +20,7 @@ import { PGlite } from '@electric-sql/pglite';
 // pgcrypto real (WASM) para que `create extension if not exists "pgcrypto"` da
 // migration 0001 rode SEM alteração no arquivo — mantém as migrations intactas (§28).
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -28,15 +28,19 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..', '..');
 const SUPA = join(ROOT, 'supabase');
 
-export const MIGRATION_FILES = [
-  join(SUPA, 'migrations', '0001_core_schema.sql'),
-  join(SUPA, 'migrations', '0002_rls_policies.sql'),
-  join(SUPA, 'migrations', '0003_integrity_triggers.sql'),
-] as const;
+// Descoberta dinâmica: aplica TODAS as migrations `NNNN_*.sql` em ordem
+// lexicográfica (exclui o `*.down.sql` de reversão). Assim novas migrations
+// (0004+ — projeções ui_*, RPCs, storage) entram no harness sem edição manual.
+export const MIGRATION_FILES = readdirSync(join(SUPA, 'migrations'))
+  .filter((f) => f.endsWith('.sql') && !f.endsWith('.down.sql'))
+  .sort()
+  .map((f) => join(SUPA, 'migrations', f));
 
 export const COMPAT_FILE = join(HERE, 'supabase_compat.sql');
 export const SEED_FILE = join(SUPA, 'seed', '0001_seed_catalog.sql');
-export const DOWN_FILE = join(SUPA, 'migrations', '0001_core_schema.down.sql');
+// Rollback fica FORA de migrations/ para o `supabase db push` aplicar só os
+// forward 0001–0007 (evita colisão de versão com o `.down.sql`).
+export const DOWN_FILE = join(SUPA, 'rollback', '0001_core_schema.down.sql');
 
 const read = (p: string) => readFileSync(p, 'utf8');
 

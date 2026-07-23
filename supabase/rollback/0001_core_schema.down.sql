@@ -5,7 +5,19 @@
 -- Remove todo o esquema de aplicação. Como as tabelas têm FKs, usa CASCADE.
 -- Os triggers/policies (0002/0003) caem junto com as tabelas.
 
+-- Projeções de leitura (0005) — dependem das tabelas-base (cairiam por cascade,
+-- mas são removidas explicitamente para uma reversão autocontida e legível).
+drop view if exists
+  public.ui_operations,
+  public.ui_evaluations,
+  public.ui_action_plans,
+  public.ui_users,
+  public.ui_indicators
+  cascade;
+
 drop table if exists
+  public.visit_reports,
+  public.indicator_results,
   public.sync_operations,
   public.audit_logs,
   public.best_practices,

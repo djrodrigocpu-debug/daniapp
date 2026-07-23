@@ -45,3 +45,7 @@ yarn-error.*
 
 # Claude Code local settings
 .claude/
+
+# Supabase CLI — estado local (link/ref), não versionar
+supabase/.temp/
+supabase/.branches/

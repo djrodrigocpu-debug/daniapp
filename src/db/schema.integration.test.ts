@@ -19,6 +19,8 @@ const REQUIRED_TABLES = [
   'evidence_files', 'evaluation_answer_evidence',
   'diagnoses', 'action_plans', 'validations', 'best_practices',
   'audit_logs', 'sync_operations',
+  // Extensão de domínio 0004 (Gestão Assistida): também sob RLS forçada.
+  'indicator_results', 'visit_reports',
 ];
 
 describe('esquema aplicado em banco real (0001→0003)', () => {
@@ -26,7 +28,7 @@ describe('esquema aplicado em banco real (0001→0003)', () => {
   beforeAll(async () => { db = await createTestDb({ seed: true }); }, 30_000);
   afterAll(async () => { await db.close(); });
 
-  it('cria todas as 28 tabelas do §11.2', async () => {
+  it('cria todas as 30 tabelas (§11.2 + extensão 0004)', async () => {
     const rows = await db.query<{ tablename: string }>(
       `select tablename from pg_tables where schemaname='public'`,
     );
@@ -111,7 +113,7 @@ describe('constraints e integridade referencial (banco real)', () => {
 });
 
 describe('db reset reaplica o esquema de forma idempotente (§18.3)', () => {
-  it('down + up recria as 28 tabelas sem erro', async () => {
+  it('down + up recria as 30 tabelas sem erro', async () => {
     const db = await createTestDb({ seed: true });
     try {
       await db.reset({ seed: true });
