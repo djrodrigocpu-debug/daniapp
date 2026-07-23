@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -64,7 +64,14 @@ export function LoginScreen() {
       <StatusBar style="dark" />
       <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.brandBlock}>
-          <View style={styles.logo}><Text style={styles.logoText}>A</Text></View>
+          <View style={styles.logoCard}>
+            <Image
+              source={require('../../assets/logo-claro-empresas.jpg')}
+              style={styles.brandLogo}
+              resizeMode="contain"
+              accessibilityLabel="Claro Empresas"
+            />
+          </View>
           <Text style={styles.brand}>AACE Excelência</Text>
           <Text style={styles.tagline}>Avaliar. Comprovar. Evoluir.</Text>
           <View style={styles.version}><Text style={styles.versionText}>APP MOBILE + WEB · VERSÃO {runtimeConfig.appVersion}</Text></View>
@@ -124,8 +131,8 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1, width: '100%', maxWidth: 560, alignSelf: 'center', padding: spacing.xl, justifyContent: 'center' },
   brandBlock: { alignItems: 'center', marginBottom: spacing.xl },
-  logo: { width: 62, height: 62, borderRadius: 20, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', ...shadow },
-  logoText: { color: colors.white, fontSize: 34, fontWeight: '900' },
+  logoCard: { backgroundColor: colors.white, borderRadius: radius.lg, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderWidth: 1, borderColor: colors.border, ...shadow },
+  brandLogo: { width: 216, height: 112 },
   brand: { color: colors.ink, fontSize: 27, fontWeight: '900', letterSpacing: -0.8, marginTop: spacing.md },
   tagline: { color: colors.inkMuted, fontSize: 14, marginTop: 3 },
   version: { marginTop: spacing.sm, backgroundColor: colors.primarySoft, paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.pill },
