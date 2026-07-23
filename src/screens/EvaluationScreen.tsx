@@ -8,7 +8,7 @@ import { Screen } from '../components/Screen';
 import { AppButton } from '../components/AppButton';
 import { ActionPlanModal } from '../components/ActionPlanModal';
 import { ProgressBar } from '../components/ProgressBar';
-import { useApp } from '../context/AppContext';
+import { useEvaluations } from '../context/EvaluationsProvider';
 import { themes } from '../data/catalog';
 import { colors, radius, spacing } from '../theme';
 import { ActionPlan, AssessmentAnswer, RootStackParamList, Theme, TrafficLight } from '../types';
@@ -19,8 +19,8 @@ const selectableStatuses: TrafficLight[] = ['green', 'yellow', 'red', 'not_appli
 
 export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<RootStackParamList, 'Evaluation'>) {
   const {
-    getEvaluation, getOperation, data, updateAnswer, addEvidence, removeEvidence, saveActionPlan, submitEvaluation,
-  } = useApp();
+    getEvaluation, getOperation, getActionPlan, getEvidences, saveAnswer, addEvidence, removeEvidence, saveActionPlan, submit,
+  } = useEvaluations();
   const evaluation = route.params.evaluationId ? getEvaluation(route.params.evaluationId) : undefined;
   const operation = getOperation(route.params.operationId);
   const [selectedThemeId, setSelectedThemeId] = useState<string | null>(null);
@@ -41,8 +41,7 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
   const activeOperation = operation;
   const readOnly = activeEvaluation.status === 'submitted' || activeEvaluation.status === 'approved';
   const progress = completionRate(activeEvaluation.answers);
-  const selectedTheme = selectedThemeId ? themes.find((item) => item.id === selectedThemeId) : undefined;
-  const existingPlan = selectedThemeId ? data.actionPlans.find((plan) => plan.evaluationId === activeEvaluation.id && plan.themeId === selectedThemeId) : undefined;
+  const existingPlan = selectedThemeId ? getActionPlan(activeEvaluation.id, selectedThemeId) : undefined;
 
   async function takePhoto(themeId: string) {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -73,8 +72,8 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
     });
   }
 
-  function handleSubmit() {
-    const result = submitEvaluation(activeEvaluation.id);
+  async function handleSubmit() {
+    const result = await submit(activeEvaluation.id);
     if (!result.ok) {
       Alert.alert('Avaliação incompleta', result.message);
       return;
@@ -128,8 +127,8 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
           <Text style={styles.groupTitle}>{group.pillar}</Text>
           <Text style={styles.groupSubtitle}>{group.items.length} item(ns) deste ciclo</Text>
           {group.items.map(({ theme, answer }) => {
-            const evidenceItems = answer.evidenceIds.map((id) => data.evidences.find((item) => item.id === id)).filter(Boolean);
-            const plan = data.actionPlans.find((item) => item.evaluationId === activeEvaluation.id && item.themeId === theme.id);
+            const evidenceItems = getEvidences(answer.evidenceIds);
+            const plan = getActionPlan(activeEvaluation.id, theme.id);
             return (
               <View key={theme.id} style={styles.itemCard}>
                 <View style={styles.itemHeader}>
@@ -152,7 +151,7 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
                       <Pressable
                         key={status}
                         disabled={readOnly}
-                        onPress={() => updateAnswer(evaluation.id, theme.id, { status })}
+                        onPress={() => saveAnswer(evaluation.id, theme.id, { status })}
                         style={[styles.statusButton, active && { borderColor: trafficLightColor[status], backgroundColor: trafficLightSoftColor[status] }, readOnly && styles.disabled]}
                       >
                         <View style={[styles.statusDot, { backgroundColor: trafficLightColor[status] }]} />
@@ -166,7 +165,7 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
                 <TextInput
                   value={answer.measuredValue}
                   editable={!readOnly}
-                  onChangeText={(value) => updateAnswer(evaluation.id, theme.id, { measuredValue: value })}
+                  onChangeText={(value) => saveAnswer(evaluation.id, theme.id, { measuredValue: value })}
                   placeholder="Ex.: 82% da meta, 14 oportunidades, 1,2% de churn"
                   placeholderTextColor={colors.neutral}
                   style={[styles.input, readOnly && styles.readOnlyInput]}
@@ -176,7 +175,7 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
                 <TextInput
                   value={answer.observation}
                   editable={!readOnly}
-                  onChangeText={(value) => updateAnswer(evaluation.id, theme.id, { observation: value })}
+                  onChangeText={(value) => saveAnswer(evaluation.id, theme.id, { observation: value })}
                   placeholder="Registre o diagnóstico, a prática encontrada e os principais riscos."
                   placeholderTextColor={colors.neutral}
                   multiline
@@ -225,7 +224,7 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
         <View style={styles.submitCard}>
           <Text style={styles.submitTitle}>Finalizar auditoria</Text>
           <Text style={styles.submitText}>O envio exige todos os itens classificados, evidências obrigatórias e plano de ação para cada não conformidade.</Text>
-          <AppButton title="Enviar para validação" onPress={handleSubmit} style={styles.submitButton} />
+          <AppButton title="Enviar para validação" onPress={() => void handleSubmit()} style={styles.submitButton} />
         </View>
       )}
 

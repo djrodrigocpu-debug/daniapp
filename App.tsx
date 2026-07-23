@@ -6,6 +6,7 @@ import { AuthProvider } from './src/context/AuthProvider';
 import { RepositoryProvider } from './src/data/repositories/RepositoryProvider';
 import { AppProvider } from './src/context/AppContext';
 import { OperationsProvider } from './src/context/OperationsProvider';
+import { EvaluationsProvider } from './src/context/EvaluationsProvider';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { colors } from './src/theme';
 
@@ -23,7 +24,9 @@ export default function App() {
             <RepositoryProvider>
               <AppProvider>
                 <OperationsProvider>
-                  <AppNavigator />
+                  <EvaluationsProvider>
+                    <AppNavigator />
+                  </EvaluationsProvider>
                 </OperationsProvider>
               </AppProvider>
             </RepositoryProvider>

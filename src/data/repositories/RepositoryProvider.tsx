@@ -16,9 +16,13 @@ import { localStore } from '../store/localStore';
 import { OperationsRepository } from './OperationsRepository';
 import { LocalOperationsRepository } from './LocalOperationsRepository';
 import { SupabaseOperationsRepository } from './SupabaseOperationsRepository';
+import { EvaluationsRepository } from './EvaluationsRepository';
+import { LocalEvaluationsRepository } from './LocalEvaluationsRepository';
+import { SupabaseEvaluationsRepository } from './SupabaseEvaluationsRepository';
 
 export interface Repositories {
   operations: OperationsRepository;
+  evaluations: EvaluationsRepository;
   /** Origem efetiva dos dados operacionais. */
   source: 'supabase' | 'local';
 }
@@ -26,9 +30,17 @@ export interface Repositories {
 function buildRepositories(): Repositories {
   const client = runtimeConfig.isConfigured ? getSupabaseClient(runtimeConfig) : null;
   if (client) {
-    return { operations: new SupabaseOperationsRepository(client), source: 'supabase' };
+    return {
+      operations: new SupabaseOperationsRepository(client),
+      evaluations: new SupabaseEvaluationsRepository(client),
+      source: 'supabase',
+    };
   }
-  return { operations: new LocalOperationsRepository(localStore), source: 'local' };
+  return {
+    operations: new LocalOperationsRepository(localStore),
+    evaluations: new LocalEvaluationsRepository(localStore),
+    source: 'local',
+  };
 }
 
 const RepositoryContext = createContext<Repositories | undefined>(undefined);

@@ -7,17 +7,17 @@ import { AppButton } from '../components/AppButton';
 import { ProgressBar } from '../components/ProgressBar';
 import { SectionTitle } from '../components/SectionTitle';
 import { StatusPill } from '../components/StatusPill';
-import { useApp } from '../context/AppContext';
+import { useEvaluations } from '../context/EvaluationsProvider';
 import { colors, radius, spacing } from '../theme';
 import { RootStackParamList } from '../types';
 import { formatDate, getMaturity, trafficLightColor } from '../utils/format';
 
 export function OperationDetailScreen({ route, navigation }: NativeStackScreenProps<RootStackParamList, 'OperationDetail'>) {
   const { operationId } = route.params;
-  const { getOperation, getUser, data, startEvaluation, getCurrentDraft } = useApp();
+  const { getOperation, getUser, listByOperation, startEvaluation, getCurrentDraft } = useEvaluations();
   const operation = getOperation(operationId);
 
-  const history = useMemo(() => data.evaluations.filter((evaluation) => evaluation.operationId === operationId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5), [data.evaluations, operationId]);
+  const history = useMemo(() => listByOperation(operationId).slice(0, 5), [listByOperation, operationId]);
   if (!operation) return <Screen><Text>Operação não encontrada.</Text></Screen>;
   const activeOperation = operation;
 
@@ -25,14 +25,14 @@ export function OperationDetailScreen({ route, navigation }: NativeStackScreenPr
   const coordinator = getUser(activeOperation.coordinatorId);
   const delta = activeOperation.currentScore - activeOperation.previousScore;
 
-  function launch(frequency: 'weekly' | 'monthly') {
+  async function launch(frequency: 'weekly' | 'monthly') {
     const existing = getCurrentDraft(activeOperation.id);
     if (existing && existing.frequency !== frequency) {
       Alert.alert('Rascunho existente', 'Há uma auditoria em andamento para esta operação. Finalize ou envie o rascunho atual antes de iniciar outro ciclo.');
       return;
     }
-    const id = startEvaluation(activeOperation.id, frequency);
-    navigation.navigate('Evaluation', { operationId: activeOperation.id, evaluationId: id });
+    const id = await startEvaluation(activeOperation.id, frequency);
+    if (id) navigation.navigate('Evaluation', { operationId: activeOperation.id, evaluationId: id });
   }
 
   return (
@@ -72,8 +72,8 @@ export function OperationDetailScreen({ route, navigation }: NativeStackScreenPr
 
       <SectionTitle title="Avaliação operacional" subtitle="Checklists semanal e mensal permanecem disponíveis para os processos de excelência." />
       <View style={styles.buttonRow}>
-        <AppButton title="Auditoria semanal" onPress={() => launch('weekly')} style={styles.flexButton} />
-        <AppButton title="Auditoria mensal" onPress={() => launch('monthly')} variant="secondary" style={styles.flexButton} />
+        <AppButton title="Auditoria semanal" onPress={() => void launch('weekly')} style={styles.flexButton} />
+        <AppButton title="Auditoria mensal" onPress={() => void launch('monthly')} variant="secondary" style={styles.flexButton} />
       </View>
 
       <SectionTitle title="Histórico recente" subtitle="Ciclos registrados para esta operação." />
