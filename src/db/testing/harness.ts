@@ -78,10 +78,14 @@ async function applyBaseline(db: PGlite, opts: TestDbOptions): Promise<void> {
     await db.exec(read(f));
   }
   // Concede às roles o acesso de tabela que o Supabase concede globalmente.
+  // IMPORTANTE: NÃO concedemos `usage on schema app` a `authenticated` aqui — no
+  // Supabase real um schema criado por migration não dá USAGE a authenticated por
+  // padrão; quem concede é a migration 0008. Assim o harness reproduz fielmente o
+  // ambiente remoto (e teria pego o bug "permission denied for schema app").
   await db.exec(`
     grant select, insert, update, delete on all tables in schema public to authenticated;
     grant usage, select on all sequences in schema public to authenticated;
-    grant usage on schema app to anon, authenticated, service_role;
+    grant usage on schema app to anon, service_role;
     grant select on all tables in schema public to anon;
   `);
   if (opts.seed) {
