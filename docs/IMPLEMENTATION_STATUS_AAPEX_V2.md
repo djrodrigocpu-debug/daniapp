@@ -170,3 +170,23 @@ Supabase real; E2E dos quatro perfis; preview publicado.
 (supabase-js) e cortar `OperationsScreen`+`EvaluationScreen`+`ValidationsScreen` do
 `AppContext`, validando o fluxo vertical visita→auditoria→validação contra Supabase
 de homologação.
+
+---
+
+## Atualização 2026-07-23 — Fechamento funcional (verticais 1–8)
+
+Migração completa das telas para a camada de repositórios; `AppContext`/`mock`
+eliminados como fonte. Detalhes e tabelas em
+[`RELATORIO_FECHAMENTO_APLICATIVO_AAPEX_V2.md`](RELATORIO_FECHAMENTO_APLICATIVO_AAPEX_V2.md).
+
+- **Feito:** autenticação real na UI; repositórios Local+Supabase para Operações,
+  Auditorias, Ações, Validações, Administração (usuários + indicadores versionados),
+  Performance e Evidências; providers dedicados; Dashboard/Agenda por repositório;
+  offline com persistência e sem duplicidade; `AppContext` removido.
+- **Métrica de legado:** 0 `useApp` em telas; 0 imports de `mock.ts` em telas.
+- **Testes/build:** 263 testes (56 PGlite) · typecheck · build web — todos OK.
+  Runtime verificado por perfil (GC/Coordenador/Admin).
+- **Bloqueado (ambiente):** Auth/Storage remotos, RLS em runtime, preview Vercel e
+  E2E completo dependem de Supabase provisionado. Adapters Supabase prontos.
+- **Próximo passo:** provisionar Supabase de homologação, criar views `ui_*` + RPCs
+  esperados pelos adapters, e validar login + auditoria→validação contra o servidor.

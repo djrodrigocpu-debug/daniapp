@@ -146,3 +146,22 @@
 ## Resumo por status
 
 Atualizado ao final de cada fase — ver [`IMPLEMENTATION_STATUS_AAPEX_V2.md`](IMPLEMENTATION_STATUS_AAPEX_V2.md) para o diário executivo.
+
+---
+
+## Atualização 2026-07-23 — Rastreabilidade da integração funcional
+
+Requisitos operacionais do Masterplan agora atendidos **na interface** por
+repositórios (não só no domínio):
+
+| Requisito | Implementação (UI → repositório → persistência) | Teste | Estado |
+| --------- | ------------------------------------------------ | ----- | ------ |
+| §5.1 Escopo por perfil | `OperationsRepository.isOperationVisible` + providers | LocalOperationsRepository.test | CONCLUÍDO LOCALMENTE |
+| §7.4 Trava de envio | `LocalEvaluationsRepository.submit` → `canSubmit` | LocalEvaluationsRepository.test | CONCLUÍDO LOCALMENTE |
+| §14 / T02 Anti-autoaprovação | `LocalValidationsRepository.validate` | ValidationsRepository.test | CONCLUÍDO LOCALMENTE |
+| §8.1 / T05 Indicador versionado | `AdminIndicatorsRepository` + `assertCanPhysicallyDelete` | AdminRepository.test | CONCLUÍDO LOCALMENTE |
+| §12 Evidências | `EvidenceRepository` (Local URI/status; Supabase bucket) | EvidenceRepository.test | Local: CONCLUÍDO; Storage remoto: BLOQUEADO |
+| §15 Dashboard real | `computeDashboardMetrics` via repositório | metrics.test | CONCLUÍDO LOCALMENTE |
+| §17 Offline/reabrir/sem dup | `localStore` + idempotência de ciclo | offlineReopen.test | CONCLUÍDO LOCALMENTE |
+
+Ver relatório completo: [`RELATORIO_FECHAMENTO_APLICATIVO_AAPEX_V2.md`](RELATORIO_FECHAMENTO_APLICATIVO_AAPEX_V2.md).

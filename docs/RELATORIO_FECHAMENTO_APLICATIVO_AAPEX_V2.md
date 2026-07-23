@@ -1,181 +1,159 @@
 # Relatório de Fechamento Funcional — AAPEX / AACE Excelência V2
 
 **Branch:** `aapex-v2-implantacao-corporativa`
-**Data:** 2026-07-22
-**Escopo desta sessão:** conectar a autenticação corporativa real à interface (fluxo vertical nº 1 do §28) e verificar o funcionamento **em runtime**, não apenas por testes estáticos.
+**Data:** 2026-07-23
+**Objeto:** eliminação do `AppContext`/`mock.ts` como fonte das telas e migração de
+todos os fluxos operacionais para uma camada de repositórios, com autenticação
+corporativa real e verificação **em runtime** por perfil.
 
-> **Aviso de honestidade (obrigatório).** Este ambiente de desenvolvimento **não possui
-> Docker, Supabase CLI, `psql` nem credenciais** (só `.env.example`). Logo, GoTrue (Auth),
-> PostgREST e Storage **não podem ser exercitados em runtime aqui**, e não há preview
-> Vercel. A camada de banco é validada com **PGlite** (PostgreSQL real em WASM). Nada
-> abaixo declara Auth/Storage remotos como concluídos. Ver `env-no-docker-supabase`.
-
----
-
-## 1. Estado inicial (HEAD `1b2f94e`)
-
-- Fundação corporativa **real e testada**, porém **desligada das telas**:
-  - `AuthController` + `authFactory` + `AuthProvider` (orquestração de sessão) — testados, mas **nenhuma tela os consumia**;
-  - `LoginScreen` fazia login **fictício** via `AppContext` (só e-mail, sem senha, com seletor de perfil demonstrativo no caminho principal);
-  - migrations 0001–0003 + RLS + triggers testados em PGlite;
-  - domínio puro completo (workflow, calendário, scoring, submissão, validação, outbox, authz, indicadores) testado.
-- Todas as telas operacionais liam o `AppContext` monolítico (seed `mock.ts` + `AsyncStorage`).
-- Baseline: **202 testes**, typecheck limpo, build web OK.
-
-O problema objetivo: **o login não era real** e a identidade das telas vinha de um atalho demonstrativo, não de uma sessão autenticada.
+> **Aviso de honestidade (obrigatório).** Este ambiente de desenvolvimento **não
+> possui Docker, Supabase CLI, `psql` nem credenciais** (só `.env.example`). Logo,
+> Auth/Storage/PostgREST **não são exercitados em runtime aqui**, e não há preview
+> Vercel. A base é validada com **PGlite** (PostgreSQL real em WASM). As
+> classificações abaixo seguem: **CONCLUÍDO** (real remoto exercitado),
+> **CONCLUÍDO LOCALMENTE** (persistência local executável), **BLOQUEADO PARA
+> AMBIENTE REMOTO** (pronto, depende de Supabase), **NÃO CONCLUÍDO**.
 
 ---
 
-## 2. O que foi feito nesta sessão (fluxo vertical nº 1: autenticação real)
+## 1. Resumo executivo
 
-Substituição do login demonstrativo pelo **fluxo corporativo real de ponta a ponta**,
-mantendo a estratégia *strangler* (§9.3): a mesma UI usa `SupabaseAuthRepository` em
-produção e `DemoAuthRepository` em dev, **sem mudança de tela**.
+Partindo de `1b2f94e` (login fictício, telas sobre `AppContext`/`mock`), a branch
+agora tem **todas as telas operacionais servidas por repositórios** com persistência
+local real e a **autenticação corporativa real ligada à interface**. O `AppContext`
+(a última ponte demonstrativa) foi **removido**. Nenhuma tela de produção importa
+`useApp` ou `mock.ts`.
 
-| # | Mudança | Arquivo |
-|---|---------|---------|
-| 1 | Ponte de identidade demo→sessão corporativa (diretório de perfis derivado do seed operacional; alinha id/e-mail/escopo) | `src/data/demoDirectory.ts` (novo) |
-| 2 | `resolveOperationalUser` — resolução pura e testável da sessão → `User` operacional | `src/data/demoDirectory.ts` |
-| 3 | `AppContext`: `currentUser` derivado da **sessão autenticada**; `logout` delega ao `AuthController`; remoção do login/atalho demonstrativo | `src/context/AppContext.tsx` |
-| 4 | `AppNavigator`: navegação bloqueada sem sessão (`initializing`/`anônimo`/`autenticado`) + estado **"perfil sem vínculo"** (§7) | `src/navigation/AppNavigator.tsx` |
-| 5 | `LoginScreen`: e-mail+senha reais, estados `busy`/erro, **recuperação de senha**; atalhos demo **estritamente** gated ao modo demo, com banner | `src/screens/LoginScreen.tsx` |
-| 6 | 4º perfil **Administrador** no modelo/seed; `roleLabel` completo | `src/types`, `src/data/mock.ts`, `src/utils/format.ts` |
-| 7 | `authFactory` aceita diretório demo injetado (não-quebra os testes existentes) | `src/services/auth/authFactory.ts` |
-| 8 | `AuthProvider` injeta o diretório operacional e expõe `requestPasswordReset` | `src/context/AuthProvider.tsx` |
-| 9 | 12 testes novos da ponte de identidade e do escopo derivado | `src/data/demoDirectory.test.ts` (novo) |
+**Métrica de remoção do legado (verificada):**
 
-**Efeito:** ao entrar como `coordenador@aace.app`, a UI recebe uma **sessão corporativa**
-cujo `session.user.id === 'U02'`; o escopo das telas passa a derivar dessa identidade.
-Em produção, o `SupabaseAuthRepository` ocupa exatamente o mesmo ponto.
+| Métrica | Antes | Agora |
+| ------- | ----: | ----: |
+| `useApp()` em `src/screens`/`src/components` | 9 | **0** |
+| Imports de `mock.ts` em telas | vários | **0** |
+| `AppContext` como banco | sim | **removido** |
+| Testes | 202 | **263** |
 
----
-
-## 3. Evidência de funcionamento (runtime, não só testes)
-
-Build web servido estaticamente (`dist/`) e dirigido no navegador. Verificação pela
-árvore de acessibilidade do app **de produção** (web export):
-
-1. **Boot / Login** — renderiza a nova tela: banner "Ambiente de demonstração", campos
-   E-mail+Senha, "Esqueci minha senha", 4 perfis (incl. **Administrador**), aviso
-   "sessão corporativa emulada, sem senha embutida".
-2. **Login como GC** (`gerente@aace.app` → U03) → Dashboard "Olá, Gerente" (Curitiba),
-   exibindo **apenas** Parceiro Alpha + Beta (as duas operações onde `managerId === U03`);
-   **aba Validações ausente** (GC não valida).
-3. **Perfil** reflete a identidade autenticada (`gerente@aace.app`, "Demonstração local").
-4. **Logout** → limpa a sessão e retorna ao Login (gate `anônimo`).
-5. **Login como Coordenação** (`coordenador@aace.app` → U02) → "Olá, Coordenação"
-   (PR Capital), agora **três** operações (Gama, Beta, Alpha, `coordinatorId === U02`) —
-   conjunto **diferente** do GC; **aba Validações aparece** (coordenador valida).
-6. **Operações** renderiza a lista com busca e filtros de semáforo (3 operações).
-
-Isto comprova em runtime: **login funcional**, **quatro perfis**, **escopo aplicado** e
-**isolamento real entre usuários** (§25 nº 1, 2, 3, 19), além de navegação por papel.
+`mock.ts` sobrevive apenas como **seed de desenvolvimento** em `localStore` e
+`demoDirectory` (nunca importado por telas). Modo demo é impossível em produção
+(`resolveFeatureFlags` + `authFactory`), sem senha embutida (T30) e sem
+`service_role` no cliente (T03).
 
 ---
 
-## 4. Tabela de módulos
+## 2. Arquitetura entregue
 
-| Módulo | UI real | Persistência real | Escopo real | Teste real | Pronto |
-| ------ | ------: | ----------------: | ----------: | ---------: | -----: |
-| Autenticação (login/logout/sessão/recuperação) | ✅ | ⚠️ demo em memória · Supabase pronto p/ plugar | ✅ | ✅ unit + runtime | ⚠️ parcial (senha validada só no Supabase) |
-| Operações (lista/escopo/busca/filtro) | ✅ | ⚠️ AsyncStorage local | ✅ (por identidade) | ⚠️ domínio + runtime | 🟡 local |
-| Visita / Auditoria (rascunho→envio→devolução→aprovação) | ✅ | ⚠️ local | ✅ | ⚠️ domínio (workflow/submissão) sim; integração de tela não | 🟡 local |
-| Evidências | ⚠️ picker | ❌ URI local (não é Storage) | ✅ | ⚠️ domínio | ❌ |
-| Planos de ação (item vermelho obrigatório) | ✅ | ⚠️ local | ✅ | ✅ domínio (submissão) | 🟡 local |
-| Validações (aprovar/devolver, sem autoaprovação) | ✅ | ⚠️ local | ✅ (`canValidate`) | ✅ domínio (authz) | 🟡 local |
-| Dashboard (números do estado real) | ✅ | ⚠️ local | ✅ | ⚠️ | 🟡 local |
-| Agenda | ✅ | ⚠️ local | ✅ | ⚠️ | 🟡 local |
-| Administração (Usuários/Indicadores) | ❌ | ❌ | — | domínio (lifecycle) sim | ❌ |
-| Offline / Sincronização | ❌ UI | ⚠️ outbox testada, não ligada à UI | — | ✅ domínio | ❌ |
+**Store** — `src/data/store/localStore.ts`: fonte única persistente (AsyncStorage),
+`useSyncExternalStore`. Seed de dev na primeira hidratação.
 
-Legenda: ✅ pronto · ⚠️ parcial/local · 🟡 funcional só localmente · ❌ pendente.
+**Repositórios** (contrato + `Local` REAL LOCAL + `Supabase` REAL REMOTO pronto):
+Operations, Evaluations, Actions, Validations, Admin (Users + Indicators),
+Performance, Evidence. Seleção por ambiente em `RepositoryProvider`.
 
-## 5. Tabela de telas
+**Providers/hooks de tela** (consomem repositórios, nunca o store como banco na UI):
+`AuthProvider`, `RepositoryProvider`, `SyncProvider`, `OperationsProvider`
+(`useOperations`/`useDashboard`), `EvaluationsProvider`, `ActionsProvider`,
+`ValidationsProvider`, `AdminProvider`, `usePerformance`, `useOperationalUser`.
 
-| Tela | Mock removido | Backend conectado | Testada | Observação |
-| ---- | ------------: | ----------------: | ------: | ---------- |
-| LoginScreen | ✅ (usa `useAuth`) | ✅ `AuthController` (Supabase-ready) | ✅ runtime + unit | senha real só com Supabase |
-| AppNavigator | ✅ (gate por sessão) | ✅ sessão corporativa | ✅ runtime | + estado "perfil sem vínculo" |
-| ProfileScreen | ⚠️ (identidade da sessão; logout via auth) | ⚠️ | ✅ runtime | dados operacionais ainda locais |
-| DashboardScreen | ❌ (AppContext local) | ❌ | ✅ runtime (identidade real) | escopo por identidade real |
-| OperationsScreen | ❌ (AppContext local) | ❌ | ✅ runtime | escopo por identidade real |
-| OperationDetailScreen | ❌ | ❌ | — | — |
-| EvaluationScreen | ❌ | ❌ | — | regras testadas no domínio |
-| ValidationsScreen | ❌ | ❌ | — | `canValidate` real na navegação |
-| ActionsScreen | ❌ | ❌ | — | — |
-| AgendaScreen | ❌ | ❌ | — | — |
-| PerformanceScreen | ❌ | ❌ | — | — |
-
-> "Backend conectado" refere-se a um **repositório/servidor autoritativo**. As telas
-> marcadas ❌ continuam lendo o `AppContext` (seed `mock.ts` + persistência `AsyncStorage`)
-> — **já dirigidas pela identidade autenticada real**, mas ainda sem a camada de
-> repositório e sem backend remoto.
+**Regras de negócio reusadas do domínio testado:** `canSubmit` (§7.4),
+`calculateScore`, `assertCanPhysicallyDelete` (T05), `subjectFromSession`/authz,
+`enqueue` outbox (idempotência §12.3).
 
 ---
 
-## 6. Providers, repositórios, Supabase, Auth, Storage
+## 3. Verificação em runtime (build web servido, por perfil)
 
-- **Providers:** `AuthProvider` é a fonte de verdade da sessão. O `AppContext` foi
-  **reduzido** (deixou de autenticar; passou a consumir a sessão). A decomposição em
-  `OperationsProvider`/`VisitsProvider`/… (§6) **ainda não foi feita** — é o próximo passo.
-- **Repositórios operacionais:** ainda são **contratos** (`domain/repositories`), sem
-  implementação `supabase-js` nem implementação local que as telas consumam. Pendente.
-- **Supabase / Auth / Storage:** **não exercitados** (sem credenciais/Docker). O caminho
-  de código existe e está testado por unidade; runtime remoto bloqueado.
-
----
-
-## 7. Testes / build
-
-- `typecheck` (tsc --noEmit): **limpo**.
-- `vitest run`: **214 testes** (202 anteriores + 12 novos), todos verdes — inclui as
-  integrações PGlite de RLS/triggers/schema.
-- `expo export --platform web`: **OK** (bundle gerado em `dist/`).
-- **Runtime**: fluxo de autenticação verificado no navegador (§3). Sem segredo no repo
-  (só `.env.example`; guardas `assertNoPrivilegedSecrets` + `no-demo-secret.test`).
-- **E2E Playwright**: não adicionado nesta sessão (o E2E completo depende do backend;
-  as regras críticas estão cobertas no domínio: `submission`, `stateMachine`, `validation`).
+1. **Autenticação real** — login por AuthController; GC vê 2 operações do seu escopo
+   (sem aba Validações), Coordenador vê 3 + aba Validações, Admin vê 6 + aba Admin;
+   logout limpa a sessão. Isolamento real entre perfis.
+2. **Dashboard** — índice médio 73/75 calculado pelo repositório sobre o escopo
+   (não constante); próximas auditorias ordenadas.
+3. **Auditoria** — abrir operação → iniciar auditoria (ciclo real "Semana de
+   22/07/2026") → classificar item → conclusão 0%→6%, nota 0→7 (persistido, nota
+   recalculada pelo domínio).
+4. **Validação** — Coordenador aprova E01/Beta; fila e métrica do dashboard vão de
+   1→0 (reatividade entre providers via store compartilhado).
+5. **Administração** — aba Admin só para admin; criar indicador IND-099 → aparece na
+   lista e **persiste** (localStorage: IND-012, IND-045, IND-099).
+6. **Offline** — Perfil exibe "Salvo neste dispositivo"; teste automatizado: editar
+   offline → reabrir → rascunho preservado → sem duplicidade.
 
 ---
 
-## 8. Pendências (ordem recomendada para as próximas sessões)
+## 4. Tabela de telas
 
-1. **Camada de repositório consumível pelas telas** — implementar `LocalOperationsRepository`
-   (AsyncStorage, mesma interface do contrato) e migrar `OperationsScreen`/`DashboardScreen`
-   para consumi-lo; depois `SupabaseOperationsRepository` (plug-in, sem mudar UI).
-2. **Decomposição do AppContext** em providers corporativos (§6).
-3. **Telas administrativas** (Usuários + Indicadores versionados) — usar `domain/indicators/lifecycle`
-   (já testado) e `canManageUsers`/`canManageIndicators`.
-4. **Ligar a outbox à UI** (estados salvo/sincronizando/erro/conflito) — domínio pronto.
-5. **Evidências**: adapter local com a interface de Storage; remoto só com Supabase.
-6. **E2E web** (Playwright) sobre o fluxo crítico.
-7. **Provisionar Supabase** (homologação) → Auth/Storage/RLS em runtime → preview Vercel.
+| Tela | Mock removido | Repository | Persistência | Runtime testado | Estado |
+| ---- | ------------: | ---------- | ------------ | --------------: | ------ |
+| LoginScreen | ✅ | AuthController | sessão | ✅ | CONCLUÍDO LOCALMENTE |
+| DashboardScreen | ✅ | Operations | local | ✅ | CONCLUÍDO LOCALMENTE |
+| OperationsScreen | ✅ | Operations | local | ✅ | CONCLUÍDO LOCALMENTE |
+| OperationDetailScreen | ✅ | Evaluations | local | ✅ | CONCLUÍDO LOCALMENTE |
+| EvaluationScreen | ✅ | Evaluations + Evidence | local | ✅ | CONCLUÍDO LOCALMENTE |
+| ActionsScreen | ✅ | Actions | local | ✅ | CONCLUÍDO LOCALMENTE |
+| ValidationsScreen | ✅ | Validations | local | ✅ | CONCLUÍDO LOCALMENTE |
+| AgendaScreen | ✅ | Operations + Actions | local | ✅ | CONCLUÍDO LOCALMENTE |
+| AdminScreen | ✅ | AdminUsers + AdminIndicators | local | ✅ | CONCLUÍDO LOCALMENTE |
+| PerformanceScreen | ✅ | Performance + Evaluations | local | parcial | CONCLUÍDO LOCALMENTE |
+| ProfileScreen | ✅ | Auth + Operations + Sync | sessão/local | ✅ | CONCLUÍDO LOCALMENTE |
 
-## 9. Riscos e decisões
+## 5. Tabela de módulos
 
-- **Risco:** telas operacionais ainda em `AppContext`/`AsyncStorage` — dados são reais e
-  persistidos **localmente**, porém não isolados por RLS de servidor. Mitigação: RLS já
-  existe e é testada; falta plugar os repositórios Supabase.
-- **Decisão corporativa mantida:** modo demo é **impossível em produção** (`resolveFeatureFlags`
-  + `authFactory`), sem senha embutida (T30), sem `service_role` no cliente (T03).
-- **Decisão:** o diretório demo é derivado do seed operacional para alinhar identidade e
-  escopo; em produção os mesmos ids/e-mails podem ser reaproveitados no provisionamento.
+| Módulo | UI | Local real | Supabase adapter | Supabase remoto testado | Pronto |
+| ------ | -: | ---------: | ---------------: | ----------------------: | ------ |
+| Autenticação/Sessão | ✅ | ✅ (demo dir.) | ✅ | ❌ | CONCLUÍDO LOCALMENTE |
+| Operações + Dashboard | ✅ | ✅ | ✅ (view `ui_operations`) | ❌ | CONCLUÍDO LOCALMENTE |
+| Visitas/Auditorias | ✅ | ✅ | ✅ (RPCs) | ❌ | CONCLUÍDO LOCALMENTE |
+| Planos de ação | ✅ | ✅ | ✅ | ❌ | CONCLUÍDO LOCALMENTE |
+| Validações | ✅ | ✅ (T02/escopo/imutável) | ✅ (RPC) | ❌ | CONCLUÍDO LOCALMENTE |
+| Agenda | ✅ | ✅ | ✅ (via repos) | ❌ | CONCLUÍDO LOCALMENTE |
+| Administração (usuários/indicadores) | ✅ | ✅ (T05) | ✅ (RPCs) | ❌ | CONCLUÍDO LOCALMENTE |
+| Evidências | ✅ | ✅ (URI + status local) | ✅ (bucket + URL assinada) | ❌ | Storage: BLOQUEADO PARA AMBIENTE REMOTO |
+| Offline/Sync | ✅ (indicador) | ✅ (persistência + reabrir) | outbox idempotente | ❌ | CONCLUÍDO LOCALMENTE (remoto: BLOQUEADO) |
+| Auth/Storage remotos (GoTrue/Storage) | — | — | ✅ código | ❌ | BLOQUEADO PARA AMBIENTE REMOTO |
+| Preview Vercel | — | — | — | ❌ | BLOQUEADO PARA AMBIENTE REMOTO |
+| E2E Playwright | — | — | — | ❌ | NÃO CONCLUÍDO (domínio coberto por unit) |
 
 ---
 
-## 10. Veredito
+## 6. Testes / build
 
-> **APLICATIVO FUNCIONAL LOCALMENTE, COM AUTENTICAÇÃO CORPORATIVA REAL JÁ LIGADA À
-> INTERFACE — MAS AINDA NÃO PRONTO PARA HOMOLOGAÇÃO.**
+- `typecheck`: limpo. `vitest run`: **263** testes (incl. 56 de banco PGlite:
+  RLS/triggers/schema). Novos: metrics, localStore, offlineReopen, e repositórios
+  Local (Operations, Evaluations, Actions/Validations, Admin, Evidence) + ponte de
+  identidade.
+- `expo export --platform web`: **OK** (`dist/`).
+- `expo-doctor`: 2 avisos **pré-existentes** e não relacionados a esta entrega —
+  schema de `app.json` (`newArchEnabled`/`splash`) e drift de versão de 3 pacotes
+  (`react-native-screens`, `expo`, `expo-image-picker`). Não afetam o build web.
+- Segurança: sem segredo no repo (só `.env.example`); guardas `assertNoPrivilegedSecrets`
+  + `no-demo-secret.test`.
 
-Justificativa objetiva (contra os critérios do §25): estão **verdadeiros** login funcional,
-quatro perfis, escopo aplicado, isolamento real, build e ausência de segredo. **Ainda
-faltam**: telas fora do `AppContext`/mock como fonte (repositórios), administração,
-indicador versionado na UI, offline/sync na UI, evidências em Storage real, e todo o
-runtime remoto (Auth/Storage/E2E/preview) — este último **bloqueado neste ambiente** por
-falta de Docker/Supabase/credenciais.
+---
 
-**Próximo arquivo/fluxo exato:** criar `src/data/repositories/LocalOperationsRepository.ts`
-(implementando `VisitsRepository.listVisibleOperations` + leitura de operações sobre o
-mesmo estado persistido) e migrar `src/screens/OperationsScreen.tsx` para consumi-lo via
-um `OperationsProvider`, mantendo o `SupabaseOperationsRepository` como alvo de plug-in.
+## 7. Pendências (para o ambiente remoto)
+
+1. **Provisionar Supabase** (homologação): aplicar migrations, criar as projeções de
+   leitura `ui_*` e os RPCs referenciados pelos adapters Supabase; validar RLS em
+   runtime; então trocar `RepositoryProvider` para `source: 'supabase'` (sem mudar UI).
+2. **Storage real** de evidências (bucket privado + URL assinada) — código pronto.
+3. **E2E web (Playwright)** sobre o fluxo crítico com backend.
+4. **Preview Vercel** com variáveis de homologação.
+5. Higiene opcional: alinhar `app.json`/versões apontadas pelo expo-doctor.
+
+---
+
+## 8. Veredito
+
+> **APLICATIVO FUNCIONAL LOCALMENTE.** Todos os fluxos operacionais (login, escopo,
+> operações, auditoria, evidência local, plano vermelho obrigatório, validação com
+> anti-autoaprovação, dashboard, agenda, administração de usuários e indicadores
+> versionados, offline com persistência e sem duplicidade) rodam sobre a **camada de
+> repositórios com persistência local real**, verificados em runtime por perfil.
+>
+> **AINDA BLOQUEADO PARA HOMOLOGAÇÃO REMOTA**: Supabase Auth/Storage, RLS em runtime,
+> preview e E2E completo dependem de um backend provisionado — indisponível neste
+> ambiente. Os adapters Supabase estão prontos para conexão sem alteração de UI.
+
+**Próximo passo exato:** provisionar o Supabase de homologação, criar as views `ui_*`
+e RPCs esperados pelos adapters (`src/data/repositories/Supabase*Repository.ts`),
+definir `EXPO_PUBLIC_SUPABASE_URL`/`ANON_KEY`, e validar login + um fluxo vertical
+(auditoria→validação) contra o servidor.
