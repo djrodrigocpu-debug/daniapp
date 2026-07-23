@@ -11,6 +11,10 @@
  */
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { AppConfig } from '../../config/env';
+// Tipos GERADOS do schema remoto (npx supabase gen types --linked). Descrevem
+// tabelas/views ui_*/RPCs reais do projeto de homologação. Ligados na criação do
+// cliente; os tipos de DOMÍNIO (src/types) permanecem a fonte da UI (não removidos).
+import { Database } from './database.types';
 
 let cached: SupabaseClient | null = null;
 let cachedForUrl: string | null = null;
@@ -27,7 +31,7 @@ export function getSupabaseClient(config: AppConfig): SupabaseClient | null {
   if (cached && cachedForUrl === config.supabaseUrl) {
     return cached;
   }
-  cached = createClient(config.supabaseUrl, config.supabaseAnonKey, {
+  cached = createClient<Database>(config.supabaseUrl, config.supabaseAnonKey, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
