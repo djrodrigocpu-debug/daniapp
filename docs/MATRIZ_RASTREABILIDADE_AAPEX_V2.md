@@ -165,3 +165,27 @@ repositórios (não só no domínio):
 | §17 Offline/reabrir/sem dup | `localStore` + idempotência de ciclo | offlineReopen.test | CONCLUÍDO LOCALMENTE |
 
 Ver relatório completo: [`RELATORIO_FECHAMENTO_APLICATIVO_AAPEX_V2.md`](RELATORIO_FECHAMENTO_APLICATIVO_AAPEX_V2.md).
+
+---
+
+## L. Camada server-side e implantação remota (2026-07-23, parte 2)
+
+> Projeto Supabase de homologação `plnbgdabciwygsmnyddy`. Migrations 0004→0007
+> aplicadas e registradas no remoto (`db push` · `migration list --linked`).
+> Validação: 74 testes PGlite (`src/db/*.integration.test.ts`) + tipos gerados do
+> schema real (`gen types --linked`). Legenda de status: ver topo.
+
+| ID | Requisito | Origem | Implementação | Teste/Evidência | Status |
+| --- | --- | --- | --- | --- | --- |
+| REQ-SRV-01 | Projeções de leitura `ui_*` alinhadas à UI, respeitando escopo | §5.1; §8 | `0005_ui_projections.sql` (5 views, `security_invoker=true`) | `projections.integration.test.ts` (RLS por perfil) + `gen types --linked` | CONCLUÍDO |
+| REQ-SRV-02 | RPCs de escrita com autoridade no servidor | §7.4; §11.4 | `0006_domain_rpcs.sql` (19 RPCs `SECURITY DEFINER`, authz no corpo, `search_path` fixo) | `projections.integration.test.ts` (positivo/negativo) + remoto | CONCLUÍDO |
+| REQ-SRV-03 | Anti-autoaprovação no servidor (T02) | §14; T02 | `validate_evaluation` (autor≠validador, perfil, escopo) | teste de autoaprovação negada | CONCLUÍDO |
+| REQ-SRV-04 | Admin-only para usuários/indicadores (D-05) | §10; D-05 | RPCs `admin_*` com `is_admin()` no corpo | teste não-admin negado | CONCLUÍDO |
+| REQ-SRV-05 | Travas de envio (completude/evidência/plano vermelho) | §7.4 | `submit_evaluation` (espelha `canSubmit`) | teste das 3 travas em sequência | CONCLUÍDO |
+| REQ-SRV-06 | Snapshot oficial imutável na aprovação | §11.4 | `validate_evaluation` insere `official_snapshots` (DEFINER; sem policy ao cliente) | teste + trigger append-only | CONCLUÍDO |
+| REQ-SRV-07 | Bucket privado de evidências + políticas de Storage | §12; T03 | `0007_storage_evidencias.sql` (bucket `evidencias` `public=false` + policies) | aplicado no remoto (schema `storage`) | CONCLUÍDO COM RESSALVA (introspecção ao vivo exige Docker) |
+| REQ-SRV-08 | Tabelas de Gestão Assistida sob RLS | §7.5/§7.6 | `0004` `indicator_results`/`visit_reports` (RLS forçada + políticas por operação) | `schema.integration.test.ts` (30 tabelas c/ RLS) | CONCLUÍDO |
+| REQ-SRV-09 | Reconciliação de contrato adapter↔view (camelCase) | §8 | ajuste dos `Supabase*Repository.ts` + `database.types.ts` ligado em `client.ts` | typecheck + 281 testes | CONCLUÍDO |
+| REQ-SRV-10 | Reversibilidade fora do caminho de `db push` | §18.3 | `supabase/rollback/0001_core_schema.down.sql`; harness com descoberta dinâmica | `db reset` idempotente (30 tabelas) | CONCLUÍDO |
+| REQ-SRV-11 | Onboarding de usuário em produção | §5.4 | `admin_create_user` (registro de perfil convidado via SQL) | — | BLOQUEADO POR DEPENDÊNCIA EXTERNA (Auth Admin API / Edge Function) |
+| REQ-SRV-12 | Sem segredo versionado; `service_role` fora do cliente | §13.3; T03 | migrations sem segredo; `assertNoPrivilegedSecrets` | varredura de segredos | CONCLUÍDO |

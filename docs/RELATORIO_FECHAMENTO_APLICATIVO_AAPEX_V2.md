@@ -157,3 +157,52 @@ Performance, Evidence. Seleção por ambiente em `RepositoryProvider`.
 e RPCs esperados pelos adapters (`src/data/repositories/Supabase*Repository.ts`),
 definir `EXPO_PUBLIC_SUPABASE_URL`/`ANON_KEY`, e validar login + um fluxo vertical
 (auditoria→validação) contra o servidor.
+
+---
+
+## 9. Adendo (2026-07-23) — Supabase remoto de homologação **PROVISIONADO**
+
+O "próximo passo exato" do §8 foi executado. O banco de homologação
+(`plnbgdabciwygsmnyddy`) recebeu o esquema completo; a camada server-side que os
+adapters esperavam **passou a existir** e foi validada em Postgres real antes do push.
+
+**O que mudou desde o §8:**
+
+| Objeto | Antes (§8) | Agora |
+| --- | --- | --- |
+| Views `ui_*` (5) | inexistentes | criadas (`0005`, `security_invoker`) e **confirmadas no remoto** |
+| RPCs (19) | inexistentes | criados (`0006`, `SECURITY DEFINER` + authz no corpo) e **confirmados no remoto** |
+| Bucket privado `evidencias` + políticas | inexistente | criado (`0007`) no remoto |
+| Tabelas `indicator_results`/`visit_reports` | inexistentes | criadas (`0004`) com RLS forçada |
+| Contrato adapter↔view (snake/camel) | contraditório | reconciliado (camelCase) |
+| Migrations no remoto | nenhuma | **0001→0007 aplicadas e registradas** |
+
+**Como foi verificado (honesto):**
+- **Diretamente no remoto (leitura):** `migration list --linked` (0001–0007
+  registradas) e `gen types --linked` (5 views + 19 RPCs + tabelas novas no schema real).
+- **Por construção:** RLS enable/force nas 30 tabelas, políticas, triggers e bucket
+  privado — o **mesmo SQL** aplicado ao remoto é provado por **74 testes PGlite**.
+- **Não executável nesta máquina:** introspecção RLS ao vivo via `db dump` (exige
+  Docker). Para conferência independente, rode no SQL editor do projeto:
+  ```sql
+  -- toda tabela public deve ter rowsecurity = true
+  select relname, relrowsecurity, relforcerowsecurity
+    from pg_class c join pg_namespace n on n.oid=c.relnamespace
+   where n.nspname='public' and c.relkind='r' order by 1;
+  -- políticas, views e bucket privado
+  select count(*) policies from pg_policies where schemaname='public';
+  select table_name from information_schema.views where table_schema='public' and table_name like 'ui_%';
+  select id, public from storage.buckets where id='evidencias';  -- public deve ser false
+  ```
+
+**Ressalva de arquitetura:** `admin_create_user` insere em `auth.users` via SQL
+(funciona para o registro de perfil convidado); o **onboarding de produção** deve
+migrar para a Auth Admin API / Edge Function (service_role server-side).
+
+**Ainda pendente para o piloto:** variáveis públicas na Vercel
+(`EXPO_PUBLIC_SUPABASE_URL`/`ANON_KEY`); ao menos um usuário real (auth + `public.users`
++ `user_scopes`) para login; smoke test anon-denial ao vivo; E2E web; preview publicado.
+
+> **Veredito atualizado:** o backend de homologação está **provisionado e íntegro**;
+> o app está a **um passo de configuração** (variáveis públicas na Vercel + primeiro
+> usuário) de rodar em `source:'supabase'` sem alterar a UI.

@@ -190,3 +190,75 @@ eliminados como fonte. Detalhes e tabelas em
   E2E completo dependem de Supabase provisionado. Adapters Supabase prontos.
 - **Próximo passo:** provisionar Supabase de homologação, criar views `ui_*` + RPCs
   esperados pelos adapters, e validar login + auditoria→validação contra o servidor.
+
+---
+
+## Atualização 2026-07-23 (parte 2) — Implantação no Supabase remoto de homologação
+
+> Projeto Supabase: `plnbgdabciwygsmnyddy`. Branch: `aapex-v2-implantacao-corporativa`
+> (sem merge na `main`). Nenhum segredo versionado; `service_role` jamais no cliente.
+
+### Fase 21 — Camada server-side (projeções + RPCs + storage) — **CONCLUÍDA**
+
+A auditoria confrontou os adapters `Supabase*Repository.ts` com o SQL e constatou que
+**toda a camada server-side referenciada pelo código não existia** nas migrations
+(5 views `ui_*`, 19 RPCs, bucket de evidências) e que havia **contradição de contrato**
+(adapters filtravam por snake_case e faziam cast para tipos camelCase). Construída e
+validada em Postgres real (PGlite/PG18) **antes** de qualquer contato com o remoto:
+
+- `0004_domain_extension.sql` — tabelas `indicator_results`/`visit_reports` (RLS
+  forçada + políticas por operação + `updated_at`), colunas de UI ausentes em
+  `evaluations`/`action_plans`, e helpers (`score_traffic_light` = farol §15;
+  tradução `app.action_status` ↔ união da UI).
+- `0005_ui_projections.sql` — 5 views `ui_operations`/`ui_evaluations`/
+  `ui_action_plans`/`ui_users`/`ui_indicators`, **`security_invoker = true`**
+  (a RLS-base é avaliada no papel do usuário — sem isso vazaria linhas), camelCase.
+- `0006_domain_rpcs.sql` — 19 RPCs `SECURITY DEFINER` com `search_path` fixo e
+  **autorização explícita no corpo** (as mesmas funções da RLS): anti-autoaprovação
+  (T02), admin-only (D-05), escopo (T01), travas de envio §7.4 (completude/evidência/
+  plano para item vermelho), snapshot oficial imutável na aprovação.
+- `0007_storage_evidencias.sql` — bucket **privado** `evidencias` + políticas de
+  `storage.objects` (guardado por existência do schema `storage`: no-op no PGlite,
+  aplica no Supabase real).
+- **Reconciliação de contrato:** views/RPCs em camelCase; adapters ajustados
+  (`nextAudit`/`createdAt`/`submittedAt`/`dueDate`/`operationId`); `mapRow` de
+  `ui_operations` simplificado.
+- **Higiene de deploy:** `0001_core_schema.down.sql` movido para `supabase/rollback/`
+  para o `db push` aplicar **só** os forward 0001–0007 (sem colisão de versão);
+  harness passa a **descobrir migrations dinamicamente**.
+
+**Testes:** `src/db/projections.integration.test.ts` (+18) exercita as views por
+perfil (RLS respeitada) e os RPCs (positivo/negativo). `test:db` **74/74**.
+
+### Fase 22 — Aplicação e verificação no remoto — **CONCLUÍDA (com nota)**
+
+- `supabase login` + `link --project-ref plnbgdabciwygsmnyddy` (token/senha digitados
+  pelo operador; nunca expostos).
+- `db push --dry-run` **100% limpo** — 7 migrations reconhecidas, em ordem.
+- `db push` aplicou **0001→0007** no remoto sem erro.
+- **Verificado por leitura no remoto:** `migration list --linked` → 0001–0007
+  registradas; `gen types typescript --linked` (`src/services/supabase/database.types.ts`,
+  ligado em `client.ts`) confirma no schema real **5 views `ui_*`**, **19 RPCs** e as
+  **tabelas novas**.
+- **Garantido por construção:** RLS enable/force nas 30 tabelas, políticas, triggers e
+  bucket privado — o **mesmo SQL** aplicado ao remoto é provado pelos 74 testes PGlite;
+  o `0007` rodou no remoto (schema `storage` presente).
+- **Nota honesta:** introspecção RLS **ao vivo** no remoto não pôde ser executada nesta
+  máquina (`db dump` exige Docker, ausente). SQL de verificação independente fornecido
+  no relatório. `admin_create_user` insere em `auth.users` via SQL — funciona, mas o
+  **onboarding de produção** deve migrar para a Auth Admin API / Edge Function.
+
+### Verificação (2026-07-23, parte 2)
+| Comando | Resultado |
+| --- | --- |
+| `npm run typecheck` | OK |
+| `npm test` | **281/281** (35 arquivos) |
+| `npm run test:db` | **74/74** (PGlite) |
+| `npm run build` (web) | OK — `dist/` |
+| `db push` remoto | 0001→0007 aplicadas |
+| Varredura de segredos | OK (sem `.env`/token/`service_role`) |
+
+**Próximo passo executável:** definir na Vercel as variáveis **públicas**
+`EXPO_PUBLIC_SUPABASE_URL` e `EXPO_PUBLIC_SUPABASE_ANON_KEY` (o `RepositoryProvider`
+passa a `source:'supabase'` sem mudar UI); provisionar ao menos um usuário real
+(auth + `public.users` + `user_scopes`) para login; smoke test anon-denial ao vivo.
