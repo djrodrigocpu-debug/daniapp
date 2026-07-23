@@ -9,6 +9,7 @@ import { EvaluationsProvider } from './src/context/EvaluationsProvider';
 import { ActionsProvider } from './src/context/ActionsProvider';
 import { ValidationsProvider } from './src/context/ValidationsProvider';
 import { AdminProvider } from './src/context/AdminProvider';
+import { SyncProvider } from './src/context/SyncProvider';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { colors } from './src/theme';
 
@@ -23,17 +24,19 @@ export default function App() {
               consomem os repositórios — o AppContext/mock foi eliminado (§6, §16). */}
           <AuthProvider>
             <RepositoryProvider>
-              <OperationsProvider>
-                <EvaluationsProvider>
-                  <ActionsProvider>
-                    <ValidationsProvider>
-                      <AdminProvider>
-                        <AppNavigator />
-                      </AdminProvider>
-                    </ValidationsProvider>
-                  </ActionsProvider>
-                </EvaluationsProvider>
-              </OperationsProvider>
+              <SyncProvider>
+                <OperationsProvider>
+                  <EvaluationsProvider>
+                    <ActionsProvider>
+                      <ValidationsProvider>
+                        <AdminProvider>
+                          <AppNavigator />
+                        </AdminProvider>
+                      </ValidationsProvider>
+                    </ActionsProvider>
+                  </EvaluationsProvider>
+                </OperationsProvider>
+              </SyncProvider>
             </RepositoryProvider>
           </AuthProvider>
         </View>

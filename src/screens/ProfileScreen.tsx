@@ -3,6 +3,7 @@ import { Alert, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
 import { AppButton } from '../components/AppButton';
+import { SyncBadge } from '../components/SyncBadge';
 import { useAuth } from '../context/AuthProvider';
 import { useOperationalUser } from '../context/useOperationalUser';
 import { useOperations } from '../context/OperationsProvider';
@@ -35,6 +36,8 @@ export function ProfileScreen() {
         <Text style={styles.role}>{roleLabel[currentUser.role]}</Text>
         <Text style={styles.email}>{currentUser.email}</Text>
       </View>
+
+      <View style={styles.syncRow}><SyncBadge /></View>
 
       <View style={styles.infoCard}>
         <Info icon="map-outline" label="Área de atuação" value={currentUser.region} />
@@ -75,6 +78,7 @@ const styles = StyleSheet.create({
   name: { color: colors.ink, fontSize: 21, fontWeight: '900', textAlign: 'center', marginTop: spacing.md },
   role: { color: colors.primary, fontSize: 12, fontWeight: '800', marginTop: 4 },
   email: { color: colors.inkMuted, fontSize: 12, marginTop: 4 },
+  syncRow: { marginTop: spacing.md },
   infoCard: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.lg, marginTop: spacing.md },
   infoRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
   infoRowLast: { borderBottomWidth: 0 },
