@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
 import { AppButton } from '../components/AppButton';
 import { ActionPlanModal } from '../components/ActionPlanModal';
-import { useApp } from '../context/AppContext';
+import { usePerformance } from '../context/usePerformance';
 import { achievement, calculateIndicatorStatus } from '../data/performance';
 import { colors, radius, spacing } from '../theme';
 import { ActionPlan, IndicatorDefinition, IndicatorResult, RootStackParamList, TrafficLight } from '../types';
@@ -20,29 +20,29 @@ function formatValue(value: number, unit: string) {
 
 export function PerformanceScreen({ route }: NativeStackScreenProps<RootStackParamList, 'Performance'>) {
   const { operationId } = route.params;
-  const { data, getOperation, updateIndicatorResult, saveActionPlan, createVisitReport, currentUser } = useApp();
+  const { getOperation, indicatorResults, indicatorDefinitions, actionPlans, latestReport, updateIndicatorResult, saveActionPlan, createVisitReport } = usePerformance();
   const operation = getOperation(operationId);
   const [editing, setEditing] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<{ definition: IndicatorDefinition; result: IndicatorResult } | null>(null);
   const [objective, setObjective] = useState('Evoluir os indicadores críticos e garantir execução do plano de ação.');
   const [showAll, setShowAll] = useState(false);
 
-  const items = useMemo(() => data.indicatorResults
-    .filter((result) => result.operationId === operationId)
+  const operationActionPlans = actionPlans(operationId);
+  const items = useMemo(() => indicatorResults(operationId)
     .map((result) => {
-      const definition = data.indicatorDefinitions.find((item) => item.id === result.indicatorId)!;
+      const definition = indicatorDefinitions.find((item) => item.id === result.indicatorId)!;
       const status = calculateIndicatorStatus(definition, result);
       return { definition, result, status, achievement: achievement(definition, result) };
     })
-    .sort((a, b) => statusOrder[a.status] - statusOrder[b.status] || b.definition.weight - a.definition.weight), [data.indicatorDefinitions, data.indicatorResults, operationId]);
+    .sort((a, b) => statusOrder[a.status] - statusOrder[b.status] || b.definition.weight - a.definition.weight), [indicatorResults, indicatorDefinitions, operationId]);
 
   if (!operation) return <Screen><Text>Operação não encontrada.</Text></Screen>;
   const critical = items.filter((item) => item.status === 'red');
   const attention = items.filter((item) => item.status === 'yellow');
   const healthy = items.filter((item) => item.status === 'green');
   const visible = showAll ? items : items.filter((item) => item.status !== 'green');
-  const openPlans = data.actionPlans.filter((plan) => plan.operationId === operationId && !['completed', 'validated'].includes(plan.status));
-  const previousReport = data.visitReports.find((report) => report.operationId === operationId);
+  const openPlans = operationActionPlans.filter((plan) => !['completed', 'validated'].includes(plan.status));
+  const previousReport = latestReport(operationId);
 
   function savePlan(input: Omit<ActionPlan, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) {
     saveActionPlan(input);
@@ -50,7 +50,7 @@ export function PerformanceScreen({ route }: NativeStackScreenProps<RootStackPar
   }
 
   function finishVisit() {
-    const plans = data.actionPlans.filter((plan) => plan.operationId === operationId && plan.evaluationId === `PERF_${operationId}`);
+    const plans = operationActionPlans.filter((plan) => plan.evaluationId === `PERF_${operationId}`);
     const summary = `${critical.length} indicador(es) crítico(s), ${attention.length} em atenção e ${healthy.length} dentro da meta. ${plans.length} plano(s) de ação vinculado(s).`;
     createVisitReport({
       operationId,
@@ -103,7 +103,7 @@ export function PerformanceScreen({ route }: NativeStackScreenProps<RootStackPar
 
       {visible.map(({ definition, result, status: indicatorStatus, achievement: pct }) => {
         const isEditing = editing === result.id;
-        const existingPlan = data.actionPlans.find((plan) => plan.operationId === operationId && plan.themeId === definition.id && !['completed', 'validated'].includes(plan.status));
+        const existingPlan = operationActionPlans.find((plan) => plan.themeId === definition.id && !['completed', 'validated'].includes(plan.status));
         return (
           <View key={result.id} style={[styles.indicatorCard, { borderLeftColor: trafficLightColor[indicatorStatus] }]}>
             <View style={styles.indicatorTop}>
@@ -164,7 +164,7 @@ export function PerformanceScreen({ route }: NativeStackScreenProps<RootStackPar
 
       <ActionPlanModal
         visible={!!selectedPlan}
-        existing={selectedPlan ? data.actionPlans.find((plan) => plan.operationId === operationId && plan.themeId === selectedPlan.definition.id) : undefined}
+        existing={selectedPlan ? operationActionPlans.find((plan) => plan.themeId === selectedPlan.definition.id) : undefined}
         defaultOwner="Gerente de canal / parceiro"
         onClose={() => setSelectedPlan(null)}
         onSave={(plan) => selectedPlan && savePlan({ ...plan, operationId, evaluationId: `PERF_${operationId}`, themeId: selectedPlan.definition.id, problem: `${selectedPlan.definition.title}: realizado ${formatValue(selectedPlan.result.actual, selectedPlan.definition.unit)} versus meta ${formatValue(selectedPlan.result.target, selectedPlan.definition.unit)}.`, rootCause: selectedPlan.result.diagnosis ?? plan.rootCause, status: 'not_started' })}

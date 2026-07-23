@@ -4,7 +4,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider } from './src/context/AuthProvider';
 import { RepositoryProvider } from './src/data/repositories/RepositoryProvider';
-import { AppProvider } from './src/context/AppContext';
 import { OperationsProvider } from './src/context/OperationsProvider';
 import { EvaluationsProvider } from './src/context/EvaluationsProvider';
 import { ActionsProvider } from './src/context/ActionsProvider';
@@ -20,24 +19,21 @@ export default function App() {
       <View style={styles.page}>
         <View style={styles.appFrame}>
           {/* AuthProvider: sessão corporativa (§8). RepositoryProvider: camada de
-              dados (Local/Supabase) + hidratação do store. OperationsProvider:
-              operações/dashboard via repositório. O AppProvider permanece como
-              compatibilidade das telas ainda não migradas (strangler §9.3). */}
+              dados (Local/Supabase) + hidratação do store. Providers operacionais
+              consomem os repositórios — o AppContext/mock foi eliminado (§6, §16). */}
           <AuthProvider>
             <RepositoryProvider>
-              <AppProvider>
-                <OperationsProvider>
-                  <EvaluationsProvider>
-                    <ActionsProvider>
-                      <ValidationsProvider>
-                        <AdminProvider>
-                          <AppNavigator />
-                        </AdminProvider>
-                      </ValidationsProvider>
-                    </ActionsProvider>
-                  </EvaluationsProvider>
-                </OperationsProvider>
-              </AppProvider>
+              <OperationsProvider>
+                <EvaluationsProvider>
+                  <ActionsProvider>
+                    <ValidationsProvider>
+                      <AdminProvider>
+                        <AppNavigator />
+                      </AdminProvider>
+                    </ValidationsProvider>
+                  </ActionsProvider>
+                </EvaluationsProvider>
+              </OperationsProvider>
             </RepositoryProvider>
           </AuthProvider>
         </View>

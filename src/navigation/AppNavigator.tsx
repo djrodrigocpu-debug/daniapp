@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useSyncExternalStore } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthProvider';
+import { useOperationalUser } from '../context/useOperationalUser';
+import { localStore } from '../data/store/localStore';
 import { AppButton } from '../components/AppButton';
 import { LoginScreen } from '../screens/LoginScreen';
 import { DashboardScreen } from '../screens/DashboardScreen';
@@ -37,7 +38,7 @@ const navTheme = {
 };
 
 function MainTabs() {
-  const { currentUser } = useApp();
+  const currentUser = useOperationalUser();
   const canValidate = currentUser?.role === 'regional' || currentUser?.role === 'coordinator';
   const isAdmin = currentUser?.role === 'admin';
 
@@ -93,7 +94,8 @@ function NoScopeScreen() {
 
 export function AppNavigator() {
   const { state } = useAuth();
-  const { ready, currentUser } = useApp();
+  const ready = useSyncExternalStore(localStore.subscribe, localStore.isReady);
+  const currentUser = useOperationalUser();
 
   // Sessão sendo restaurada ou dados locais ainda hidratando.
   if (state.status === 'initializing' || !ready) {

@@ -3,13 +3,21 @@ import { Alert, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
 import { AppButton } from '../components/AppButton';
-import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthProvider';
+import { useOperationalUser } from '../context/useOperationalUser';
+import { useOperations } from '../context/OperationsProvider';
+import { localStore } from '../data/store/localStore';
 import { colors, radius, spacing } from '../theme';
 import { roleLabel } from '../utils/format';
 import { appVersion, dataModeLabel } from '../domain/version/appVersion';
 
 export function ProfileScreen() {
-  const { currentUser, logout, resetDemo, visibleOperations } = useApp();
+  const { signOut } = useAuth();
+  const currentUser = useOperationalUser();
+  const { operations } = useOperations();
+  const logout = signOut;
+  const resetDemo = () => localStore.reset();
+  const visibleOperations = operations;
   if (!currentUser) return null;
 
   function confirmReset() {
