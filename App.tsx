@@ -3,7 +3,9 @@ import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider } from './src/context/AuthProvider';
+import { RepositoryProvider } from './src/data/repositories/RepositoryProvider';
 import { AppProvider } from './src/context/AppContext';
+import { OperationsProvider } from './src/context/OperationsProvider';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { colors } from './src/theme';
 
@@ -13,12 +15,18 @@ export default function App() {
       <StatusBar style="dark" />
       <View style={styles.page}>
         <View style={styles.appFrame}>
-          {/* AuthProvider é a fonte de verdade da sessão corporativa (§8); o
-              AppProvider demonstrativo coexiste durante a migração strangler. */}
+          {/* AuthProvider: sessão corporativa (§8). RepositoryProvider: camada de
+              dados (Local/Supabase) + hidratação do store. OperationsProvider:
+              operações/dashboard via repositório. O AppProvider permanece como
+              compatibilidade das telas ainda não migradas (strangler §9.3). */}
           <AuthProvider>
-            <AppProvider>
-              <AppNavigator />
-            </AppProvider>
+            <RepositoryProvider>
+              <AppProvider>
+                <OperationsProvider>
+                  <AppNavigator />
+                </OperationsProvider>
+              </AppProvider>
+            </RepositoryProvider>
           </AuthProvider>
         </View>
       </View>

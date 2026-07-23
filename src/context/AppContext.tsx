@@ -1,8 +1,7 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { initialData } from '../data/mock';
+import React, { createContext, ReactNode, useCallback, useContext, useMemo, useSyncExternalStore } from 'react';
 import { themes } from '../data/catalog';
 import { resolveOperationalUser } from '../data/demoDirectory';
+import { localStore } from '../data/store/localStore';
 import { useAuth } from './AuthProvider';
 import {
   ActionPlan,
@@ -19,8 +18,6 @@ import {
 } from '../types';
 import { calculateScore, completionRate } from '../utils/scoring';
 import { getScoreStatus } from '../utils/format';
-
-const DATA_KEY = '@aace_excelencia:data:v1.2';
 
 type SubmitResult = { ok: true } | { ok: false; message: string };
 
@@ -72,27 +69,12 @@ function createBlankAnswers(frequency: Frequency): AssessmentAnswer[] {
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const { state: authState, signOut } = useAuth();
-  const [ready, setReady] = useState(false);
-  const [data, setData] = useState<AppData>(initialData);
-
-  useEffect(() => {
-    async function hydrate() {
-      try {
-        const storedData = await AsyncStorage.getItem(DATA_KEY);
-        setData(storedData ? (JSON.parse(storedData) as AppData) : initialData);
-      } catch {
-        setData(initialData);
-      } finally {
-        setReady(true);
-      }
-    }
-    void hydrate();
-  }, []);
-
-  useEffect(() => {
-    if (!ready) return;
-    void AsyncStorage.setItem(DATA_KEY, JSON.stringify(data));
-  }, [data, ready]);
+  // Fonte única: o store local persistente, COMPARTILHADO com os repositórios —
+  // telas migradas (repositório) e não migradas (AppContext) leem/escrevem no
+  // mesmo estado, sem dessincronização. A hidratação é disparada pelo
+  // RepositoryProvider no boot (§17).
+  const data = useSyncExternalStore(localStore.subscribe, localStore.getSnapshot);
+  const ready = useSyncExternalStore(localStore.subscribe, localStore.isReady);
 
   // A identidade operacional vem da SESSÃO CORPORATIVA autenticada — nunca de um
   // login demonstrativo. Resolve por id (alinhado no diretório demo) e cai para
@@ -120,8 +102,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [signOut]);
 
   const resetDemo = useCallback(async () => {
-    setData(initialData);
-    await AsyncStorage.setItem(DATA_KEY, JSON.stringify(initialData));
+    await localStore.reset();
   }, []);
 
   const getOperation = useCallback((operationId: string) => data.operations.find((operation) => operation.id === operationId), [data.operations]);
@@ -153,12 +134,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
     };
-    setData((previous) => ({ ...previous, evaluations: [evaluation, ...previous.evaluations] }));
+    localStore.update((previous) => ({ ...previous, evaluations: [evaluation, ...previous.evaluations] }));
     return id;
   }, [currentUser?.id, data.evaluations]);
 
   const updateAnswer = useCallback((evaluationId: string, themeId: string, patch: Partial<AssessmentAnswer>) => {
-    setData((previous) => ({
+    localStore.update((previous) => ({
       ...previous,
       evaluations: previous.evaluations.map((evaluation) => {
         if (evaluation.id !== evaluationId) return evaluation;
@@ -170,7 +151,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const addEvidence = useCallback((evaluationId: string, themeId: string, input: Omit<Evidence, 'id' | 'themeId' | 'createdAt'>) => {
     const evidence: Evidence = { ...input, id: makeId('EVD'), themeId, createdAt: new Date().toISOString() };
-    setData((previous) => ({
+    localStore.update((previous) => ({
       ...previous,
       evidences: [evidence, ...previous.evidences],
       evaluations: previous.evaluations.map((evaluation) => {
@@ -187,7 +168,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const removeEvidence = useCallback((evaluationId: string, evidenceId: string) => {
-    setData((previous) => ({
+    localStore.update((previous) => ({
       ...previous,
       evidences: previous.evidences.filter((evidence) => evidence.id !== evidenceId),
       evaluations: previous.evaluations.map((evaluation) => evaluation.id !== evaluationId ? evaluation : {
@@ -200,7 +181,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const saveActionPlan = useCallback((input: Omit<ActionPlan, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     const now = new Date().toISOString();
-    setData((previous) => {
+    localStore.update((previous) => {
       if (input.id) {
         return {
           ...previous,
@@ -213,7 +194,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateActionStatus = useCallback((actionId: string, status: ActionPlan['status']) => {
-    setData((previous) => ({
+    localStore.update((previous) => ({
       ...previous,
       actionPlans: previous.actionPlans.map((plan) => plan.id === actionId ? { ...plan, status, updatedAt: new Date().toISOString() } : plan),
     }));
@@ -238,7 +219,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     const now = new Date().toISOString();
-    setData((previous) => ({
+    localStore.update((previous) => ({
       ...previous,
       evaluations: previous.evaluations.map((item) => item.id === evaluationId ? { ...item, status: 'submitted', submittedAt: now, updatedAt: now } : item),
     }));
@@ -249,7 +230,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const evaluation = data.evaluations.find((item) => item.id === evaluationId);
     if (!evaluation) return;
     const now = new Date().toISOString();
-    setData((previous) => {
+    localStore.update((previous) => {
       const updatedEvaluations = previous.evaluations.map((item) => item.id !== evaluationId ? item : {
         ...item,
         status: decision,
@@ -274,7 +255,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
 
   const updateIndicatorResult = useCallback((resultId: string, patch: Partial<IndicatorResult>) => {
-    setData((previous) => ({
+    localStore.update((previous) => ({
       ...previous,
       indicatorResults: previous.indicatorResults.map((result) => result.id === resultId
         ? { ...result, ...patch, updatedAt: new Date().toISOString() }
@@ -285,7 +266,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const createVisitReport = useCallback((input: Omit<VisitReport, 'id' | 'createdAt' | 'createdBy'>) => {
     const id = makeId('VIS');
     const report: VisitReport = { ...input, id, createdAt: new Date().toISOString(), createdBy: currentUser?.id ?? '' };
-    setData((previous) => ({ ...previous, visitReports: [report, ...previous.visitReports] }));
+    localStore.update((previous) => ({ ...previous, visitReports: [report, ...previous.visitReports] }));
     return id;
   }, [currentUser?.id]);
 

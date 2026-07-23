@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { OperationCard } from '../components/OperationCard';
 import { EmptyState } from '../components/EmptyState';
-import { useApp } from '../context/AppContext';
+import { AppButton } from '../components/AppButton';
+import { useOperations } from '../context/OperationsProvider';
 import { colors, radius, spacing } from '../theme';
 import { RootStackParamList, TrafficLight } from '../types';
 
@@ -19,18 +20,38 @@ const filters: Array<{ value: 'all' | TrafficLight; label: string }> = [
 
 export function OperationsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { visibleOperations } = useApp();
+  const { operations, loading, error, refresh } = useOperations();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | TrafficLight>('all');
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return visibleOperations.filter((operation) => {
+    return operations.filter((operation) => {
       const matchesStatus = filter === 'all' || operation.status === filter;
       const haystack = `${operation.partnerName} ${operation.officeName} ${operation.city} ${operation.state}`.toLowerCase();
       return matchesStatus && (!normalized || haystack.includes(normalized));
     });
-  }, [filter, query, visibleOperations]);
+  }, [filter, query, operations]);
+
+  if (loading && operations.length === 0) {
+    return (
+      <SafeAreaView style={[styles.safe, styles.centered]} edges={['top', 'left', 'right']}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.centeredText}>Carregando operações…</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (error && operations.length === 0) {
+    return (
+      <SafeAreaView style={[styles.safe, styles.centered]} edges={['top', 'left', 'right']}>
+        <Ionicons name="cloud-offline-outline" size={40} color={colors.danger} />
+        <Text style={styles.errorTitle}>Não foi possível carregar</Text>
+        <Text style={styles.centeredText}>{error}</Text>
+        <AppButton title="Tentar novamente" variant="secondary" onPress={refresh} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
@@ -66,6 +87,9 @@ export function OperationsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
+  centered: { alignItems: 'center', justifyContent: 'center', gap: spacing.md, padding: spacing.xl },
+  centeredText: { color: colors.inkMuted, fontSize: 13, textAlign: 'center' },
+  errorTitle: { color: colors.ink, fontSize: 16, fontWeight: '800' },
   content: { padding: spacing.lg, paddingBottom: 36 },
   title: { color: colors.ink, fontSize: 26, fontWeight: '900', letterSpacing: -0.6 },
   subtitle: { color: colors.inkMuted, fontSize: 13, marginTop: 5, lineHeight: 19 },
