@@ -40,8 +40,8 @@ export class SupabaseEvaluationsRepository implements EvaluationsRepository {
     const { data, error } = await this.client
       .from('ui_evaluations')
       .select('*')
-      .eq('operation_id', operationId)
-      .order('created_at', { ascending: false });
+      .eq('operationId', operationId)
+      .order('createdAt', { ascending: false });
     return toResult((data as Evaluation[]) ?? [], error, 'Falha ao carregar o histórico.');
   }
 
@@ -49,7 +49,7 @@ export class SupabaseEvaluationsRepository implements EvaluationsRepository {
     const { data, error } = await this.client
       .from('ui_evaluations')
       .select('*')
-      .eq('operation_id', operationId)
+      .eq('operationId', operationId)
       .in('status', ['draft', 'returned'])
       .maybeSingle();
     return toResult((data as Evaluation) ?? null, error, 'Falha ao carregar o rascunho.');

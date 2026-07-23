@@ -112,7 +112,7 @@ export class SupabaseValidationsRepository implements ValidationsRepository {
       .from('ui_evaluations')
       .select('*')
       .eq('status', 'submitted')
-      .order('submitted_at', { ascending: false });
+      .order('submittedAt', { ascending: false });
     if (error) return err(new AppError('network/unavailable', 'Falha ao carregar a fila.', { cause: error }));
     return ok((data ?? []) as Evaluation[]);
   }

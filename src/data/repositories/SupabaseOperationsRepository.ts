@@ -17,43 +17,18 @@ import { AppError } from '../../domain/errors/AppError';
 import { computeDashboardMetrics, DashboardMetrics } from '../../domain/dashboard/metrics';
 import { OperationScope, OperationsRepository, isOperationVisible } from './OperationsRepository';
 
-/** Nome da projeção de leitura alinhada à UI (criada no provisionamento). */
+/** Nome da projeção de leitura alinhada à UI (migration 0005). */
 const UI_OPERATIONS_VIEW = 'ui_operations';
 
-interface UiOperationRow {
-  id: string;
-  partner_name: string;
-  office_name: string;
-  city: string;
-  state: 'PR' | 'SC';
-  coordinator_id: string;
-  manager_id: string;
-  active: boolean;
-  current_score: number;
-  previous_score: number;
-  last_audit: string | null;
-  next_audit: string;
-  status: Operation['status'];
-  open_actions: number;
-}
+/**
+ * A view `ui_operations` já projeta em camelCase (colunas quotadas) exatamente a
+ * forma de `Operation`. O único ajuste é normalizar `lastAudit` null → undefined
+ * para casar com o tipo opcional do domínio.
+ */
+type UiOperationRow = Omit<Operation, 'lastAudit'> & { lastAudit: string | null };
 
 function mapRow(row: UiOperationRow): Operation {
-  return {
-    id: row.id,
-    partnerName: row.partner_name,
-    officeName: row.office_name,
-    city: row.city,
-    state: row.state,
-    coordinatorId: row.coordinator_id,
-    managerId: row.manager_id,
-    active: row.active,
-    currentScore: row.current_score,
-    previousScore: row.previous_score,
-    lastAudit: row.last_audit ?? undefined,
-    nextAudit: row.next_audit,
-    status: row.status,
-    openActions: row.open_actions,
-  };
+  return { ...row, lastAudit: row.lastAudit ?? undefined };
 }
 
 function toAppError(message: string, cause?: unknown): AppError {
@@ -68,7 +43,7 @@ export class SupabaseOperationsRepository implements OperationsRepository {
     const { data, error } = await this.client
       .from(UI_OPERATIONS_VIEW)
       .select('*')
-      .order('next_audit', { ascending: true });
+      .order('nextAudit', { ascending: true });
     if (error) return err(toAppError('Falha ao carregar operações.', error));
     return ok((data as UiOperationRow[]).map(mapRow));
   }

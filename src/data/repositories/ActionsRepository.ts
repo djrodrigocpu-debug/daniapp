@@ -49,7 +49,7 @@ export class SupabaseActionsRepository implements ActionsRepository {
 
   async listByScope(_scope: OperationScope): Promise<Result<ActionPlan[]>> {
     // A RLS restringe ao escopo; a view projeta a forma da UI.
-    const { data, error } = await this.client.from('ui_action_plans').select('*').order('due_date');
+    const { data, error } = await this.client.from('ui_action_plans').select('*').order('dueDate');
     if (error) return err(new AppError('network/unavailable', 'Falha ao carregar planos.', { cause: error }));
     return ok((data ?? []) as ActionPlan[]);
   }
