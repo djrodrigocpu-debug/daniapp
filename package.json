@@ -22,6 +22,7 @@
     "react-native-web": "^0.21.2"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.4",
     "@types/react": "~19.2.2",
     "typescript": "~6.0.3",
     "vitest": "^2.1.9"
@@ -34,6 +35,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:db": "vitest run src/db",
     "doctor": "npx expo-doctor",
     "build:android:preview": "eas build --platform android --profile preview",
     "build:ios:preview": "eas build --platform ios --profile preview",
