@@ -7,6 +7,7 @@ import { useApp } from '../context/AppContext';
 import { featureFlags } from '../config/runtime';
 import { colors, radius, shadow, spacing } from '../theme';
 import { AppButton } from '../components/AppButton';
+import { AuthModeBanner } from '../components/AuthModeBanner';
 
 // Atalhos de perfil disponíveis SOMENTE no modo demonstração de desenvolvimento
 // (Masterplan §9.3: build corporativo não inclui atalhos de demonstração).
@@ -42,6 +43,7 @@ export function LoginScreen() {
         </View>
 
         <View style={styles.card}>
+          <AuthModeBanner />
           <Text style={styles.title}>Acesso ao programa</Text>
           <Text style={styles.subtitle}>Entre com o perfil da sua estrutura AACE.</Text>
 

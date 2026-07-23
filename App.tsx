@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { AuthProvider } from './src/context/AuthProvider';
 import { AppProvider } from './src/context/AppContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { colors } from './src/theme';
@@ -12,9 +13,13 @@ export default function App() {
       <StatusBar style="dark" />
       <View style={styles.page}>
         <View style={styles.appFrame}>
-          <AppProvider>
-            <AppNavigator />
-          </AppProvider>
+          {/* AuthProvider é a fonte de verdade da sessão corporativa (§8); o
+              AppProvider demonstrativo coexiste durante a migração strangler. */}
+          <AuthProvider>
+            <AppProvider>
+              <AppNavigator />
+            </AppProvider>
+          </AuthProvider>
         </View>
       </View>
     </SafeAreaProvider>
