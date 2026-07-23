@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useApp } from '../context/AppContext';
+import { useOperations } from '../context/OperationsProvider';
+import { useActions } from '../context/ActionsProvider';
 import { colors, radius, spacing } from '../theme';
 import { formatDate } from '../utils/format';
 import { EmptyState } from '../components/EmptyState';
@@ -36,10 +37,12 @@ function atDayStart(value: Date): Date {
 
 export function AgendaScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { visibleOperations, data } = useApp();
+  // Agenda compõe dois repositórios (operações + planos), ambos já no escopo do
+  // usuário autenticado — sem AppContext/mock (§16).
+  const { operations } = useOperations();
+  const { plans } = useActions();
   const [windowKey, setWindowKey] = useState<WindowKey>('week');
   const [showCompleted, setShowCompleted] = useState(false);
-  const visibleIds = useMemo(() => new Set(visibleOperations.map((operation) => operation.id)), [visibleOperations]);
 
   const items = useMemo(() => {
     const today = atDayStart(new Date());
@@ -47,7 +50,7 @@ export function AgendaScreen() {
     const limit = new Date(today);
     limit.setDate(limit.getDate() + selected.days);
 
-    const audits: AgendaItem[] = visibleOperations.map((operation) => {
+    const audits: AgendaItem[] = operations.map((operation) => {
       const date = atDayStart(new Date(`${operation.nextAudit}T12:00:00`));
       return {
         id: `audit_${operation.id}`,
@@ -61,10 +64,9 @@ export function AgendaScreen() {
       };
     });
 
-    const actions: AgendaItem[] = data.actionPlans
-      .filter((plan) => visibleIds.has(plan.operationId))
+    const actions: AgendaItem[] = plans
       .map((plan) => {
-        const operation = data.operations.find((item) => item.id === plan.operationId);
+        const operation = operations.find((item) => item.id === plan.operationId);
         const completed = ['completed', 'validated'].includes(plan.status);
         const date = atDayStart(new Date(`${plan.dueDate}T12:00:00`));
         return {
@@ -91,7 +93,7 @@ export function AgendaScreen() {
         if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
         return a.date.localeCompare(b.date);
       });
-  }, [data.actionPlans, data.operations, showCompleted, visibleIds, visibleOperations, windowKey]);
+  }, [plans, operations, showCompleted, windowKey]);
 
   const overdueCount = items.filter((item) => item.overdue).length;
   const auditCount = items.filter((item) => item.kind === 'audit').length;
