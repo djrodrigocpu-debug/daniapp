@@ -125,3 +125,48 @@ admin; relatório final. Deploy real e restauração de backup bloqueados por P0
 **Próximo passo executável:** aprovar P09 e provisionar Supabase; aplicar migrations 0001→0003;
 validar RLS positiva/negativa em banco real (T01/T02/T19); migrar telas legadas para os
 repositórios (concluir strangler).
+
+---
+
+## Continuação — Integração funcional (2026-07-22)
+
+> Relatório completo e honesto: `docs/RELATORIO_INTEGRACAO_FUNCIONAL_AAPEX_V2.md`.
+
+### Ambiente desta máquina (verificado)
+Docker, Supabase CLI, `psql` e credenciais Supabase **ausentes**. Impossível subir
+o stack Supabase local (precisa Docker) ou remoto (sem credenciais). Auth/Storage
+em runtime e deploy Vercel permanecem bloqueados (DEP-01..05).
+
+### Fase 19 — Banco EXECUTÁVEL + RLS/integridade reais — **CONCLUÍDA**
+Adotado **PGlite** (PostgreSQL 18 em WASM) para executar as migrations REAIS sem
+Docker/credenciais. `pgcrypto` real via contrib → migrations rodam **intactas**.
+Shim de compatibilidade (`src/db/testing/supabase_compat.sql`): papéis + `auth.uid()`.
+- `src/db/testing/harness.ts` / `fixtures.ts`; `test:db` no `package.json`.
+- 39 testes de banco real: esquema/constraints/`db reset` (10), RLS por perfil (15),
+  triggers de integridade (10), contrato de sessão sob RLS (4).
+- Substitui os testes estáticos de texto SQL por **execução de verdade**.
+**Commit:** `test: executa migrations e valida RLS/integridade em banco real (PGlite)`.
+
+### Fase 20 — Autenticação corporativa conectada à UI — **CONCLUÍDA (código+testes)**
+`AuthController` (restore/login/logout/expiração T10) + `DemoAuthRepository` (dev,
+sem senha) + `authFactory` (demo impossível em produção) + `AuthProvider`/
+`AuthModeBanner` na UI. `App.tsx` monta o provider por fora. Runtime Supabase
+pendente (DEP-01). **Commit:** `feat: conecta autenticação corporativa à interface`.
+
+### Verificação (2026-07-22, continuação)
+| Comando | Resultado |
+| --- | --- |
+| `npm run typecheck` | OK |
+| `npm test` | **202/202** (25 arquivos) |
+| `npm run test:db` | 39/39 |
+| `npm run build` (web) | OK — `dist/` (1.7 MB) |
+
+### Estado de prontidão
+**AINDA NÃO PRONTO PARA PILOTO** (ver §34 e o relatório de integração). Faltam:
+cutover das telas operacionais do `mock.ts` para repositórios; Auth/Storage em
+Supabase real; E2E dos quatro perfis; preview publicado.
+
+**Próximo passo executável:** implementar `PgVisitsRepository`/`PgIndicatorsRepository`
+(supabase-js) e cortar `OperationsScreen`+`EvaluationScreen`+`ValidationsScreen` do
+`AppContext`, validando o fluxo vertical visita→auditoria→validação contra Supabase
+de homologação.

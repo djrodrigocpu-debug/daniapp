@@ -38,7 +38,7 @@
 
 | ID | Requisito | Origem | Prioridade | Módulo | Implementação | Teste | Status | Evidência |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| REQ-D-01 | Todas as entidades do Anexo (organizations..sync_operations) | §11.2 | Crítica | `supabase/migrations` | `0001_core_schema.sql` | `migration-schema.test.ts` | CONCLUÍDO | T19 (parcial) |
+| REQ-D-01 | Todas as entidades do Anexo (organizations..sync_operations) | §11.2 | Crítica | `supabase/migrations` | `0001_core_schema.sql` | `db/migrations.test.ts` (estático) + **`db/schema.integration.test.ts` (Postgres real/PGlite)** | CONCLUÍDO | 28 tabelas criadas e interrogadas em banco real; `db reset` idempotente |
 | REQ-D-02 | UUIDs, timestamps UTC, created_by/updated_by | §11.1 | Alta | migrations | Colunas padrão em todas as tabelas | migration test | CONCLUÍDO | — |
 | REQ-D-03 | Versionamento de indicadores (definition + versions + measurement→version_id) | §8.1; §11.3 | Crítica | migrations + domínio | `indicator_definitions`, `indicator_versions`, `measurements` | `indicators.test.ts` | CONCLUÍDO | T05 |
 | REQ-D-04 | Inativar indicador usado sem delete físico | §8.1; D-05; Anexo B | Crítica | migrations + domínio | Trigger de bloqueio de delete; estado `active/inactive` | `indicator-lifecycle.test.ts` | CONCLUÍDO | T05 |
@@ -54,11 +54,11 @@
 | ID | Requisito | Origem | Prioridade | Módulo | Implementação | Teste | Status | Evidência |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | REQ-A-01 | Remover senha demo `Aace@2026` e perfis demonstrativos do bundle | §7.1; §9.2; T30 | Crítica | `src/data`, Login | Remoção de `demoPassword`; login sem atalhos | `no-demo-secret.test.ts` | CONCLUÍDO | T30 |
-| REQ-A-02 | Login individual (Supabase Auth) | §7.1; D-03 | Crítica | `src/services/auth` | `SupabaseAuthRepository` | `auth.test.ts` | CONCLUÍDO COM RESSALVA | Requer projeto Supabase (P02/P09) |
-| REQ-A-03 | Sessão, logout, sessão expirada, reset de senha | §7.1; T10 | Alta | auth + UI | Fluxos no `AuthContext` | `auth-session.test.ts` | CONCLUÍDO COM RESSALVA | Backend real pendente |
+| REQ-A-02 | Login individual (Supabase Auth) | §7.1; D-03 | Crítica | `src/services/auth` | `SupabaseAuthRepository` + `AuthController` + `authFactory` + `AuthProvider` (UI) | `AuthController.test.ts`, `authFactory.test.ts`, `db/auth-session.integration.test.ts` | CONCLUÍDO COM RESSALVA | Orquestração conectada à UI e testada; login runtime contra GoTrue pende DEP-01 |
+| REQ-A-03 | Sessão, logout, sessão expirada, reset de senha | §7.1; T10 | Alta | auth + UI | `AuthController` (restore/logout/expiração) + `AuthProvider` | `AuthController.test.ts` (restauração e expiração reais) | CONCLUÍDO COM RESSALVA | Reset de senha real e persistência de sessão dependem do GoTrue (DEP-01) |
 | REQ-A-04 | 4 perfis: admin, regional, coordenador, GC | §5; D-03/D-04 | Crítica | domínio | enum `roles`, `user_scopes` | `rbac.test.ts` | CONCLUÍDO | — |
 | REQ-A-05 | RBAC + escopo (o que × sobre quais dados) | §5.1 | Crítica | domínio | `src/domain/authz/policy.ts` | `authz-matrix.test.ts` | CONCLUÍDO | Anexo B |
-| REQ-A-06 | RLS deny-by-default em todas as tabelas expostas | §5.1; §13.3 | Crítica | migrations | `0003_rls_policies.sql` | `rls-policy.test.ts` (estático) | CONCLUÍDO COM RESSALVA | Execução real requer DB (P09) |
+| REQ-A-06 | RLS deny-by-default em todas as tabelas expostas | §5.1; §13.3 | Crítica | migrations | `0002_rls_policies.sql` | **`db/rls.integration.test.ts` (Postgres real, `SET ROLE authenticated` + JWT)** | CONCLUÍDO | 28 tabelas com RLS forçada; isolamento positivo/negativo por perfil testado no banco; paridade Supabase gerenciado pende DEP-03 |
 | REQ-A-07 | GC não acessa operação de outra carteira (positivo/negativo) | §8 CLAUDE; T01 | Crítica | RLS + policy | Policy por `user_scopes` | `authz-isolation.test.ts` | CONCLUÍDO | T01 |
 | REQ-A-08 | Ninguém aprova a própria submissão | §5.3; T02 | Crítica | domínio + RLS | Regra em `validation.ts` + constraint | `validation-self-approve.test.ts` | CONCLUÍDO | T02 |
 | REQ-A-09 | MFA para Admin/Regional/Coordenador | §13.3 [R10] | Alta | auth | Documentado; ativação server-side | — | DECISÃO CORPORATIVA PENDENTE | P10 |
@@ -111,7 +111,7 @@
 | ID | Requisito | Origem | Prioridade | Módulo | Implementação | Teste | Status | Evidência |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | REQ-SEC-01 | Nenhum segredo no frontend/repo/logs | §13.3; §21.2; T03 | Crítica | Global | `.env` git-ignored; guarda anti-service-role | `no-demo-secret.test.ts` | CONCLUÍDO | T03, T30 |
-| REQ-SEC-02 | Trilha de auditoria append-only | §15.1; §11.2 | Alta | migrations | `audit_logs` + trigger | `audit-log.test.ts` | CONCLUÍDO COM RESSALVA | Execução real requer DB |
+| REQ-SEC-02 | Trilha de auditoria append-only | §15.1; §11.2 | Alta | migrations | `audit_logs` + trigger | **`db/triggers.integration.test.ts` (UPDATE/DELETE bloqueados no banco real)** | CONCLUÍDO | Append-only e snapshots imutáveis validados em Postgres real (T25) |
 | REQ-SEC-03 | Modelo de ameaças resumido | §13; CLAUDE §15 | Alta | docs | `docs/SEGURANCA_E_LGPD_AAPEX_V2.md` | — | CONCLUÍDO | — |
 | REQ-SEC-04 | Política de retenção parametrizável | §14.4 | Alta | docs + migrations | Documentada; campos `retention_until` | — | DECISÃO CORPORATIVA PENDENTE | P08 |
 | REQ-SEC-05 | Base legal e aviso de privacidade | §14.1; §14.3 | Alta | docs | Placeholder documentado | — | BLOQUEADO POR DEPENDÊNCIA EXTERNA | P07 (DPO/Jurídico) |
