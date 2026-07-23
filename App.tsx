@@ -7,6 +7,8 @@ import { RepositoryProvider } from './src/data/repositories/RepositoryProvider';
 import { AppProvider } from './src/context/AppContext';
 import { OperationsProvider } from './src/context/OperationsProvider';
 import { EvaluationsProvider } from './src/context/EvaluationsProvider';
+import { ActionsProvider } from './src/context/ActionsProvider';
+import { ValidationsProvider } from './src/context/ValidationsProvider';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { colors } from './src/theme';
 
@@ -25,7 +27,11 @@ export default function App() {
               <AppProvider>
                 <OperationsProvider>
                   <EvaluationsProvider>
-                    <AppNavigator />
+                    <ActionsProvider>
+                      <ValidationsProvider>
+                        <AppNavigator />
+                      </ValidationsProvider>
+                    </ActionsProvider>
                   </EvaluationsProvider>
                 </OperationsProvider>
               </AppProvider>

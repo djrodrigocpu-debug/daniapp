@@ -1,24 +1,23 @@
-import React, { useMemo, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useState } from 'react';
+import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppButton } from '../components/AppButton';
 import { EmptyState } from '../components/EmptyState';
-import { useApp } from '../context/AppContext';
+import { useValidations } from '../context/ValidationsProvider';
 import { colors, radius, spacing } from '../theme';
 import { Evaluation, RootStackParamList } from '../types';
 import { formatDateTime, getMaturity } from '../utils/format';
 
 export function ValidationsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { visibleOperations, data, validateEvaluation, getUser } = useApp();
+  const { pending, validate, getOperation, getUser } = useValidations();
   const [selected, setSelected] = useState<Evaluation | null>(null);
   const [decision, setDecision] = useState<'approved' | 'returned'>('approved');
   const [note, setNote] = useState('');
-  const ids = useMemo(() => new Set(visibleOperations.map((operation) => operation.id)), [visibleOperations]);
-  const pending = useMemo(() => data.evaluations.filter((evaluation) => ids.has(evaluation.operationId) && evaluation.status === 'submitted').sort((a, b) => (b.submittedAt ?? '').localeCompare(a.submittedAt ?? '')), [data.evaluations, ids]);
+  const [busy, setBusy] = useState(false);
 
   function openDecision(evaluation: Evaluation, value: 'approved' | 'returned') {
     setSelected(evaluation);
@@ -26,9 +25,15 @@ export function ValidationsScreen() {
     setNote('');
   }
 
-  function confirm() {
+  async function confirm() {
     if (!selected) return;
-    validateEvaluation(selected.id, decision, note.trim());
+    setBusy(true);
+    const result = await validate(selected.id, decision, note.trim());
+    setBusy(false);
+    if (!result.ok) {
+      Alert.alert('Não foi possível concluir', result.message);
+      return;
+    }
     setSelected(null);
   }
 
@@ -40,7 +45,7 @@ export function ValidationsScreen() {
         <View style={styles.counter}><Text style={styles.counterValue}>{pending.length}</Text><Text style={styles.counterText}>avaliação(ões) aguardando validação</Text></View>
 
         {pending.length ? pending.map((evaluation) => {
-          const operation = data.operations.find((item) => item.id === evaluation.operationId);
+          const operation = getOperation(evaluation.operationId);
           const evaluator = getUser(evaluation.evaluatorId);
           const redCount = evaluation.answers.filter((answer) => answer.status === 'red').length;
           const evidenceCount = evaluation.answers.reduce((sum, answer) => sum + answer.evidenceIds.length, 0);
@@ -81,7 +86,7 @@ export function ValidationsScreen() {
             <TextInput value={note} onChangeText={setNote} multiline placeholder="Registre uma observação para a decisão (opcional)." placeholderTextColor={colors.neutral} style={styles.noteInput} />
             <View style={styles.modalButtons}>
               <AppButton title="Cancelar" variant="secondary" onPress={() => setSelected(null)} style={styles.flex} />
-              <AppButton title={decision === 'approved' ? 'Confirmar aprovação' : 'Confirmar devolução'} variant={decision === 'approved' ? 'primary' : 'danger'} onPress={confirm} style={styles.flex} />
+              <AppButton title={decision === 'approved' ? 'Confirmar aprovação' : 'Confirmar devolução'} variant={decision === 'approved' ? 'primary' : 'danger'} loading={busy} onPress={() => void confirm()} style={styles.flex} />
             </View>
           </View>
         </View>

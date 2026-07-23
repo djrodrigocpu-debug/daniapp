@@ -19,10 +19,14 @@ import { SupabaseOperationsRepository } from './SupabaseOperationsRepository';
 import { EvaluationsRepository } from './EvaluationsRepository';
 import { LocalEvaluationsRepository } from './LocalEvaluationsRepository';
 import { SupabaseEvaluationsRepository } from './SupabaseEvaluationsRepository';
+import { ActionsRepository, LocalActionsRepository, SupabaseActionsRepository } from './ActionsRepository';
+import { ValidationsRepository, LocalValidationsRepository, SupabaseValidationsRepository } from './ValidationsRepository';
 
 export interface Repositories {
   operations: OperationsRepository;
   evaluations: EvaluationsRepository;
+  actions: ActionsRepository;
+  validations: ValidationsRepository;
   /** Origem efetiva dos dados operacionais. */
   source: 'supabase' | 'local';
 }
@@ -33,12 +37,16 @@ function buildRepositories(): Repositories {
     return {
       operations: new SupabaseOperationsRepository(client),
       evaluations: new SupabaseEvaluationsRepository(client),
+      actions: new SupabaseActionsRepository(client),
+      validations: new SupabaseValidationsRepository(client),
       source: 'supabase',
     };
   }
   return {
     operations: new LocalOperationsRepository(localStore),
     evaluations: new LocalEvaluationsRepository(localStore),
+    actions: new LocalActionsRepository(localStore),
+    validations: new LocalValidationsRepository(localStore),
     source: 'local',
   };
 }

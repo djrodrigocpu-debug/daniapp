@@ -20,7 +20,6 @@ import {
   IndicatorResult,
   VisitReport,
 } from '../types';
-import { getScoreStatus } from '../utils/format';
 
 interface AppContextValue {
   ready: boolean;
@@ -36,8 +35,6 @@ interface AppContextValue {
   getOperation: (operationId: string) => Operation | undefined;
   getUser: (userId: string) => User | undefined;
   saveActionPlan: (plan: Omit<ActionPlan, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => void;
-  updateActionStatus: (actionId: string, status: ActionPlan['status']) => void;
-  validateEvaluation: (evaluationId: string, decision: 'approved' | 'returned', note: string) => void;
   updateIndicatorResult: (resultId: string, patch: Partial<IndicatorResult>) => void;
   createVisitReport: (report: Omit<VisitReport, 'id' | 'createdAt' | 'createdBy'>) => string;
 }
@@ -91,40 +88,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const updateActionStatus = useCallback((actionId: string, status: ActionPlan['status']) => {
-    localStore.update((previous) => ({
-      ...previous,
-      actionPlans: previous.actionPlans.map((plan) => plan.id === actionId ? { ...plan, status, updatedAt: new Date().toISOString() } : plan),
-    }));
-  }, []);
-
-  const validateEvaluation = useCallback((evaluationId: string, decision: 'approved' | 'returned', note: string) => {
-    const evaluation = data.evaluations.find((item) => item.id === evaluationId);
-    if (!evaluation) return;
-    const now = new Date().toISOString();
-    localStore.update((previous) => {
-      const updatedEvaluations = previous.evaluations.map((item) => item.id !== evaluationId ? item : {
-        ...item,
-        status: decision,
-        validatorId: currentUser?.id,
-        validatorNote: note,
-        validatedAt: now,
-        updatedAt: now,
-      });
-      let updatedOperations = previous.operations;
-      if (decision === 'approved') {
-        updatedOperations = previous.operations.map((operation) => operation.id !== evaluation.operationId ? operation : {
-          ...operation,
-          previousScore: operation.currentScore,
-          currentScore: evaluation.score,
-          status: getScoreStatus(evaluation.score),
-          lastAudit: now.slice(0, 10),
-        });
-      }
-      return { ...previous, evaluations: updatedEvaluations, operations: updatedOperations };
-    });
-  }, [currentUser?.id, data.evaluations]);
-
   const updateIndicatorResult = useCallback((resultId: string, patch: Partial<IndicatorResult>) => {
     localStore.update((previous) => ({
       ...previous,
@@ -151,13 +114,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     getOperation,
     getUser,
     saveActionPlan,
-    updateActionStatus,
-    validateEvaluation,
     updateIndicatorResult,
     createVisitReport,
   }), [
     ready, data, currentUser, visibleOperations, logout, resetDemo, getOperation, getUser,
-    saveActionPlan, updateActionStatus, validateEvaluation, updateIndicatorResult, createVisitReport,
+    saveActionPlan, updateIndicatorResult, createVisitReport,
   ]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

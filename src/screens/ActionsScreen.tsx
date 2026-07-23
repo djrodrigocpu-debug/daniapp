@@ -1,12 +1,14 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { EmptyState } from '../components/EmptyState';
-import { useApp } from '../context/AppContext';
+import { AppButton } from '../components/AppButton';
+import { useActions } from '../context/ActionsProvider';
+import { useOperationalUser } from '../context/useOperationalUser';
 import { themes } from '../data/catalog';
 import { colors, radius, spacing } from '../theme';
-import { ActionPlan, ActionStatus } from '../types';
+import { ActionStatus } from '../types';
 import { actionStatusLabel, formatDate } from '../utils/format';
 
 const filterOptions: Array<{ key: 'open' | 'overdue' | 'completed'; label: string }> = [
@@ -26,13 +28,12 @@ const statusColor: Record<ActionStatus, string> = {
 };
 
 export function ActionsScreen() {
-  const { visibleOperations, data, updateActionStatus, currentUser } = useApp();
+  const { plans: scopedPlans, updateStatus, getOperation, loading, error, refresh } = useActions();
+  const currentUser = useOperationalUser();
   const [filter, setFilter] = useState<'open' | 'overdue' | 'completed'>('open');
-  const visibleIds = useMemo(() => new Set(visibleOperations.map((operation) => operation.id)), [visibleOperations]);
 
   const plans = useMemo(() => {
-    return data.actionPlans
-      .filter((plan) => visibleIds.has(plan.operationId))
+    return scopedPlans
       .filter((plan) => {
         const overdue = plan.status === 'overdue' || (new Date(`${plan.dueDate}T23:59:59`) < new Date() && !['completed', 'validated'].includes(plan.status));
         if (filter === 'overdue') return overdue;
@@ -40,11 +41,30 @@ export function ActionsScreen() {
         return !overdue && !['completed', 'validated'].includes(plan.status);
       })
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  }, [data.actionPlans, filter, visibleIds]);
+  }, [scopedPlans, filter]);
 
   const allowedStatuses: ActionStatus[] = currentUser?.role === 'channel_manager'
     ? ['not_started', 'in_progress', 'waiting_partner', 'waiting_internal', 'completed']
     : ['in_progress', 'waiting_partner', 'waiting_internal', 'completed', 'validated'];
+
+  if (loading && scopedPlans.length === 0) {
+    return (
+      <SafeAreaView style={[styles.safe, styles.centered]} edges={['top', 'left', 'right']}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.centeredText}>Carregando planos de ação…</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (error && scopedPlans.length === 0) {
+    return (
+      <SafeAreaView style={[styles.safe, styles.centered]} edges={['top', 'left', 'right']}>
+        <Ionicons name="cloud-offline-outline" size={40} color={colors.danger} />
+        <Text style={styles.centeredText}>{error}</Text>
+        <AppButton title="Tentar novamente" variant="secondary" onPress={refresh} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
@@ -60,7 +80,7 @@ export function ActionsScreen() {
         </View>
 
         {plans.length ? plans.map((plan) => {
-          const operation = data.operations.find((item) => item.id === plan.operationId);
+          const operation = getOperation(plan.operationId);
           const theme = themes.find((item) => item.id === plan.themeId);
           const isOverdue = plan.status === 'overdue' || (new Date(`${plan.dueDate}T23:59:59`) < new Date() && !['completed', 'validated'].includes(plan.status));
           const effectiveStatus: ActionStatus = isOverdue ? 'overdue' : plan.status;
@@ -93,7 +113,7 @@ export function ActionsScreen() {
               <Text style={styles.changeLabel}>Atualizar status</Text>
               <View style={styles.statusOptions}>
                 {allowedStatuses.map((status) => (
-                  <Pressable key={status} onPress={() => updateActionStatus(plan.id, status)} style={[styles.statusOption, plan.status === status && { borderColor: statusColor[status], backgroundColor: `${statusColor[status]}12` }]}>
+                  <Pressable key={status} onPress={() => updateStatus(plan.id, status)} style={[styles.statusOption, plan.status === status && { borderColor: statusColor[status], backgroundColor: `${statusColor[status]}12` }]}>
                     <Text style={[styles.statusOptionText, plan.status === status && { color: statusColor[status] }]}>{actionStatusLabel[status]}</Text>
                   </Pressable>
                 ))}
@@ -108,6 +128,8 @@ export function ActionsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
+  centered: { alignItems: 'center', justifyContent: 'center', gap: spacing.md, padding: spacing.xl },
+  centeredText: { color: colors.inkMuted, fontSize: 13, textAlign: 'center' },
   content: { padding: spacing.lg, paddingBottom: 40 },
   title: { color: colors.ink, fontSize: 26, fontWeight: '900', letterSpacing: -0.6 },
   subtitle: { color: colors.inkMuted, fontSize: 13, lineHeight: 19, marginTop: 5 },
