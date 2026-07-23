@@ -11,6 +11,7 @@ import { themes } from '../catalog';
 import { calculateScore } from '../../utils/scoring';
 import { makeId } from '../../utils/ids';
 import { LocalStore, localStore } from '../store/localStore';
+import { EvidenceRepository, LocalEvidenceRepository } from './EvidenceRepository';
 import {
   ActionPlanInput,
   EvaluationsRepository,
@@ -26,7 +27,10 @@ function blankAnswers(frequency: Frequency): AssessmentAnswer[] {
 }
 
 export class LocalEvaluationsRepository implements EvaluationsRepository {
-  constructor(private readonly store: LocalStore = localStore) {}
+  constructor(
+    private readonly store: LocalStore = localStore,
+    private readonly evidence: EvidenceRepository = new LocalEvidenceRepository(store),
+  ) {}
 
   async getById(id: string): Promise<Result<Evaluation | null>> {
     return ok(this.store.getSnapshot().evaluations.find((item) => item.id === id) ?? null);
@@ -98,10 +102,15 @@ export class LocalEvaluationsRepository implements EvaluationsRepository {
   }
 
   async addEvidence(evaluationId: string, themeId: string, input: EvidenceInput): Promise<Result<Evidence>> {
-    const evidence: Evidence = { ...input, id: makeId('EVD'), themeId, createdAt: new Date().toISOString() };
+    // Armazenamento delegado ao EvidenceRepository (Local: URI + status 'local';
+    // Supabase: upload ao bucket). Aqui só vinculamos ao item da auditoria.
+    const stored = await this.evidence.store({
+      themeId, name: input.name, uri: input.uri, mimeType: input.mimeType, type: input.type, sizeBytes: input.sizeBytes,
+    });
+    if (!stored.ok) return stored;
+    const evidence = stored.value;
     this.store.update((previous) => ({
       ...previous,
-      evidences: [evidence, ...previous.evidences],
       evaluations: previous.evaluations.map((evaluation) => {
         if (evaluation.id !== evaluationId) return evaluation;
         return {
@@ -117,9 +126,9 @@ export class LocalEvaluationsRepository implements EvaluationsRepository {
   }
 
   async removeEvidence(evaluationId: string, evidenceId: string): Promise<Result<true>> {
+    await this.evidence.remove(evidenceId); // remove o arquivo/registro no storage
     this.store.update((previous) => ({
       ...previous,
-      evidences: previous.evidences.filter((evidence) => evidence.id !== evidenceId),
       evaluations: previous.evaluations.map((evaluation) =>
         evaluation.id !== evaluationId
           ? evaluation

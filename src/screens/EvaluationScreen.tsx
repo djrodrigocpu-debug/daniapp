@@ -201,6 +201,9 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
                   <View key={evidence.id} style={styles.evidenceItem}>
                     <Ionicons name={evidence.type === 'photo' ? 'camera-outline' : 'document-attach-outline'} size={18} color={colors.primary} />
                     <Text style={styles.evidenceName} numberOfLines={1}>{evidence.name}</Text>
+                    <Text style={[styles.evidenceStatus, evidence.status === 'stored' ? styles.evidenceStored : styles.evidenceLocal]}>
+                      {evidence.status === 'stored' ? 'enviado' : 'local'}
+                    </Text>
                     {!readOnly && <Pressable onPress={() => removeEvidence(evaluation.id, evidence.id)}><Ionicons name="trash-outline" size={18} color={colors.danger} /></Pressable>}
                   </View>
                 ))}
@@ -284,6 +287,9 @@ const styles = StyleSheet.create({
   flexButton: { flex: 1 },
   evidenceItem: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
   evidenceName: { flex: 1, color: colors.ink, fontSize: 11 },
+  evidenceStatus: { fontSize: 8, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.4, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, overflow: 'hidden' },
+  evidenceLocal: { color: '#9A6B00', backgroundColor: '#FFF6E5' },
+  evidenceStored: { color: colors.success, backgroundColor: colors.successSoft },
   planAlert: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.dangerSoft, borderRadius: radius.md, padding: spacing.md, marginTop: spacing.lg },
   planTextBlock: { flex: 1 },
   planTitle: { color: colors.danger, fontSize: 12, fontWeight: '900' },
