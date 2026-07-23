@@ -53,6 +53,28 @@ describe('env.loadConfig', () => {
     }
   });
 
+  it('homologação configurada expõe ambiente, isConfigured e versão da config', () => {
+    const r = loadConfig({
+      EXPO_PUBLIC_APP_ENV: 'homologation',
+      EXPO_PUBLIC_APP_VERSION: '2.0.0',
+      EXPO_PUBLIC_SUPABASE_URL: 'https://plnbgdabciwygsmnyddy.supabase.co',
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: 'anon-publishable',
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.value.environment).toBe('homologation');
+      expect(r.value.isConfigured).toBe(true);
+      expect(r.value.supabaseUrl).toBe('https://plnbgdabciwygsmnyddy.supabase.co');
+      expect(r.value.appVersion).toBe('2.0.0');
+    }
+  });
+
+  it('a versão exibida vem da configuração (EXPO_PUBLIC_APP_VERSION)', () => {
+    const r = loadConfig({ EXPO_PUBLIC_APP_ENV: 'development', EXPO_PUBLIC_APP_VERSION: '9.9.9' });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.appVersion).toBe('9.9.9');
+  });
+
   it('URL inválida é rejeitada', () => {
     const r = loadConfig({
       EXPO_PUBLIC_APP_ENV: 'development',

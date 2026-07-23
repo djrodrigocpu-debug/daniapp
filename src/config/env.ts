@@ -128,8 +128,19 @@ export function loadConfig(source: EnvSource): Result<AppConfig> {
  * Expo. Falha crítica de segredo lança; ausência de backend em dev não lança.
  */
 export function getRuntimeConfig(): AppConfig {
-  const source: EnvSource =
-    typeof process !== 'undefined' && process.env ? (process.env as EnvSource) : {};
+  // IMPORTANTE (bundle web): o Expo/Metro só faz o INLINE de `EXPO_PUBLIC_*` quando
+  // há referência ESTÁTICA e DIRETA a `process.env.<NOME>`. Ler `process.env` de
+  // forma indireta — spread, cast para Record, acesso por colchetes, destructuring
+  // ou por nome dinâmico — deixa as variáveis `undefined` no build, e o app cai para
+  // demo/unconfigured mesmo com as variáveis definidas no provedor. Por isso cada
+  // variável aparece aqui LITERALMENTE: é o texto que o compilador substitui pelo
+  // valor embutido. NÃO refatore para leitura dinâmica.
+  const source: EnvSource = {
+    EXPO_PUBLIC_APP_ENV: process.env.EXPO_PUBLIC_APP_ENV,
+    EXPO_PUBLIC_APP_VERSION: process.env.EXPO_PUBLIC_APP_VERSION,
+    EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
+    EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+  };
   const result = loadConfig(source);
   if (!result.ok) {
     if (result.error.severity === 'critical') throw result.error;

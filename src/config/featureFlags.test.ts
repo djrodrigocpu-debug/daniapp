@@ -28,4 +28,12 @@ describe('resolveFeatureFlags', () => {
     expect(resolveFeatureFlags(config({ environment: 'development', isConfigured: false })).demoMode).toBe(true);
     expect(resolveFeatureFlags(config({ environment: 'development', isConfigured: true })).demoMode).toBe(false);
   });
+
+  it('homologação sem Supabase é unconfigured, NÃO demo', () => {
+    expect(resolveFeatureFlags(config({ environment: 'homologation', isConfigured: false })).demoMode).toBe(false);
+  });
+
+  it('homologação configurada nunca é demo', () => {
+    expect(resolveFeatureFlags(config({ environment: 'homologation', isConfigured: true })).demoMode).toBe(false);
+  });
 });

@@ -42,6 +42,12 @@ describe('authFactory — seleção de backend por ambiente', () => {
     expect(repository).toBeInstanceOf(SupabaseAuthRepository);
   });
 
+  it('homologação configurada com cliente → supabase (nunca demo)', () => {
+    expect(selectAuthMode(base('homologation', true), fakeClient)).toBe('supabase');
+    const { mode } = createAuthBackend(base('homologation', true), fakeClient);
+    expect(mode).toBe('supabase');
+  });
+
   it('NullAuthRepository recusa login com orientação de configuração', async () => {
     const res = await new NullAuthRepository().signIn();
     expect(res.ok).toBe(false);

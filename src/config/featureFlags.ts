@@ -19,13 +19,16 @@ export interface FeatureFlags {
 }
 
 /**
- * Deriva flags do ambiente. Produção nunca liga demoMode; ranking nominal fica
- * desligado em qualquer ambiente até decisão pós-piloto (P11).
+ * Deriva flags do ambiente. O modo demonstração existe SOMENTE em desenvolvimento
+ * sem backend — homologação/produção sem Supabase ficam "não configurados", nunca
+ * demo (espelha `selectAuthMode`). Ranking nominal fica desligado em qualquer
+ * ambiente até decisão pós-piloto (P11).
  */
 export function resolveFeatureFlags(config: AppConfig): FeatureFlags {
   const isProd = config.environment === 'production';
   return {
-    demoMode: !isProd && !config.isConfigured,
+    // Demo só em DEV sem backend: homologação sem Supabase = unconfigured (≠ demo).
+    demoMode: config.environment === 'development' && !config.isConfigured,
     nominalRanking: false, // trava ética — não habilitar no piloto
     bestPractices: true,
     exports: true,

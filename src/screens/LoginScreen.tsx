@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthProvider';
 import { colors, radius, shadow, spacing } from '../theme';
 import { AppButton } from '../components/AppButton';
 import { AuthModeBanner } from '../components/AuthModeBanner';
+import { runtimeConfig } from '../config/runtime';
 
 // Atalhos de perfil disponíveis SOMENTE no modo demonstração de desenvolvimento
 // (Masterplan §9.3: o build corporativo não inclui atalhos de demonstração).
@@ -66,7 +67,7 @@ export function LoginScreen() {
           <View style={styles.logo}><Text style={styles.logoText}>A</Text></View>
           <Text style={styles.brand}>AACE Excelência</Text>
           <Text style={styles.tagline}>Avaliar. Comprovar. Evoluir.</Text>
-          <View style={styles.version}><Text style={styles.versionText}>APP MOBILE + WEB · VERSÃO 1.3</Text></View>
+          <View style={styles.version}><Text style={styles.versionText}>APP MOBILE + WEB · VERSÃO {runtimeConfig.appVersion}</Text></View>
         </View>
 
         <View style={styles.card}>
