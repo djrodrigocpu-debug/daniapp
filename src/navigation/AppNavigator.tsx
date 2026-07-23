@@ -75,7 +75,11 @@ function MainTabs() {
   );
 }
 
-/** Autenticado, porém sem vínculo operacional (perfil sem escopo — §7). */
+/**
+ * Autenticado, porém sem NENHUM papel ativo reconhecido (§7). Não aparece para
+ * Administrador ativo (que é válido sem região/coordenadoria/operação) nem para
+ * demais perfis com escopo — apenas quando a sessão não tem papel/escopo ativo.
+ */
 function NoScopeScreen() {
   const { state, signOut } = useAuth();
   return (
@@ -84,8 +88,7 @@ function NoScopeScreen() {
       <Text style={styles.noticeTitle}>Perfil sem vínculo</Text>
       <Text style={styles.noticeBody}>
         A conta {state.session?.user.corporateEmail} está autenticada, mas ainda não possui
-        escopo (região, coordenadoria ou operação) atribuído. Solicite ao Administrador a
-        vinculação do seu perfil.
+        um papel de acesso ativo. Solicite ao Administrador a atribuição do seu perfil.
       </Text>
       <AppButton title="Sair" variant="secondary" onPress={() => void signOut()} />
     </View>
