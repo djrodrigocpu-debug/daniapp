@@ -1,6 +1,25 @@
-import { AppData, AssessmentAnswer, Evaluation, Operation, TrafficLight, User } from '../types';
+import { AdminIndicator, AppData, AssessmentAnswer, Evaluation, Operation, TrafficLight, User } from '../types';
 import { themes } from './catalog';
 import { indicatorDefinitions, indicatorResults } from './performance';
+
+// Catálogo de indicadores versionados gerido pelo Administrador (§8.1). Seed de
+// desenvolvimento: IND-012 já está "em uso" (usageCount>0) para exercitar o
+// bloqueio de exclusão (T05); IND-045 está livre.
+export const adminIndicators: AdminIndicator[] = [
+  {
+    id: 'IND012', code: 'IND-012', name: 'Produtividade BCC', lifecycle: 'active', createdAt: '2026-01-10T00:00:00.000Z', usageCount: 8,
+    versions: [
+      { id: 'IND012v1', versionNumber: 1, unit: 'qtd', direction: 'higher_better', target: 100, yellowTolerance: 10, weight: 3, effectiveFrom: '2026-01-10' },
+      { id: 'IND012v2', versionNumber: 2, unit: 'qtd', direction: 'higher_better', target: 120, yellowTolerance: 10, weight: 3, effectiveFrom: '2026-04-01' },
+    ],
+  },
+  {
+    id: 'IND045', code: 'IND-045', name: 'Churn de base', lifecycle: 'active', createdAt: '2026-02-01T00:00:00.000Z', usageCount: 0,
+    versions: [
+      { id: 'IND045v1', versionNumber: 1, unit: '%', direction: 'lower_better', target: 2, yellowTolerance: 0.5, weight: 2, effectiveFrom: '2026-02-01' },
+    ],
+  },
+];
 
 // AAPEX V2 (Masterplan §9.2, §9.3; Anexo D — T30):
 // A senha única de demonstração foi REMOVIDA do bundle. Estes dados são seeds
@@ -55,4 +74,5 @@ export const initialData: AppData = {
   indicatorDefinitions,
   indicatorResults,
   visitReports: [],
+  adminIndicators,
 };

@@ -9,6 +9,7 @@ import { OperationsProvider } from './src/context/OperationsProvider';
 import { EvaluationsProvider } from './src/context/EvaluationsProvider';
 import { ActionsProvider } from './src/context/ActionsProvider';
 import { ValidationsProvider } from './src/context/ValidationsProvider';
+import { AdminProvider } from './src/context/AdminProvider';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { colors } from './src/theme';
 
@@ -29,7 +30,9 @@ export default function App() {
                   <EvaluationsProvider>
                     <ActionsProvider>
                       <ValidationsProvider>
-                        <AppNavigator />
+                        <AdminProvider>
+                          <AppNavigator />
+                        </AdminProvider>
                       </ValidationsProvider>
                     </ActionsProvider>
                   </EvaluationsProvider>

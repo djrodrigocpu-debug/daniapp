@@ -13,6 +13,7 @@ import { OperationsScreen } from '../screens/OperationsScreen';
 import { ActionsScreen } from '../screens/ActionsScreen';
 import { AgendaScreen } from '../screens/AgendaScreen';
 import { ValidationsScreen } from '../screens/ValidationsScreen';
+import { AdminScreen } from '../screens/AdminScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { OperationDetailScreen } from '../screens/OperationDetailScreen';
 import { EvaluationScreen } from '../screens/EvaluationScreen';
@@ -38,6 +39,7 @@ const navTheme = {
 function MainTabs() {
   const { currentUser } = useApp();
   const canValidate = currentUser?.role === 'regional' || currentUser?.role === 'coordinator';
+  const isAdmin = currentUser?.role === 'admin';
 
   return (
     <Tabs.Navigator
@@ -54,6 +56,7 @@ function MainTabs() {
             Agenda: focused ? 'calendar' : 'calendar-outline',
             Ações: focused ? 'flag' : 'flag-outline',
             Validações: focused ? 'shield-checkmark' : 'shield-checkmark-outline',
+            Admin: focused ? 'settings' : 'settings-outline',
             Perfil: focused ? 'person-circle' : 'person-circle-outline',
           };
           return <Ionicons name={icons[route.name] ?? 'ellipse-outline'} size={size} color={color} />;
@@ -65,6 +68,7 @@ function MainTabs() {
       <Tabs.Screen name="Agenda" component={AgendaScreen} />
       <Tabs.Screen name="Ações" component={ActionsScreen} />
       {canValidate && <Tabs.Screen name="Validações" component={ValidationsScreen} />}
+      {isAdmin && <Tabs.Screen name="Admin" component={AdminScreen} />}
       <Tabs.Screen name="Perfil" component={ProfileScreen} />
     </Tabs.Navigator>
   );

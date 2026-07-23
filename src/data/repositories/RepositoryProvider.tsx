@@ -21,12 +21,22 @@ import { LocalEvaluationsRepository } from './LocalEvaluationsRepository';
 import { SupabaseEvaluationsRepository } from './SupabaseEvaluationsRepository';
 import { ActionsRepository, LocalActionsRepository, SupabaseActionsRepository } from './ActionsRepository';
 import { ValidationsRepository, LocalValidationsRepository, SupabaseValidationsRepository } from './ValidationsRepository';
+import {
+  AdminUsersRepository,
+  AdminIndicatorsRepository,
+  LocalAdminUsersRepository,
+  LocalAdminIndicatorsRepository,
+  SupabaseAdminUsersRepository,
+  SupabaseAdminIndicatorsRepository,
+} from './AdminRepository';
 
 export interface Repositories {
   operations: OperationsRepository;
   evaluations: EvaluationsRepository;
   actions: ActionsRepository;
   validations: ValidationsRepository;
+  adminUsers: AdminUsersRepository;
+  adminIndicators: AdminIndicatorsRepository;
   /** Origem efetiva dos dados operacionais. */
   source: 'supabase' | 'local';
 }
@@ -39,6 +49,8 @@ function buildRepositories(): Repositories {
       evaluations: new SupabaseEvaluationsRepository(client),
       actions: new SupabaseActionsRepository(client),
       validations: new SupabaseValidationsRepository(client),
+      adminUsers: new SupabaseAdminUsersRepository(client),
+      adminIndicators: new SupabaseAdminIndicatorsRepository(client),
       source: 'supabase',
     };
   }
@@ -47,6 +59,8 @@ function buildRepositories(): Repositories {
     evaluations: new LocalEvaluationsRepository(localStore),
     actions: new LocalActionsRepository(localStore),
     validations: new LocalValidationsRepository(localStore),
+    adminUsers: new LocalAdminUsersRepository(localStore),
+    adminIndicators: new LocalAdminIndicatorsRepository(localStore),
     source: 'local',
   };
 }
