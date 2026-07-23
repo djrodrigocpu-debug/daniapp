@@ -1,8 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { initialData } from '../data/mock';
-import { featureFlags } from '../config/runtime';
 import { themes } from '../data/catalog';
+import { resolveOperationalUser } from '../data/demoDirectory';
+import { useAuth } from './AuthProvider';
 import {
   ActionPlan,
   AppData,
@@ -20,16 +21,19 @@ import { calculateScore, completionRate } from '../utils/scoring';
 import { getScoreStatus } from '../utils/format';
 
 const DATA_KEY = '@aace_excelencia:data:v1.2';
-const USER_KEY = '@aace_excelencia:user:v1';
 
 type SubmitResult = { ok: true } | { ok: false; message: string };
 
 interface AppContextValue {
   ready: boolean;
   data: AppData;
+  /**
+   * Identidade operacional derivada da SESSÃO CORPORATIVA autenticada
+   * (`AuthProvider`). `null` quando anônimo ou quando a sessão não tem vínculo
+   * operacional (perfil sem escopo — §7).
+   */
   currentUser: User | null;
   visibleOperations: Operation[];
-  login: (email: string, password: string) => Promise<{ ok: boolean; message?: string }>;
   logout: () => Promise<void>;
   resetDemo: () => Promise<void>;
   getOperation: (operationId: string) => Operation | undefined;
@@ -67,22 +71,15 @@ function createBlankAnswers(frequency: Frequency): AssessmentAnswer[] {
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const { state: authState, signOut } = useAuth();
   const [ready, setReady] = useState(false);
   const [data, setData] = useState<AppData>(initialData);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   useEffect(() => {
     async function hydrate() {
       try {
-        const [storedData, storedUserId] = await Promise.all([
-          AsyncStorage.getItem(DATA_KEY),
-          AsyncStorage.getItem(USER_KEY),
-        ]);
-        const hydrated = storedData ? (JSON.parse(storedData) as AppData) : initialData;
-        setData(hydrated);
-        if (storedUserId) {
-          setCurrentUser(hydrated.users.find((user) => user.id === storedUserId) ?? null);
-        }
+        const storedData = await AsyncStorage.getItem(DATA_KEY);
+        setData(storedData ? (JSON.parse(storedData) as AppData) : initialData);
       } catch {
         setData(initialData);
       } finally {
@@ -97,40 +94,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     void AsyncStorage.setItem(DATA_KEY, JSON.stringify(data));
   }, [data, ready]);
 
+  // A identidade operacional vem da SESSÃO CORPORATIVA autenticada — nunca de um
+  // login demonstrativo. Resolve por id (alinhado no diretório demo) e cai para
+  // e-mail corporativo (compatível com um provisionamento Supabase futuro). Sem
+  // vínculo operacional ⇒ `null` (perfil sem escopo, §7).
+  const currentUser = useMemo<User | null>(
+    () => resolveOperationalUser(authState.session, data.users),
+    [authState.session, data.users],
+  );
+
   const visibleOperations = useMemo(() => {
     if (!currentUser) return [];
-    if (currentUser.role === 'regional') return data.operations;
+    // Administrador e Regional enxergam todo o escopo; Coordenador vê a própria
+    // coordenadoria; GC vê apenas as operações sob sua responsabilidade.
+    if (currentUser.role === 'admin' || currentUser.role === 'regional') return data.operations;
     if (currentUser.role === 'coordinator') {
       return data.operations.filter((operation) => operation.coordinatorId === currentUser.id);
     }
     return data.operations.filter((operation) => operation.managerId === currentUser.id);
   }, [currentUser, data.operations]);
 
-  const login = useCallback(async (email: string, _password: string) => {
-    // AAPEX V2: a autenticação corporativa (Supabase Auth) é implementada na
-    // camada de repositório (Fase 3). Este caminho é EXCLUSIVO do modo
-    // demonstração de desenvolvimento e não valida senha embutida — a senha
-    // única de demo foi removida do bundle (§9.2, T30).
-    if (!featureFlags.demoMode) {
-      return {
-        ok: false,
-        message: 'Autenticação corporativa não configurada neste ambiente. Configure o Supabase (.env).',
-      };
-    }
-    const normalized = email.trim().toLowerCase();
-    const user = data.users.find((item) => item.email.toLowerCase() === normalized);
-    if (!user) {
-      return { ok: false, message: 'E-mail não encontrado no ambiente de demonstração.' };
-    }
-    setCurrentUser(user);
-    await AsyncStorage.setItem(USER_KEY, user.id);
-    return { ok: true };
-  }, [data.users]);
-
   const logout = useCallback(async () => {
-    setCurrentUser(null);
-    await AsyncStorage.removeItem(USER_KEY);
-  }, []);
+    // Encerra a sessão corporativa; `currentUser` volta a `null` reativamente.
+    await signOut();
+  }, [signOut]);
 
   const resetDemo = useCallback(async () => {
     setData(initialData);
@@ -307,7 +294,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     data,
     currentUser,
     visibleOperations,
-    login,
     logout,
     resetDemo,
     getOperation,
@@ -325,7 +311,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateIndicatorResult,
     createVisitReport,
   }), [
-    ready, data, currentUser, visibleOperations, login, logout, resetDemo, getOperation, getUser, getEvaluation,
+    ready, data, currentUser, visibleOperations, logout, resetDemo, getOperation, getUser, getEvaluation,
     getCurrentDraft, startEvaluation, updateAnswer, addEvidence, removeEvidence, saveActionPlan, updateActionStatus,
     submitEvaluation, validateEvaluation, updateIndicatorResult, createVisitReport,
   ]);

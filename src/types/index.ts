@@ -1,4 +1,4 @@
-export type UserRole = 'regional' | 'coordinator' | 'channel_manager';
+export type UserRole = 'admin' | 'regional' | 'coordinator' | 'channel_manager';
 export type TrafficLight = 'green' | 'yellow' | 'red' | 'not_evaluated' | 'not_applicable';
 export type EvaluationStatus = 'draft' | 'submitted' | 'approved' | 'returned';
 export type ActionStatus = 'not_started' | 'in_progress' | 'waiting_partner' | 'waiting_internal' | 'completed' | 'validated' | 'overdue';

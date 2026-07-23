@@ -9,6 +9,7 @@ import { indicatorDefinitions, indicatorResults } from './performance';
 // corporativo usa Supabase Auth (ver `src/domain/repositories/AuthRepository`).
 
 export const users: User[] = [
+  { id: 'U00', name: 'Administrador AACE', email: 'admin@aace.app', role: 'admin', region: 'AACE Brasil', avatarInitials: 'AD' },
   { id: 'U01', name: 'Gerência Regional AACE', email: 'regional@aace.app', role: 'regional', region: 'PR/SC', avatarInitials: 'GR' },
   { id: 'U02', name: 'Coordenação PR Capital', email: 'coordenador@aace.app', role: 'coordinator', region: 'PR Capital', avatarInitials: 'CP' },
   { id: 'U03', name: 'Gerente de Canal Curitiba', email: 'gerente@aace.app', role: 'channel_manager', coordinatorId: 'U02', region: 'Curitiba', avatarInitials: 'GC' },

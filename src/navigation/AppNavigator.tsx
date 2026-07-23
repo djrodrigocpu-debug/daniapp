@@ -5,6 +5,8 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthProvider';
+import { AppButton } from '../components/AppButton';
 import { LoginScreen } from '../screens/LoginScreen';
 import { DashboardScreen } from '../screens/DashboardScreen';
 import { OperationsScreen } from '../screens/OperationsScreen';
@@ -68,10 +70,29 @@ function MainTabs() {
   );
 }
 
+/** Autenticado, porém sem vínculo operacional (perfil sem escopo — §7). */
+function NoScopeScreen() {
+  const { state, signOut } = useAuth();
+  return (
+    <View style={styles.notice}>
+      <View style={styles.loadingLogo}><Text style={styles.loadingLogoText}>A</Text></View>
+      <Text style={styles.noticeTitle}>Perfil sem vínculo</Text>
+      <Text style={styles.noticeBody}>
+        A conta {state.session?.user.corporateEmail} está autenticada, mas ainda não possui
+        escopo (região, coordenadoria ou operação) atribuído. Solicite ao Administrador a
+        vinculação do seu perfil.
+      </Text>
+      <AppButton title="Sair" variant="secondary" onPress={() => void signOut()} />
+    </View>
+  );
+}
+
 export function AppNavigator() {
+  const { state } = useAuth();
   const { ready, currentUser } = useApp();
 
-  if (!ready) {
+  // Sessão sendo restaurada ou dados locais ainda hidratando.
+  if (state.status === 'initializing' || !ready) {
     return (
       <View style={styles.loading}>
         <View style={styles.loadingLogo}><Text style={styles.loadingLogoText}>A</Text></View>
@@ -81,7 +102,11 @@ export function AppNavigator() {
     );
   }
 
-  if (!currentUser) return <LoginScreen />;
+  // Bloqueio de navegação sem sessão corporativa (§7).
+  if (state.status !== 'authenticated') return <LoginScreen />;
+
+  // Sessão válida, mas sem identidade operacional vinculada.
+  if (!currentUser) return <NoScopeScreen />;
 
   return (
     <NavigationContainer theme={navTheme}>
@@ -100,4 +125,7 @@ const styles = StyleSheet.create({
   loadingLogo: { width: 58, height: 58, borderRadius: 19, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   loadingLogoText: { color: colors.white, fontSize: 31, fontWeight: '900' },
   loadingText: { color: colors.inkMuted, fontSize: 13 },
+  notice: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background, gap: 16, paddingHorizontal: 32, maxWidth: 480, alignSelf: 'center' },
+  noticeTitle: { color: colors.ink, fontSize: 20, fontWeight: '900' },
+  noticeBody: { color: colors.inkMuted, fontSize: 13, lineHeight: 20, textAlign: 'center' },
 });

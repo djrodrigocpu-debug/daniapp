@@ -12,12 +12,14 @@ import { getRuntimeConfig } from '../config/env';
 import { getSupabaseClient } from '../services/supabase/client';
 import { createAuthBackend, AuthMode } from '../services/auth/authFactory';
 import { AuthController, AuthState } from '../services/auth/AuthController';
+import { operationalDemoDirectory } from '../data/demoDirectory';
 
 interface AuthContextValue {
   state: AuthState;
   mode: AuthMode;
   signIn: (email: string, password: string) => Promise<{ ok: boolean; message?: string }>;
   signOut: () => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<{ ok: boolean; message?: string }>;
   controller: AuthController;
 }
 
@@ -27,7 +29,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const backend = useMemo(() => {
     const config = getRuntimeConfig();
     const client = getSupabaseClient(config);
-    return createAuthBackend(config, client);
+    // Em modo demo, o diretório de perfis é derivado do seed operacional para
+    // que a sessão corporativa mapeie 1:1 no `User` operacional (§9.3).
+    return createAuthBackend(config, client, { demoDirectory: operationalDemoDirectory });
   }, []);
 
   const controllerRef = useRef<AuthController | null>(null);
@@ -50,9 +54,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mode: backend.mode,
       signIn: (email, password) => controller.signIn(email, password),
       signOut: () => controller.signOut(),
+      requestPasswordReset: async (email: string) => {
+        const res = await backend.repository.requestPasswordReset(email);
+        return res.ok
+          ? { ok: true }
+          : { ok: false, message: res.error.message };
+      },
       controller,
     }),
-    [state, backend.mode, controller],
+    [state, backend.mode, backend.repository, controller],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

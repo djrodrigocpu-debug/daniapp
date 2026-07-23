@@ -14,7 +14,7 @@ import { AuthRepository, AuthenticatedSession } from '../../domain/repositories'
 import { Result, ok, err } from '../../domain/errors/result';
 import { AppError } from '../../domain/errors/AppError';
 import { SupabaseAuthRepository } from '../supabase/SupabaseAuthRepository';
-import { DemoAuthRepository } from './DemoAuthRepository';
+import { DemoAuthRepository, DemoProfile } from './DemoAuthRepository';
 
 export type AuthMode = 'supabase' | 'demo' | 'unconfigured';
 
@@ -43,13 +43,26 @@ export function selectAuthMode(config: AppConfig, client: SupabaseClient | null)
   return 'unconfigured';
 }
 
-export function createAuthBackend(config: AppConfig, client: SupabaseClient | null): AuthBackend {
+export interface AuthBackendOptions {
+  /**
+   * Diretório de perfis demo alinhado ao seed operacional (§9.3). Injetado pela
+   * camada de app; ignorado fora do modo demo. Quando ausente, usa o diretório
+   * fictício padrão do `DemoAuthRepository`.
+   */
+  demoDirectory?: DemoProfile[];
+}
+
+export function createAuthBackend(
+  config: AppConfig,
+  client: SupabaseClient | null,
+  options: AuthBackendOptions = {},
+): AuthBackend {
   const mode = selectAuthMode(config, client);
   switch (mode) {
     case 'supabase':
       return { repository: new SupabaseAuthRepository(client as SupabaseClient), mode };
     case 'demo':
-      return { repository: new DemoAuthRepository(), mode };
+      return { repository: new DemoAuthRepository(options.demoDirectory), mode };
     default:
       return { repository: new NullAuthRepository(), mode };
   }
