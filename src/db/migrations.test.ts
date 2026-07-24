@@ -17,6 +17,7 @@ const SUPA = join(HERE, '..', '..', 'supabase');
 const schema = readFileSync(join(SUPA, 'migrations', '0001_core_schema.sql'), 'utf8');
 const rls = readFileSync(join(SUPA, 'migrations', '0002_rls_policies.sql'), 'utf8');
 const triggers = readFileSync(join(SUPA, 'migrations', '0003_integrity_triggers.sql'), 'utf8');
+const partners = readFileSync(join(SUPA, 'migrations', '0009_partners_admin.sql'), 'utf8');
 const down = readFileSync(join(SUPA, 'rollback', '0001_core_schema.down.sql'), 'utf8');
 const seed = readFileSync(join(SUPA, 'seed', '0001_seed_catalog.sql'), 'utf8');
 
@@ -108,10 +109,61 @@ describe('0003 — integridade histórica (triggers)', () => {
   });
 });
 
+describe('0009 — Parceiros AACE (cadastro + importador)', () => {
+  it('normalização imutável e índices únicos normalizados', () => {
+    expect(partners).toMatch(/function app\.normalize_text[\s\S]*?immutable/);
+    expect(partners).toMatch(/create unique index if not exists operations_unit_office_norm_uidx/);
+    expect(partners).toMatch(/create unique index if not exists organizations_name_norm_uidx/);
+    expect(partners).toMatch(/create unique index if not exists coordinations_region_name_norm_uidx/);
+  });
+
+  it('parceiro ativo exige GC (CHECK no banco)', () => {
+    expect(partners).toMatch(/operations_active_requires_gc/);
+    expect(partners).toMatch(/check \(\(not active\) or \(channel_manager_user_id is not null\)\)/);
+  });
+
+  it('RPCs são SECURITY DEFINER com is_admin e search_path vazio', () => {
+    for (const fn of ['admin_create_operation', 'admin_update_operation', 'admin_import_partners']) {
+      const body = partners.match(new RegExp(`function public\\.${fn}[\\s\\S]*?\\$\\$`))?.[0] ?? '';
+      expect(body, `${fn} deve ser security definer`).toMatch(/security definer/);
+      expect(body, `${fn} deve fixar search_path vazio`).toMatch(/set search_path = ''/);
+    }
+    expect(partners.match(/if not app\.is_admin\(\)/g)?.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('mínimo privilégio: revoke amplo e grant restrito às 3 RPCs', () => {
+    expect(partners).toMatch(/revoke execute on function[\s\S]*?app\.partner_dto[\s\S]*?from public, anon, authenticated/);
+    expect(partners).toMatch(/revoke execute on function[\s\S]*?app\.sync_operation_assignment[\s\S]*?from public, anon, authenticated/);
+    const grant = partners.match(/grant execute on function[\s\S]*?to authenticated/)?.[0] ?? '';
+    expect(grant).toMatch(/public\.admin_create_operation\(jsonb\)/);
+    expect(grant).toMatch(/public\.admin_update_operation\(uuid, jsonb\)/);
+    expect(grant).toMatch(/public\.admin_import_partners\(jsonb, boolean\)/);
+    expect(grant).not.toMatch(/app\./);
+    // Única exceção de helper, comprovada por teste de integração: o índice por
+    // expressão avalia normalize_text com privilégios do caller em DML direto.
+    expect(partners).toMatch(/grant execute on function app\.normalize_text\(text\) to authenticated/);
+    expect(partners).not.toMatch(/grant execute on function app\.partner_dto/);
+    expect(partners).not.toMatch(/grant execute on function app\.sync_operation_assignment/);
+  });
+
+  it('simulação não grava: escrita 100% condicionada a p_commit', () => {
+    const importBody = partners.match(/function public\.admin_import_partners[\s\S]*$/)?.[0] ?? '';
+    expect(importBody).toMatch(/if p_commit then/);
+    expect(importBody).toMatch(/limite de % linhas/);
+  });
+});
+
 describe('reversibilidade e seed', () => {
   it('0001 possui migration de reversão (§18.3)', () => {
     expect(down).toMatch(/drop table if exists/);
     expect(down).toMatch(/drop schema if exists app cascade/);
+  });
+
+  it('0009 é revertida: down remove RPCs e projeção admin', () => {
+    expect(down).toMatch(/public\.admin_create_operation\(jsonb\)/);
+    expect(down).toMatch(/public\.admin_update_operation\(uuid, jsonb\)/);
+    expect(down).toMatch(/public\.admin_import_partners\(jsonb, boolean\)/);
+    expect(down).toMatch(/public\.ui_admin_partners/);
   });
 
   it('seed traz 24 temas e 12 indicadores (revisáveis, P05)', () => {
@@ -126,7 +178,7 @@ describe('reversibilidade e seed', () => {
 
 describe('segurança do SQL', () => {
   it('nenhum SQL referencia service role', () => {
-    for (const sql of [schema, rls, triggers, seed, down]) {
+    for (const sql of [schema, rls, triggers, partners, seed, down]) {
       expect(sql.toLowerCase()).not.toMatch(/service[_-]?role[_-]?key/);
     }
   });

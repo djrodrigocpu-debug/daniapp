@@ -5,14 +5,22 @@
 -- Remove todo o esquema de aplicação. Como as tabelas têm FKs, usa CASCADE.
 -- Os triggers/policies (0002/0003) caem junto com as tabelas.
 
--- Projeções de leitura (0005) — dependem das tabelas-base (cairiam por cascade,
--- mas são removidas explicitamente para uma reversão autocontida e legível).
+-- RPCs de Parceiros AACE (0009) — funções plpgsql em `public` não caem com o
+-- `drop schema app cascade`; drop explícito para reversão autocontida.
+drop function if exists
+  public.admin_create_operation(jsonb),
+  public.admin_update_operation(uuid, jsonb),
+  public.admin_import_partners(jsonb, boolean);
+
+-- Projeções de leitura (0005/0009) — dependem das tabelas-base (cairiam por
+-- cascade, mas são removidas explicitamente para uma reversão autocontida).
 drop view if exists
   public.ui_operations,
   public.ui_evaluations,
   public.ui_action_plans,
   public.ui_users,
-  public.ui_indicators
+  public.ui_indicators,
+  public.ui_admin_partners
   cascade;
 
 drop table if exists
