@@ -8,14 +8,23 @@ import { useAdmin } from '../context/AdminProvider';
 import { colors, radius, spacing } from '../theme';
 import { UserRole } from '../types';
 import { roleLabel } from '../utils/format';
+import { PartnersSection } from './admin/PartnersSection';
 
 const ROLES: UserRole[] = ['admin', 'regional', 'coordinator', 'channel_manager'];
 
+type AdminMode = 'partners' | 'users' | 'indicators';
+
+const TABS: Array<{ mode: AdminMode; label: string }> = [
+  { mode: 'partners', label: 'Parceiros AACE' },
+  { mode: 'users', label: 'Usuários' },
+  { mode: 'indicators', label: 'Indicadores' },
+];
+
 export function AdminScreen() {
   const admin = useAdmin();
-  const [mode, setMode] = useState<'users' | 'indicators'>('users');
+  const [mode, setMode] = useState<AdminMode>('partners');
 
-  if (admin.loading && admin.users.length === 0 && admin.indicators.length === 0) {
+  if (admin.loading && admin.users.length === 0 && admin.indicators.length === 0 && admin.partners.length === 0) {
     return (
       <SafeAreaView style={[styles.safe, styles.center]} edges={['top', 'left', 'right']}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -28,17 +37,16 @@ export function AdminScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>Administração</Text>
-        <Text style={styles.subtitle}>Usuários, perfis e indicadores versionados do programa.</Text>
+        <Text style={styles.subtitle}>Parceiros AACE, usuários e indicadores versionados do programa.</Text>
         <View style={styles.tabs}>
-          <Pressable onPress={() => setMode('users')} style={[styles.tab, mode === 'users' && styles.tabActive]}>
-            <Text style={[styles.tabText, mode === 'users' && styles.tabTextActive]}>Usuários</Text>
-          </Pressable>
-          <Pressable onPress={() => setMode('indicators')} style={[styles.tab, mode === 'indicators' && styles.tabActive]}>
-            <Text style={[styles.tabText, mode === 'indicators' && styles.tabTextActive]}>Indicadores</Text>
-          </Pressable>
+          {TABS.map((tab) => (
+            <Pressable key={tab.mode} onPress={() => setMode(tab.mode)} style={[styles.tab, mode === tab.mode && styles.tabActive]}>
+              <Text style={[styles.tabText, mode === tab.mode && styles.tabTextActive]}>{tab.label}</Text>
+            </Pressable>
+          ))}
         </View>
 
-        {mode === 'users' ? <UsersSection /> : <IndicatorsSection />}
+        {mode === 'partners' ? <PartnersSection /> : mode === 'users' ? <UsersSection /> : <IndicatorsSection />}
       </ScrollView>
     </SafeAreaView>
   );
