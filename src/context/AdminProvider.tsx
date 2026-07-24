@@ -7,16 +7,20 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { AdminIndicator, AdminIndicatorVersion, User, UserRole } from '../types';
 import { useRepositories } from '../data/repositories/RepositoryProvider';
 import { CreateUserInput } from '../data/repositories/AdminRepository';
+import { AdminPartner, PartnerInput, PartnerPatch } from '../data/repositories/PartnersRepository';
+import { ImportReport, ImportRow } from '../domain/partners/types';
 import { localStore } from '../data/store/localStore';
 import { useOperationalUser } from './useOperationalUser';
 
 export type AdminResult = { ok: true } | { ok: false; message: string };
+export type AdminImportResult = { ok: true; report: ImportReport } | { ok: false; message: string };
 type NewVersion = Omit<AdminIndicatorVersion, 'id' | 'versionNumber'>;
 
 interface AdminContextValue {
   isAdmin: boolean;
   users: User[];
   indicators: AdminIndicator[];
+  partners: AdminPartner[];
   loading: boolean;
   error: string | null;
   refresh: () => void;
@@ -27,18 +31,23 @@ interface AdminContextValue {
   addIndicatorVersion: (indicatorId: string, version: NewVersion) => Promise<AdminResult>;
   deactivateIndicator: (indicatorId: string) => Promise<AdminResult>;
   removeIndicator: (indicatorId: string) => Promise<AdminResult>;
+  createPartner: (input: PartnerInput) => Promise<AdminResult>;
+  updatePartner: (id: string, patch: PartnerPatch) => Promise<AdminResult>;
+  /** Retorna o relatório (simulação/confirmação) — não usa wrap() porque o chamador precisa dele. */
+  importPartners: (rows: ImportRow[], commit: boolean) => Promise<AdminImportResult>;
 }
 
 const AdminContext = createContext<AdminContextValue | undefined>(undefined);
 
 export function AdminProvider({ children }: { children: React.ReactNode }) {
-  const { adminUsers, adminIndicators, source } = useRepositories();
+  const { adminUsers, adminIndicators, adminPartners, source } = useRepositories();
   const data = useSyncExternalStore(localStore.subscribe, localStore.getSnapshot);
   const currentUser = useOperationalUser();
   const isAdmin = currentUser?.role === 'admin';
 
   const [users, setUsers] = useState<User[]>([]);
   const [indicators, setIndicators] = useState<AdminIndicator[]>([]);
+  const [partners, setPartners] = useState<AdminPartner[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,22 +55,29 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     if (!isAdmin) {
       setUsers([]);
       setIndicators([]);
+      setPartners([]);
       setLoading(false);
       return;
     }
     setLoading(true);
     setError(null);
-    const [uRes, iRes] = await Promise.all([adminUsers.listAll(), adminIndicators.listAll()]);
+    const [uRes, iRes, pRes] = await Promise.all([
+      adminUsers.listAll(),
+      adminIndicators.listAll(),
+      adminPartners.listAll(),
+    ]);
     if (!uRes.ok) setError(uRes.error.message);
     else setUsers(uRes.value);
     if (iRes.ok) setIndicators(iRes.value);
     else if (!error) setError(iRes.error.message);
+    if (pRes.ok) setPartners(pRes.value);
+    else if (!error) setError(pRes.error.message);
     setLoading(false);
-  }, [isAdmin, adminUsers, adminIndicators, error]);
+  }, [isAdmin, adminUsers, adminIndicators, adminPartners, error]);
 
   useEffect(() => {
     void load();
-  }, [isAdmin, adminUsers, adminIndicators]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isAdmin, adminUsers, adminIndicators, adminPartners]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (source !== 'local') return undefined;
@@ -73,11 +89,19 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     return res.ok ? { ok: true } : { ok: false, message: res.error?.message ?? 'Falha na operação.' };
   }, []);
 
+  const importPartners = useCallback(async (rows: ImportRow[], commit: boolean): Promise<AdminImportResult> => {
+    const res = await adminPartners.importPartners(rows, commit);
+    if (!res.ok) return { ok: false, message: res.error.message };
+    if (commit) void load(); // pós-confirmação: recarrega a listagem
+    return { ok: true, report: res.value };
+  }, [adminPartners, load]);
+
   const value = useMemo<AdminContextValue>(
     () => ({
       isAdmin,
       users: data.users,
       indicators: data.adminIndicators ?? indicators,
+      partners,
       loading,
       error,
       refresh: () => void load(),
@@ -88,8 +112,11 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       addIndicatorVersion: (indicatorId, version) => wrap(adminIndicators.addVersion(indicatorId, version)),
       deactivateIndicator: (indicatorId) => wrap(adminIndicators.deactivate(indicatorId)),
       removeIndicator: (indicatorId) => wrap(adminIndicators.remove(indicatorId)),
+      createPartner: (input) => wrap(adminPartners.create(input)),
+      updatePartner: (id, patch) => wrap(adminPartners.update(id, patch)),
+      importPartners,
     }),
-    [isAdmin, data.users, data.adminIndicators, indicators, loading, error, load, wrap, adminUsers, adminIndicators],
+    [isAdmin, data.users, data.adminIndicators, indicators, partners, loading, error, load, wrap, adminUsers, adminIndicators, adminPartners, importPartners],
   );
 
   return <AdminContext.Provider value={value}>{children}</AdminContext.Provider>;

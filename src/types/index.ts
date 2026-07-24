@@ -11,7 +11,9 @@ export interface User { id: string; name: string; email: string; role: UserRole;
 /** Indicador versionado gerido pelo Administrador (§8.1, §11.3). */
 export interface AdminIndicatorVersion { id: string; versionNumber: number; unit: IndicatorUnit; direction: IndicatorDirection; target: number; yellowTolerance: number; weight: number; effectiveFrom: string; }
 export interface AdminIndicator { id: string; code: string; name: string; lifecycle: 'active' | 'inactive'; createdAt: string; usageCount: number; versions: AdminIndicatorVersion[]; }
-export interface Operation { id: string; partnerName: string; officeName: string; city: string; state: 'PR' | 'SC'; coordinatorId: string; managerId: string; active: boolean; currentScore: number; previousScore: number; lastAudit?: string; nextAudit: string; status: TrafficLight; openActions: number; }
+export interface Operation { id: string; partnerName: string; officeName: string; city: string; state: 'PR' | 'SC'; coordinatorId: string; managerId: string; active: boolean; currentScore: number; previousScore: number; lastAudit?: string; nextAudit: string; status: TrafficLight; openActions: number;
+  /** Campos administrativos opcionais (modo local deriva a visão de Parceiros AACE daqui — fonte única, sem coleção paralela). */
+  regionName?: string; unitName?: string; coordinationName?: string; }
 export interface Theme { id: string; pillar: string; title: string; kpi: string; target: string; frequency: Frequency; evidenceRequired: boolean; evidenceHint: string; validationMethod: string; weight: number; strategic: boolean; }
 export type EvidenceStatus = 'local' | 'uploading' | 'stored' | 'failed';
 export interface Evidence { id: string; themeId: string; name: string; uri: string; mimeType?: string; type: 'photo' | 'document'; createdAt: string; status?: EvidenceStatus; sizeBytes?: number; }

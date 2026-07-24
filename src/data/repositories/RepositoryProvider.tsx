@@ -29,6 +29,11 @@ import {
   SupabaseAdminUsersRepository,
   SupabaseAdminIndicatorsRepository,
 } from './AdminRepository';
+import {
+  AdminPartnersRepository,
+  LocalAdminPartnersRepository,
+  SupabaseAdminPartnersRepository,
+} from './PartnersRepository';
 import { PerformanceRepository, LocalPerformanceRepository, SupabasePerformanceRepository } from './PerformanceRepository';
 import { EvidenceRepository, LocalEvidenceRepository, SupabaseEvidenceRepository } from './EvidenceRepository';
 
@@ -39,6 +44,7 @@ export interface Repositories {
   validations: ValidationsRepository;
   adminUsers: AdminUsersRepository;
   adminIndicators: AdminIndicatorsRepository;
+  adminPartners: AdminPartnersRepository;
   performance: PerformanceRepository;
   evidence: EvidenceRepository;
   /** Origem efetiva dos dados operacionais. */
@@ -55,6 +61,7 @@ function buildRepositories(): Repositories {
       validations: new SupabaseValidationsRepository(client),
       adminUsers: new SupabaseAdminUsersRepository(client),
       adminIndicators: new SupabaseAdminIndicatorsRepository(client),
+      adminPartners: new SupabaseAdminPartnersRepository(client),
       performance: new SupabasePerformanceRepository(client),
       evidence: new SupabaseEvidenceRepository(client),
       source: 'supabase',
@@ -68,6 +75,7 @@ function buildRepositories(): Repositories {
     validations: new LocalValidationsRepository(localStore),
     adminUsers: new LocalAdminUsersRepository(localStore),
     adminIndicators: new LocalAdminIndicatorsRepository(localStore),
+    adminPartners: new LocalAdminPartnersRepository(localStore),
     performance: new LocalPerformanceRepository(localStore),
     evidence,
     source: 'local',
