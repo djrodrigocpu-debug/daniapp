@@ -49,3 +49,8 @@ yarn-error.*
 # Supabase CLI — estado local (link/ref), não versionar
 supabase/.temp/
 supabase/.branches/
+
+# Dados reais do canal — planilhas de importação e relatórios NUNCA no Git (§23)
+DADOS APP.xlsx
+*.xlsx
+relatorio-importacao*.json
