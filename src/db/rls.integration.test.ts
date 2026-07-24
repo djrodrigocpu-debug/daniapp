@@ -117,12 +117,28 @@ describe('RLS por perfil (banco real)', () => {
   it('Administrador lê todos os usuários', async () => {
     const rows = await db.asUser(ID.uAdmin, (tx) =>
       tx.query<{ n: number }>(`select count(*)::int n from public.users`));
-    expect(rows[0].n).toBe(6);
+    expect(rows[0].n).toBe(7);
+  });
+
+  // ---- Usuário sem escopo: autenticado, mas nada é visível ----
+  it('Usuário sem escopo NÃO lê operações nem parceiros', async () => {
+    const out = await db.asUser(ID.uNoScope, async (tx) => {
+      const ops = await tx.query(`select id from public.operations`);
+      const partners = await tx.query(`select "id" from public.ui_admin_partners`);
+      return { ops, partners };
+    });
+    expect(out.ops).toEqual([]);
+    expect(out.partners).toEqual([]);
   });
 
   // ---- Anônimo: nada vaza sem login ----
   it('Anônimo (sem JWT) não lê operações', async () => {
     const rows = await db.asAnon((tx) => tx.query(`select id from public.operations`));
+    expect(rows).toEqual([]);
+  });
+
+  it('Anônimo (sem JWT) não lê a projeção de parceiros', async () => {
+    const rows = await db.asAnon((tx) => tx.query(`select "id" from public.ui_admin_partners`));
     expect(rows).toEqual([]);
   });
 });

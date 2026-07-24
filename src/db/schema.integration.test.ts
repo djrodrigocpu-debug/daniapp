@@ -69,6 +69,31 @@ describe('esquema aplicado em banco real (0001→0003)', () => {
     const r = await db.query<{ u: string }>(`select gen_random_uuid()::text u`);
     expect(r[0].u).toMatch(/^[0-9a-f-]{36}$/);
   });
+
+  it('0009: índices únicos normalizados e CHECK ativo-exige-GC existem', async () => {
+    const idx = await db.query<{ indexname: string }>(
+      `select indexname from pg_indexes where schemaname='public' and indexname like '%_norm_uidx'`,
+    );
+    const names = idx.map((r) => r.indexname).sort();
+    expect(names).toEqual([
+      'coordinations_region_name_norm_uidx',
+      'operations_unit_office_norm_uidx',
+      'organizations_name_norm_uidx',
+      'regions_org_name_norm_uidx',
+      'units_region_name_norm_uidx',
+    ]);
+    const chk = await db.query<{ n: number }>(
+      `select count(*)::int n from pg_constraint where conname = 'operations_active_requires_gc'`,
+    );
+    expect(chk[0].n).toBe(1);
+  });
+
+  it('0009: app.normalize_text normaliza caixa, acentos e espaços', async () => {
+    const r = await db.query<{ v: string }>(
+      `select app.normalize_text('  Ação  Térreo ') v`,
+    );
+    expect(r[0].v).toBe('acao terreo');
+  });
 });
 
 describe('constraints e integridade referencial (banco real)', () => {

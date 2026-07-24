@@ -66,7 +66,7 @@ describe('ui_* respeitam a RLS por perfil (security_invoker)', () => {
 
   it('ui_users: admin vê todos; um GC vê apenas a si', async () => {
     const adm = await db.asUser(ID.uAdmin, (tx) => tx.query<{ id: string }>(`select "id" from public.ui_users`));
-    expect(adm.length).toBe(6);
+    expect(adm.length).toBe(7);
     const self = await db.asUser(ID.uGcA, (tx) =>
       tx.query<{ id: string; name: string; role: string }>(`select "id","name","role" from public.ui_users`));
     expect(self.map((r) => r.id)).toEqual([ID.uGcA]);
@@ -222,7 +222,7 @@ describe('RPCs administrativos exigem is_admin (D-05)', () => {
 
     const count = await db.asUser(ID.uAdmin, (tx) =>
       tx.query<{ n: number }>(`select count(*)::int n from public.ui_users`));
-    expect(count[0].n).toBe(7);
+    expect(count[0].n).toBe(8);
   });
 
   it('não-admin não altera papel de usuário', async () => {

@@ -27,6 +27,8 @@ export const ID = {
   uCoord2: '00000000-0000-0000-0000-000000001004',
   uGcA: '00000000-0000-0000-0000-000000001005',
   uGcB: '00000000-0000-0000-0000-000000001006',
+  /** Usuário autenticado SEM user_scopes — prova que sem escopo nada é visível. */
+  uNoScope: '00000000-0000-0000-0000-000000001007',
   template: '00000000-0000-0000-0000-00000000f001',
   templateV1: '00000000-0000-0000-0000-00000000f002',
   itemRed: '00000000-0000-0000-0000-00000000f003',
@@ -50,7 +52,8 @@ export async function seedScenario(db: TestDb): Promise<Scenario> {
       ('${q.uCoord1}','coord1@fic.example'),
       ('${q.uCoord2}','coord2@fic.example'),
       ('${q.uGcA}','gca@fic.example'),
-      ('${q.uGcB}','gcb@fic.example');
+      ('${q.uGcB}','gcb@fic.example'),
+      ('${q.uNoScope}','noscope@fic.example');
   `);
 
   await db.exec(`
@@ -64,7 +67,8 @@ export async function seedScenario(db: TestDb): Promise<Scenario> {
       ('${q.uCoord1}','Coord1 Fic','coord1@fic.example','active'),
       ('${q.uCoord2}','Coord2 Fic','coord2@fic.example','active'),
       ('${q.uGcA}','GC A Fic','gca@fic.example','active'),
-      ('${q.uGcB}','GC B Fic','gcb@fic.example','active');
+      ('${q.uGcB}','GC B Fic','gcb@fic.example','active'),
+      ('${q.uNoScope}','Sem Escopo Fic','noscope@fic.example','active');
 
     insert into public.coordinations (id, region_id, name, coordinator_user_id) values
       ('${q.coord1}','${q.region}','Coord 1','${q.uCoord1}'),
