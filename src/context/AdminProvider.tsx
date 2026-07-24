@@ -7,7 +7,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { AdminIndicator, AdminIndicatorVersion, User, UserRole } from '../types';
 import { useRepositories } from '../data/repositories/RepositoryProvider';
 import { CreateUserInput } from '../data/repositories/AdminRepository';
-import { AdminPartner, PartnerInput, PartnerPatch } from '../data/repositories/PartnersRepository';
+import { AdminPartner, PartnerInput, PartnerPatch, deriveAdminPartners } from '../data/repositories/PartnersRepository';
 import { ImportReport, ImportRow } from '../domain/partners/types';
 import { localStore } from '../data/store/localStore';
 import { useOperationalUser } from './useOperationalUser';
@@ -101,7 +101,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       isAdmin,
       users: data.users,
       indicators: data.adminIndicators ?? indicators,
-      partners,
+      // Modo local: deriva do snapshot reativo (mesmo padrão de users acima) —
+      // o estado carregado via listAll() vale para o modo Supabase.
+      partners: source === 'local' ? deriveAdminPartners(data.operations, data.users) : partners,
       loading,
       error,
       refresh: () => void load(),
@@ -116,7 +118,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       updatePartner: (id, patch) => wrap(adminPartners.update(id, patch)),
       importPartners,
     }),
-    [isAdmin, data.users, data.adminIndicators, indicators, partners, loading, error, load, wrap, adminUsers, adminIndicators, adminPartners, importPartners],
+    [isAdmin, data.users, data.adminIndicators, data.operations, source, indicators, partners, loading, error, load, wrap, adminUsers, adminIndicators, adminPartners, importPartners],
   );
 
   return <AdminContext.Provider value={value}>{children}</AdminContext.Provider>;

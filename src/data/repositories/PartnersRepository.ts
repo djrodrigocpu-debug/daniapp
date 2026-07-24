@@ -81,6 +81,15 @@ export interface AdminPartnersRepository {
 const DEMO_REGION = 'PR/SC';
 const DEMO_UNIT = 'Unidade Piloto';
 
+/**
+ * Deriva a visão administrativa diretamente do estado local (fonte única, E7).
+ * Usada pelo repositório local E pelo AdminProvider em modo demo — o provider
+ * lê do snapshot reativo do store, como já faz com users/indicators.
+ */
+export function deriveAdminPartners(operations: Operation[], users: User[]): AdminPartner[] {
+  return operations.map((op) => toAdminPartner(op, users));
+}
+
 function toAdminPartner(op: Operation, users: User[]): AdminPartner {
   const manager = users.find((u) => u.id === op.managerId) ?? null;
   const coordinator = users.find((u) => u.id === op.coordinatorId) ?? null;
@@ -164,7 +173,7 @@ export class LocalAdminPartnersRepository implements AdminPartnersRepository {
 
   async listAll(): Promise<Result<AdminPartner[]>> {
     const { operations, users } = this.snapshot();
-    return ok(operations.map((op) => toAdminPartner(op, users)));
+    return ok(deriveAdminPartners(operations, users));
   }
 
   async create(input: PartnerInput): Promise<Result<CreatePartnerResult>> {
