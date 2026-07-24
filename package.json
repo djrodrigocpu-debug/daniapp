@@ -46,7 +46,7 @@
     "vercel-build": "expo export --platform web"
   },
   "private": true,
-  "description": "Aplicativo móvel AACE Excelência com Gestão Assistida de visitas, metas, diagnóstico e planos de ação.",
+  "description": "AAPEx — aplicativo de avaliação dos Parceiros AACE, com gestão assistida de visitas, metas, diagnóstico e planos de ação.",
   "engines": {
     "node": "22.x"
   }

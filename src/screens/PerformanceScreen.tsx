@@ -36,7 +36,7 @@ export function PerformanceScreen({ route }: NativeStackScreenProps<RootStackPar
     })
     .sort((a, b) => statusOrder[a.status] - statusOrder[b.status] || b.definition.weight - a.definition.weight), [indicatorResults, indicatorDefinitions, operationId]);
 
-  if (!operation) return <Screen><Text>Operação não encontrada.</Text></Screen>;
+  if (!operation) return <Screen><Text>Parceiro AACE não encontrado.</Text></Screen>;
   const critical = items.filter((item) => item.status === 'red');
   const attention = items.filter((item) => item.status === 'yellow');
   const healthy = items.filter((item) => item.status === 'green');

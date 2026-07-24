@@ -72,7 +72,7 @@ export function LoginScreen() {
               accessibilityLabel="Claro Empresas"
             />
           </View>
-          <Text style={styles.brand}>AACE Excelência</Text>
+          <Text style={styles.brand}>AAPEx</Text>
           <Text style={styles.tagline}>Avaliar. Comprovar. Evoluir.</Text>
           <View style={styles.version}><Text style={styles.versionText}>APP MOBILE + WEB · VERSÃO {runtimeConfig.appVersion}</Text></View>
         </View>
@@ -80,7 +80,7 @@ export function LoginScreen() {
         <View style={styles.card}>
           <AuthModeBanner />
           <Text style={styles.title}>Acesso ao programa</Text>
-          <Text style={styles.subtitle}>Entre com suas credenciais corporativas AACE.</Text>
+          <Text style={styles.subtitle}>Entre com suas credenciais corporativas.</Text>
 
           <Text style={styles.label}>E-mail</Text>
           <View style={styles.inputRow}>

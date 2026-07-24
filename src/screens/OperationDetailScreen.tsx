@@ -18,7 +18,7 @@ export function OperationDetailScreen({ route, navigation }: NativeStackScreenPr
   const operation = getOperation(operationId);
 
   const history = useMemo(() => listByOperation(operationId).slice(0, 5), [listByOperation, operationId]);
-  if (!operation) return <Screen><Text>Operação não encontrada.</Text></Screen>;
+  if (!operation) return <Screen><Text>Parceiro AACE não encontrado.</Text></Screen>;
   const activeOperation = operation;
 
   const manager = getUser(activeOperation.managerId);
@@ -28,7 +28,7 @@ export function OperationDetailScreen({ route, navigation }: NativeStackScreenPr
   async function launch(frequency: 'weekly' | 'monthly') {
     const existing = getCurrentDraft(activeOperation.id);
     if (existing && existing.frequency !== frequency) {
-      Alert.alert('Rascunho existente', 'Há uma auditoria em andamento para esta operação. Finalize ou envie o rascunho atual antes de iniciar outro ciclo.');
+      Alert.alert('Rascunho existente', 'Há uma avaliação em andamento para este Parceiro AACE. Finalize ou envie o rascunho atual antes de iniciar outro ciclo.');
       return;
     }
     const id = await startEvaluation(activeOperation.id, frequency);
@@ -76,7 +76,7 @@ export function OperationDetailScreen({ route, navigation }: NativeStackScreenPr
         <AppButton title="Auditoria mensal" onPress={() => void launch('monthly')} variant="secondary" style={styles.flexButton} />
       </View>
 
-      <SectionTitle title="Histórico recente" subtitle="Ciclos registrados para esta operação." />
+      <SectionTitle title="Histórico recente" subtitle="Ciclos registrados para este Parceiro AACE." />
       {history.length ? history.map((evaluation) => (
         <View key={evaluation.id} style={styles.historyCard}>
           <View style={styles.historyTop}>

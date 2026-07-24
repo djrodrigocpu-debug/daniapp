@@ -1,4 +1,4 @@
-# AACE Excelência Mobile 1.3.0
+# AAPEx (AACE Excelência Mobile) 1.3.0
 
 ## Nome da versão
 

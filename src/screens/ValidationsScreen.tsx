@@ -82,7 +82,7 @@ export function ValidationsScreen() {
               <Ionicons name={decision === 'approved' ? 'checkmark-circle-outline' : 'return-down-back-outline'} size={27} color={decision === 'approved' ? colors.success : colors.danger} />
             </View>
             <Text style={styles.modalTitle}>{decision === 'approved' ? 'Aprovar avaliação' : 'Devolver para correção'}</Text>
-            <Text style={styles.modalText}>{decision === 'approved' ? 'A nota aprovada atualizará o índice oficial da operação.' : 'O gerente de canal deverá corrigir o checklist e reenviar.'}</Text>
+            <Text style={styles.modalText}>{decision === 'approved' ? 'A nota aprovada atualizará o índice oficial do Parceiro AACE.' : 'O gerente de canal deverá corrigir o checklist e reenviar.'}</Text>
             <TextInput value={note} onChangeText={setNote} multiline placeholder="Registre uma observação para a decisão (opcional)." placeholderTextColor={colors.neutral} style={styles.noteInput} />
             <View style={styles.modalButtons}>
               <AppButton title="Cancelar" variant="secondary" onPress={() => setSelected(null)} style={styles.flex} />

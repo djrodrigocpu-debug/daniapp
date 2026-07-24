@@ -9,6 +9,10 @@ export interface DashboardMetrics {
   /** Índice médio (0–100) das operações do escopo. */
   average: number;
   operationsCount: number;
+  /** Parceiros em conformidade (semáforo verde). */
+  compliantCount: number;
+  /** Parceiros em atenção (semáforo amarelo). */
+  attentionCount: number;
   criticalCount: number;
   openActionsCount: number;
   overdueActionsCount: number;
@@ -36,6 +40,9 @@ export function computeDashboardMetrics(
     : 0;
 
   const critical = operations.filter((operation) => operation.status === 'red');
+  // 'not_evaluated'/'not_applicable' ficam fora de conformidade E de atenção.
+  const compliant = operations.filter((operation) => operation.status === 'green');
+  const attention = operations.filter((operation) => operation.status === 'yellow');
 
   const openActions = actionPlans.filter(
     (plan) => ids.has(plan.operationId) && !CLOSED_ACTION_STATUS.has(plan.status),
@@ -59,6 +66,8 @@ export function computeDashboardMetrics(
   return {
     average,
     operationsCount: operations.length,
+    compliantCount: compliant.length,
+    attentionCount: attention.length,
     criticalCount: critical.length,
     openActionsCount: openActions.length,
     overdueActionsCount: overdueActions.length,

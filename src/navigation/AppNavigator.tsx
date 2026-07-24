@@ -53,7 +53,7 @@ function MainTabs() {
         tabBarIcon: ({ color, size, focused }) => {
           const icons: Record<string, keyof typeof Ionicons.glyphMap> = {
             Dashboard: focused ? 'grid' : 'grid-outline',
-            Operações: focused ? 'business' : 'business-outline',
+            Parceiros: focused ? 'business' : 'business-outline',
             Agenda: focused ? 'calendar' : 'calendar-outline',
             Ações: focused ? 'flag' : 'flag-outline',
             Validações: focused ? 'shield-checkmark' : 'shield-checkmark-outline',
@@ -65,7 +65,7 @@ function MainTabs() {
       })}
     >
       <Tabs.Screen name="Dashboard" component={DashboardScreen} options={{ title: 'Início' }} />
-      <Tabs.Screen name="Operações" component={OperationsScreen} />
+      <Tabs.Screen name="Parceiros" component={OperationsScreen} />
       <Tabs.Screen name="Agenda" component={AgendaScreen} />
       <Tabs.Screen name="Ações" component={ActionsScreen} />
       {canValidate && <Tabs.Screen name="Validações" component={ValidationsScreen} />}
@@ -106,7 +106,7 @@ export function AppNavigator() {
       <View style={styles.loading}>
         <View style={styles.loadingLogo}><Text style={styles.loadingLogoText}>A</Text></View>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>Carregando AACE Excelência...</Text>
+        <Text style={styles.loadingText}>Carregando AAPEx...</Text>
       </View>
     );
   }
@@ -121,7 +121,7 @@ export function AppNavigator() {
     <NavigationContainer theme={navTheme}>
       <Stack.Navigator screenOptions={{ headerTintColor: colors.ink, headerShadowVisible: false, headerStyle: { backgroundColor: colors.surface }, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
-        <Stack.Screen name="OperationDetail" component={OperationDetailScreen} options={{ title: 'Operação AACE' }} />
+        <Stack.Screen name="OperationDetail" component={OperationDetailScreen} options={{ title: 'Parceiro AACE' }} />
         <Stack.Screen name="Evaluation" component={EvaluationScreen} options={{ title: 'Auditoria' }} />
         <Stack.Screen name="Performance" component={PerformanceScreen} options={{ title: 'Visita produtiva' }} />
       </Stack.Navigator>

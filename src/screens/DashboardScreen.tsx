@@ -52,13 +52,13 @@ export function DashboardScreen() {
           <View>
             <Text style={styles.eyebrow}>{currentUser?.region}</Text>
             <Text style={styles.greeting}>Olá, {currentUser?.name.split(' ')[0]}</Text>
-            <Text style={styles.heroText}>Visão consolidada do Programa de Excelência AACE.</Text>
+            <Text style={styles.heroText}>Visão consolidada dos Parceiros AACE visíveis para o seu perfil.</Text>
           </View>
           <View style={styles.avatar}><Text style={styles.avatarText}>{currentUser?.avatarInitials}</Text></View>
         </View>
         <View style={styles.heroScoreRow}>
           <View>
-            <Text style={styles.heroScoreLabel}>Índice médio da estrutura</Text>
+            <Text style={styles.heroScoreLabel}>Índice médio dos Parceiros AACE</Text>
             <Text style={styles.heroScore}>{metrics.average}</Text>
           </View>
           <View style={styles.maturity}><Ionicons name="ribbon-outline" size={17} color={colors.white} /><Text style={styles.maturityText}>{getMaturity(metrics.average)}</Text></View>
@@ -67,22 +67,24 @@ export function DashboardScreen() {
       </View>
 
       <View style={styles.metrics}>
-        <MetricCard label="Operações" value={metrics.operationsCount} helper="sob sua responsabilidade" />
-        <MetricCard label="Críticas" value={metrics.criticalCount} helper="com nota abaixo de 70" tone={metrics.criticalCount ? 'danger' : 'success'} />
-        <MetricCard label="Ações abertas" value={metrics.openActionsCount} helper={`${metrics.overdueActionsCount} vencidas`} tone={metrics.overdueActionsCount ? 'warning' : 'neutral'} />
-        <MetricCard label="Validações" value={metrics.pendingValidationsCount} helper="aguardando decisão" tone={metrics.pendingValidationsCount ? 'warning' : 'success'} />
+        <MetricCard label="Parceiros AACE" value={metrics.operationsCount} helper="visíveis para o seu perfil" />
+        <MetricCard label="Em conformidade" value={metrics.compliantCount} helper="semáforo verde" tone={metrics.compliantCount ? 'success' : 'neutral'} />
+        <MetricCard label="Em atenção" value={metrics.attentionCount} helper="semáforo amarelo" tone={metrics.attentionCount ? 'warning' : 'neutral'} />
+        <MetricCard label="Críticos" value={metrics.criticalCount} helper="com nota abaixo de 70" tone={metrics.criticalCount ? 'danger' : 'success'} />
+        <MetricCard label="Avaliações pendentes" value={metrics.pendingAuditsCount} helper="ciclos a realizar" tone={metrics.pendingAuditsCount ? 'warning' : 'success'} />
+        <MetricCard label="Planos abertos" value={metrics.openActionsCount} helper={`${metrics.overdueActionsCount} vencidos`} tone={metrics.overdueActionsCount ? 'warning' : 'neutral'} />
       </View>
 
-      <SectionTitle title="Próximas auditorias" subtitle="Operações com ciclo mais próximo do vencimento." />
+      <SectionTitle title="Próximas avaliações" subtitle="Parceiros AACE com ciclo mais próximo do vencimento." />
       {metrics.upcoming.length ? metrics.upcoming.map((operation) => (
         <OperationCard key={operation.id} operation={operation} onPress={() => navigation.navigate('OperationDetail', { operationId: operation.id })} />
-      )) : <EmptyState title="Nenhuma operação" description="Não há operações associadas a este perfil." />}
+      )) : <EmptyState title="Nenhum Parceiro AACE" description="Não há Parceiros AACE associados a este perfil." />}
 
       <SectionTitle title="Foco da semana" subtitle="Sinais que exigem atuação gerencial imediata." />
       <View style={styles.focusCard}>
-        <FocusRow icon="alert-circle-outline" title="Operações críticas" value={`${metrics.criticalCount}`} tone={colors.danger} />
+        <FocusRow icon="alert-circle-outline" title="Parceiros críticos" value={`${metrics.criticalCount}`} tone={colors.danger} />
         <FocusRow icon="time-outline" title="Planos vencidos" value={`${metrics.overdueActionsCount}`} tone={colors.warning} />
-        <FocusRow icon="clipboard-outline" title="Auditorias pendentes" value={`${metrics.pendingAuditsCount}`} tone={colors.info} last />
+        <FocusRow icon="shield-checkmark-outline" title="Validações pendentes" value={`${metrics.pendingValidationsCount}`} tone={colors.info} last />
       </View>
     </Screen>
   );

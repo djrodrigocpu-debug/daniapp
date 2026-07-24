@@ -1,6 +1,6 @@
-# AACE Excelência Mobile 1.3.0
+# AAPEx
 
-Aplicativo em React Native, Expo e TypeScript para apoiar a gestão dos parceiros AACE PR/SC.
+Aplicativo em React Native, Expo e TypeScript para avaliar se os Parceiros AACE do canal PR/SC estão cumprindo os indicadores definidos. (Nome anterior do produto: AACE Excelência Mobile — os identificadores técnicos, como slug e bundle id, permanecem os originais por compatibilidade.)
 
 ## Novidade da v1.3.0
 

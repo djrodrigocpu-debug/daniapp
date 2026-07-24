@@ -91,7 +91,7 @@ export function ActionsScreen() {
                   <Ionicons name={isOverdue ? 'alert-outline' : 'flag-outline'} size={20} color={statusColor[effectiveStatus]} />
                 </View>
                 <View style={styles.cardHeading}>
-                  <Text style={styles.operation}>{operation?.partnerName ?? 'Operação'}</Text>
+                  <Text style={styles.operation}>{operation?.partnerName ?? 'Parceiro AACE'}</Text>
                   <Text style={styles.theme}>{theme?.title ?? plan.themeId}</Text>
                 </View>
                 <View style={[styles.statusPill, { backgroundColor: `${statusColor[effectiveStatus]}18` }]}>

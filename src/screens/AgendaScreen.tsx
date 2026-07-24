@@ -73,7 +73,7 @@ export function AgendaScreen() {
           id: `action_${plan.id}`,
           kind: 'action',
           operationId: plan.operationId,
-          title: `Plano de ação — ${operation?.partnerName ?? 'Operação'}`,
+          title: `Plano de ação — ${operation?.partnerName ?? 'Parceiro AACE'}`,
           subtitle: plan.action,
           date: plan.dueDate,
           overdue: date < today && !completed,
@@ -137,7 +137,7 @@ export function AgendaScreen() {
                     <Text style={[styles.itemDate, item.overdue && styles.dangerText]}>{item.overdue ? 'Vencido • ' : ''}{formatDate(item.date)}</Text>
                   </View>
                   <Text style={styles.itemSubtitle} numberOfLines={2}>{item.subtitle}</Text>
-                  <Text style={styles.itemLink}>Abrir operação <Ionicons name="chevron-forward" size={12} /></Text>
+                  <Text style={styles.itemLink}>Abrir parceiro <Ionicons name="chevron-forward" size={12} /></Text>
                 </View>
               </Pressable>
             ))}

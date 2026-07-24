@@ -37,7 +37,7 @@ export function OperationsScreen() {
     return (
       <SafeAreaView style={[styles.safe, styles.centered]} edges={['top', 'left', 'right']}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.centeredText}>Carregando operações…</Text>
+        <Text style={styles.centeredText}>Carregando Parceiros AACE…</Text>
       </SafeAreaView>
     );
   }
@@ -61,8 +61,8 @@ export function OperationsScreen() {
         contentContainerStyle={styles.content}
         ListHeaderComponent={
           <View>
-            <Text style={styles.title}>Operações AACE</Text>
-            <Text style={styles.subtitle}>Selecione uma operação para consultar histórico ou iniciar uma auditoria.</Text>
+            <Text style={styles.title}>Parceiros AACE</Text>
+            <Text style={styles.subtitle}>Selecione um parceiro para consultar histórico ou iniciar uma avaliação.</Text>
             <View style={styles.search}>
               <Ionicons name="search-outline" size={20} color={colors.inkMuted} />
               <TextInput value={query} onChangeText={setQuery} placeholder="Buscar parceiro, escritório ou cidade" placeholderTextColor={colors.neutral} style={styles.searchInput} />
@@ -74,11 +74,11 @@ export function OperationsScreen() {
                 </Pressable>
               ))}
             </View>
-            <Text style={styles.count}>{filtered.length} operação(ões)</Text>
+            <Text style={styles.count}>{filtered.length} Parceiro(s) AACE</Text>
           </View>
         }
         renderItem={({ item }) => <OperationCard operation={item} onPress={() => navigation.navigate('OperationDetail', { operationId: item.id })} />}
-        ListEmptyComponent={<EmptyState title="Nenhuma operação encontrada" description="Ajuste a busca ou o filtro de semáforo." />}
+        ListEmptyComponent={<EmptyState title="Nenhum Parceiro AACE encontrado" description="Ajuste a busca ou o filtro de semáforo." />}
         showsVerticalScrollIndicator={false}
       />
     </SafeAreaView>

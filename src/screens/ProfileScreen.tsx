@@ -41,7 +41,7 @@ export function ProfileScreen() {
 
       <View style={styles.infoCard}>
         <Info icon="map-outline" label="Área de atuação" value={currentUser.region} />
-        <Info icon="business-outline" label="Operações visíveis" value={`${visibleOperations.length}`} />
+        <Info icon="business-outline" label="Parceiros AACE visíveis" value={`${visibleOperations.length}`} />
         <Info icon="phone-portrait-outline" label="Versão do aplicativo" value={appVersion()} />
         <Info icon="cloud-offline-outline" label="Modo de dados" value={dataModeLabel()} last />
       </View>
@@ -57,7 +57,7 @@ export function ProfileScreen() {
       <AppButton title="Restaurar dados demonstrativos" variant="secondary" onPress={confirmReset} />
       <AppButton title="Sair" variant="ghost" onPress={() => void logout()} style={styles.logout} />
 
-      <Text style={styles.footer}>AACE Excelência · Avaliar. Comprovar. Evoluir.</Text>
+      <Text style={styles.footer}>AAPEx · Avaliar. Comprovar. Evoluir.</Text>
     </Screen>
   );
 }

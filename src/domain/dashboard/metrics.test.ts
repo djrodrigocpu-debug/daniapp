@@ -36,6 +36,22 @@ describe('computeDashboardMetrics', () => {
     expect(m.operationsCount).toBe(3);
   });
 
+  it('conta parceiros em conformidade (verde) e em atenção (amarelo); not_evaluated fora de ambos', () => {
+    const ops = [
+      op('O1', 90, 'green', '2026-07-30'),
+      op('O2', 88, 'green', '2026-07-30'),
+      op('O3', 72, 'yellow', '2026-07-30'),
+      op('O4', 55, 'red', '2026-07-30'),
+      op('O5', 0, 'not_evaluated', '2026-07-30'),
+    ];
+    const m = computeDashboardMetrics(ops, [], [], NOW);
+    expect(m.compliantCount).toBe(2);
+    expect(m.attentionCount).toBe(1);
+    expect(m.criticalCount).toBe(1);
+    // O total inclui o not_evaluated, mas ele não entra em nenhum dos três grupos.
+    expect(m.compliantCount + m.attentionCount + m.criticalCount).toBe(m.operationsCount - 1);
+  });
+
   it('conta ações abertas e vencidas (por status e por data)', () => {
     const ops = [op('O1', 80, 'green', '2026-07-30')];
     const actions = [
