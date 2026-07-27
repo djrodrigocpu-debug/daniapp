@@ -41,8 +41,16 @@ export interface InviteResponse {
 export interface AuthAdminPort {
   /** Cria a identidade e dispara o convite, com o destino do link. */
   inviteUserByEmail(email: string, redirectTo: string): Promise<{ id: string } | { error: string }>;
-  /** Recupera a identidade existente (idempotência). */
-  findUserByEmail(email: string): Promise<{ id: string } | null>;
+  /**
+   * Resolve, DE UMA VEZ, quais e-mails do lote já têm identidade —
+   * `Map<e-mail normalizado, uuid>` contendo apenas os encontrados.
+   *
+   * A operação é em lote por contrato, não por conveniência: uma consulta por
+   * e-mail multiplicaria a varredura da base pelo tamanho do lote (até 200). A
+   * assinatura anterior era por e-mail e foi o que permitiu uma implementação
+   * que lia uma única página do Auth e respondia "não existe" para todo mundo.
+   */
+  findExistingIdentities(emails: string[]): Promise<Map<string, string>>;
 }
 
 /**
@@ -185,19 +193,22 @@ export async function handleInviteUsers(
   const redirectTo = resolveRedirect(request.redirectTo, deps.redirect);
 
   const emails = parseEmails(request.emails);
+
+  // UMA única resolução para o lote inteiro, antes de qualquer convite.
+  //
+  // FALHA FECHADA: se isto lançar, a requisição inteira falha e NENHUM convite
+  // é enviado. Tratar "não consegui consultar" como "não existe" reenviaria
+  // convite a quem já tem identidade — o provedor recusaria, a linha viraria
+  // `failed` e o lote travaria. O erro sobe para o 500 do entrypoint.
+  const existentes = await deps.auth.findExistingIdentities(emails);
+
   const rows: InviteResultRow[] = [];
 
   for (const email of emails) {
     // Idempotência: identidade já existente é reaproveitada, nunca recriada.
-    let existing: { id: string } | null = null;
-    try {
-      existing = await deps.auth.findUserByEmail(email);
-    } catch {
-      rows.push({ email, state: 'failed', authUserId: null, message: 'Falha ao consultar a identidade.' });
-      continue;
-    }
+    const existing = existentes.get(email);
     if (existing) {
-      rows.push({ email, state: 'already_exists', authUserId: existing.id });
+      rows.push({ email, state: 'already_exists', authUserId: existing });
       continue;
     }
 

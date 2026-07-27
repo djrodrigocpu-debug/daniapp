@@ -25,6 +25,7 @@ import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { AuthAdminPort, CallerPort, HandlerError, handleInviteUsers } from './handler.ts';
 import { isPreflight, jsonHeaders, preflightResponse } from './cors.ts';
+import { buildIdentityIndex } from './identityIndex.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
@@ -42,14 +43,19 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
 });
 
 const authPort: AuthAdminPort = {
-  async findUserByEmail(email) {
-    // A Admin API pagina; o filtro por e-mail evita varrer a base inteira.
-    const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1 });
-    if (error) throw new Error('lookup failed');
-    const hit = (data?.users ?? []).find(
-      (u: { email?: string }) => (u.email ?? '').toLowerCase() === email,
-    );
-    return hit ? { id: hit.id } : null;
+  async findExistingIdentities(emails) {
+    // A Admin API NÃO filtra por e-mail (PageParams só aceita page/perPage), então
+    // a base é percorrida por paginação UMA vez por requisição. O índice é local à
+    // chamada: cache entre requisições não enxergaria identidade criada nesse meio
+    // e reenviaria convite.
+    const indice = await buildIdentityIndex((params) => admin.auth.admin.listUsers(params));
+    // Só os e-mails DO LOTE saem daqui — o índice completo nunca é devolvido.
+    const encontrados = new Map<string, string>();
+    for (const email of emails) {
+      const id = indice.get(email);
+      if (id) encontrados.set(email, id);
+    }
+    return encontrados;
   },
   async inviteUserByEmail(email, redirectTo) {
     // `redirectTo` ja veio validado contra a allowlist do servidor.
