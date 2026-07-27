@@ -91,7 +91,29 @@ describe('admin-provision-users — ausência de convite e de e-mail', () => {
 
   it('a paginação do Auth é reaproveitada, não reimplementada', () => {
     expect(indexProvision).toContain('buildIdentityIndex');
-    expect(indexProvision).toContain('admin-invite-users/identityIndex.ts');
+    expect(indexProvision).toContain('_shared/identityIndex.ts');
+  });
+
+  it('a função nova NÃO importa nada de dentro da pasta da função legada', () => {
+    // Acoplamento invertido: a nova dependia do diretório da legada. Se alguém
+    // remover `admin-invite-users`, esta função não pode quebrar junto.
+    expect(indexProvision).not.toContain('admin-invite-users/');
+    expect(handlerProvision).not.toContain('admin-invite-users/');
+  });
+
+  it('as DUAS funções consomem os módulos de _shared', () => {
+    const indexInvite = semComentarios(
+      ler(join(RAIZ, 'supabase', 'functions', 'admin-invite-users', 'index.ts')),
+    );
+    for (const fonte of [indexProvision, indexInvite]) {
+      expect(fonte).toContain("from '../_shared/cors.ts'");
+      expect(fonte).toContain("from '../_shared/identityIndex.ts'");
+    }
+    // Os módulos existem no lugar novo e não no antigo.
+    expect(existsSync(join(RAIZ, 'supabase', 'functions', '_shared', 'cors.ts'))).toBe(true);
+    expect(existsSync(join(RAIZ, 'supabase', 'functions', '_shared', 'identityIndex.ts'))).toBe(true);
+    expect(existsSync(join(RAIZ, 'supabase', 'functions', 'admin-invite-users', 'cors.ts'))).toBe(false);
+    expect(existsSync(join(RAIZ, 'supabase', 'functions', 'admin-invite-users', 'identityIndex.ts'))).toBe(false);
   });
 });
 
