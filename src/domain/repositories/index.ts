@@ -37,8 +37,40 @@ export interface AuthRepository {
   signIn(email: string, password: string): Promise<Result<AuthenticatedSession>>;
   signOut(): Promise<Result<true>>;
   getSession(): Promise<Result<AuthenticatedSession | null>>;
-  requestPasswordReset(email: string): Promise<Result<true>>;
+  /**
+   * `redirectTo` é o destino do link do e-mail. Sem ele, o GoTrue usa a Site URL
+   * e o app não recebe o callback — por isso é explícito aqui.
+   */
+  requestPasswordReset(email: string, redirectTo?: string): Promise<Result<true>>;
+
+  /**
+   * Consome o link de convite/recuperação e estabelece a sessão. Recebe a
+   * INTENÇÃO já interpretada (src/domain/auth/callbackLink) para que a regra de
+   * leitura da URL fique testável fora do SDK.
+   *
+   * Opcional: só o backend corporativo implementa. No modo demonstração não há
+   * link de e-mail para consumir.
+   */
+  completeAuthCallback?(intent: AuthCallbackIntent): Promise<Result<AuthenticatedSession>>;
+
+  /** Define a senha do usuário JÁ autenticado pelo callback. */
+  updatePassword?(password: string): Promise<Result<true>>;
+
+  /**
+   * Ativa o PRÓPRIO perfil após o convite (RPC public.activate_self, 0012).
+   * A autorização é do servidor: o cliente não informa quem ativar.
+   */
+  activateSelf?(): Promise<Result<true>>;
 }
+
+/**
+ * Intenção extraída do link de callback. Espelha CallbackIntent do domínio sem
+ * criar dependência circular entre `domain/auth` e `domain/repositories`.
+ */
+export type AuthCallbackIntent =
+  | { kind: 'pkce_code'; code: string }
+  | { kind: 'token_hash'; tokenHash: string; purpose: string }
+  | { kind: 'tokens'; accessToken: string; refreshToken: string };
 
 export interface VisitsRepository {
   listVisibleOperations(session: AuthenticatedSession): Promise<Result<Operation[]>>;

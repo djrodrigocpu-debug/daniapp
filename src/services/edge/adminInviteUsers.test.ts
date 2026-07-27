@@ -11,7 +11,11 @@ import {
   HandlerError,
   HandlerDeps,
   handleInviteUsers,
+  resolveRedirect,
 } from '../../../supabase/functions/admin-invite-users/handler';
+
+const DEFAULT_REDIRECT = 'https://staging.sintetico.test/auth/callback';
+const DEEP_LINK = 'aaceexcelencia://auth/callback';
 
 const ADMIN_TOKEN = 'token-admin-fic';
 const GC_TOKEN = 'token-gc-fic';
@@ -23,10 +27,13 @@ interface FakeOptions {
   lancaAoConsultar?: string[];
   hasServiceRole?: boolean;
   callers?: Record<string, { id: string; role: string | null }>;
+  defaultRedirect?: string;
+  allowlist?: string[];
 }
 
-function deps(options: FakeOptions = {}): HandlerDeps & { convites: string[] } {
+function deps(options: FakeOptions = {}): HandlerDeps & { convites: string[]; destinos: string[] } {
   const convites: string[] = [];
+  const destinos: string[] = [];
   const existentes = { ...(options.existentes ?? {}) };
 
   const auth: AuthAdminPort = {
@@ -34,7 +41,8 @@ function deps(options: FakeOptions = {}): HandlerDeps & { convites: string[] } {
       if (options.lancaAoConsultar?.includes(email)) throw new Error('lookup falhou');
       return existentes[email] ? { id: existentes[email] } : null;
     },
-    async inviteUserByEmail(email) {
+    async inviteUserByEmail(email, redirectTo) {
+      destinos.push(redirectTo);
       if (options.lancaAoConvidar?.includes(email)) throw new Error('boom');
       const erro = options.falhaAoConvidar?.[email];
       if (erro) return { error: erro };
@@ -55,11 +63,21 @@ function deps(options: FakeOptions = {}): HandlerDeps & { convites: string[] } {
     },
   };
 
-  return { auth, caller, hasServiceRole: options.hasServiceRole ?? true, convites };
+  return {
+    auth,
+    caller,
+    hasServiceRole: options.hasServiceRole ?? true,
+    redirect: {
+      defaultUrl: options.defaultRedirect ?? DEFAULT_REDIRECT,
+      allowlist: options.allowlist ?? [DEEP_LINK],
+    },
+    convites,
+    destinos,
+  };
 }
 
-const call = (emails: unknown, token: string | null, d: HandlerDeps) =>
-  handleInviteUsers({ accessToken: token, emails }, d);
+const call = (emails: unknown, token: string | null, d: HandlerDeps, redirectTo?: unknown) =>
+  handleInviteUsers({ accessToken: token, emails, redirectTo }, d);
 
 describe('admin-invite-users', () => {
   it('1 — convida usuário novo e devolve o authUserId', async () => {
@@ -195,5 +213,75 @@ describe('admin-invite-users', () => {
 
     expect(res.counters.total).toBe(1);
     expect(d.convites).toEqual(['a@fic.example']);
+  });
+});
+
+describe('redirectTo — destino decidido pelo servidor', () => {
+  it('1 — sem pedido do cliente, usa o padrão configurado no servidor', async () => {
+    const d = deps();
+    await call(['novo@fic.example'], ADMIN_TOKEN, d);
+    expect(d.destinos).toEqual([DEFAULT_REDIRECT]);
+  });
+
+  it('2 — pedido que consta na allowlist é aceito (deep link nativo)', async () => {
+    const d = deps();
+    await call(['novo@fic.example'], ADMIN_TOKEN, d, DEEP_LINK);
+    expect(d.destinos).toEqual([DEEP_LINK]);
+  });
+
+  it('3 — redirect malicioso é recusado ANTES de qualquer convite', async () => {
+    const d = deps();
+    await expect(call(['novo@fic.example'], ADMIN_TOKEN, d, 'https://atacante.example/roubar'))
+      .rejects.toMatchObject({ status: 400, message: expect.stringContaining('não autorizado') });
+    expect(d.convites).toEqual([]);
+    expect(d.destinos).toEqual([]);
+  });
+
+  it('3b — prefixo parecido NÃO passa (sem startsWith)', async () => {
+    const d = deps();
+    for (const hostil of [
+      'https://staging.sintetico.test.atacante.example/auth/callback',
+      'https://staging.sintetico.test@atacante.example/auth/callback',
+      'http://staging.sintetico.test/auth/callback/../../roubar',
+    ]) {
+      await expect(call(['novo@fic.example'], ADMIN_TOKEN, d, hostil))
+        .rejects.toMatchObject({ status: 400 });
+    }
+    expect(d.convites).toEqual([]);
+  });
+
+  it('3c — a recusa não ecoa a URL enviada pelo cliente', async () => {
+    const d = deps();
+    const hostil = 'https://atacante.example/marcador-unico-xyz';
+    await call(['novo@fic.example'], ADMIN_TOKEN, d, hostil).catch((e) => {
+      expect(String(e.message)).not.toContain('marcador-unico-xyz');
+    });
+  });
+
+  it('4 — ausência da variável no servidor bloqueia a função inteira', async () => {
+    const d = deps({ defaultRedirect: '' });
+    await expect(call(['novo@fic.example'], ADMIN_TOKEN, d)).rejects.toMatchObject({
+      status: 500, message: expect.stringContaining('destino do convite ausente'),
+    });
+    expect(d.convites).toEqual([]);
+  });
+
+  it('5 — query/fragmento e barra final não mudam a decisão', () => {
+    const policy = { defaultUrl: DEFAULT_REDIRECT, allowlist: [] as string[] };
+    expect(resolveRedirect(`${DEFAULT_REDIRECT}/`, policy)).toBe(DEFAULT_REDIRECT);
+    expect(resolveRedirect(`${DEFAULT_REDIRECT}?x=1`, policy)).toBe(DEFAULT_REDIRECT);
+    expect(resolveRedirect(`${DEFAULT_REDIRECT}#frag`, policy)).toBe(DEFAULT_REDIRECT);
+  });
+
+  it('6 — tipo inválido é recusado', async () => {
+    const d = deps();
+    await expect(call(['novo@fic.example'], ADMIN_TOKEN, d, 42))
+      .rejects.toMatchObject({ status: 400 });
+  });
+
+  it('7 — não-administrador é barrado ANTES da checagem de redirect', async () => {
+    const d = deps();
+    await expect(call(['x@fic.example'], GC_TOKEN, d, 'https://atacante.example'))
+      .rejects.toMatchObject({ status: 403 });
   });
 });

@@ -23,6 +23,13 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
+// Destino do link de convite — decidido AQUI, no servidor. `INVITE_REDIRECT_URL`
+// é obrigatória; `INVITE_REDIRECT_ALLOWLIST` (CSV) libera alternativas conhecidas
+// (ex.: deep link nativo) sem jamais aceitar URL arbitrária do navegador.
+const INVITE_REDIRECT_URL = Deno.env.get('INVITE_REDIRECT_URL') ?? '';
+const INVITE_REDIRECT_ALLOWLIST = (Deno.env.get('INVITE_REDIRECT_ALLOWLIST') ?? '')
+  .split(',').map((s) => s.trim()).filter((s) => s !== '');
+
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
@@ -37,8 +44,9 @@ const authPort: AuthAdminPort = {
     );
     return hit ? { id: hit.id } : null;
   },
-  async inviteUserByEmail(email) {
-    const { data, error } = await admin.auth.admin.inviteUserByEmail(email);
+  async inviteUserByEmail(email, redirectTo) {
+    // `redirectTo` ja veio validado contra a allowlist do servidor.
+    const { data, error } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo });
     if (error) return { error: error.message };
     return { id: data.user.id };
   },
@@ -75,8 +83,13 @@ serve(async (req: Request) => {
     const body = await req.json().catch(() => ({}));
 
     const result = await handleInviteUsers(
-      { accessToken, emails: body?.emails },
-      { auth: authPort, caller: callerPort, hasServiceRole: SERVICE_ROLE_KEY !== '' },
+      { accessToken, emails: body?.emails, redirectTo: body?.redirectTo },
+      {
+        auth: authPort,
+        caller: callerPort,
+        hasServiceRole: SERVICE_ROLE_KEY !== '',
+        redirect: { defaultUrl: INVITE_REDIRECT_URL, allowlist: INVITE_REDIRECT_ALLOWLIST },
+      },
     );
     return new Response(JSON.stringify(result), {
       status: 200, headers: { 'Content-Type': 'application/json' },
