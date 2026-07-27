@@ -12,6 +12,7 @@ import { getRuntimeConfig } from '../config/env';
 import { parseAuthCallback } from '../domain/auth/callbackLink';
 import { OnboardingPhase, ProfileStatus, decidePhase } from '../domain/auth/onboardingFlow';
 import { cleanBrowserUrl, getInitialUrl, subscribeToLinks } from './authCallbackBridge';
+import { installNativeAutoRefresh } from './authAutoRefreshBridge';
 import { getSupabaseClient } from '../services/supabase/client';
 import { createAuthBackend, AuthMode } from '../services/auth/authFactory';
 import { AuthController, AuthState } from '../services/auth/AuthController';
@@ -61,6 +62,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // para que quem foi cadastrado/importado na aba Admin consiga entrar.
     return createAuthBackend(config, client, { demoDirectory: currentOperationalDemoDirectory });
   }, []);
+
+  // `getSupabaseClient` é singleton: devolve exatamente a mesma instância usada
+  // pela fábrica acima, sem criar um segundo cliente. `null` em modo demo/local.
+  const supabaseAuth = useMemo(() => getSupabaseClient(getRuntimeConfig())?.auth ?? null, []);
+
+  // Liga o refresh do token com o app em foreground e desliga em background
+  // (só no nativo — no web o bridge é um no-op).
+  useEffect(() => installNativeAutoRefresh(supabaseAuth), [supabaseAuth]);
 
   const controllerRef = useRef<AuthController | null>(null);
   if (controllerRef.current === null) {
