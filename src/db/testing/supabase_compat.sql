@@ -43,6 +43,11 @@ create table if not exists auth.users (
   created_at         timestamptz not null default now()
 );
 
+-- `encrypted_password` existe no `auth.users` real do Supabase e é lido pelo
+-- onboarding de senha (migration 0016) para provar que a senha temporária
+-- mudou. No shim ele é apenas texto: nenhum teste usa senha real.
+alter table auth.users add column if not exists encrypted_password text;
+
 create or replace function auth.uid() returns uuid
   language sql stable as $$
   select coalesce(

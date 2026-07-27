@@ -199,8 +199,12 @@ describe('CNPJ dos Parceiros AACE (0014)', () => {
       for (const antiga of ['id', 'partnerName', 'officeName', 'city', 'state', 'active', 'unitId', 'managerId']) {
         expect(Object.keys(linhas[0])).toContain(antiga);
       }
-      // `cnpj` foi acrescentado no FIM, sem deslocar consumidores.
-      expect(Object.keys(linhas[0]).at(-1)).toBe('cnpj');
+      // Colunas novas entram DEPOIS das antigas, sem deslocar consumidores: o
+      // que importa é a ordem relativa, não `cnpj` ser literalmente a última
+      // (a 0016 acrescentou `sourceCode` e `ddd` em seguida).
+      const chaves = Object.keys(linhas[0]);
+      expect(chaves.indexOf('cnpj')).toBeGreaterThan(chaves.indexOf('updatedAt'));
+      expect(chaves.indexOf('id')).toBe(0);
     });
 
     it('18 — partner_dto devolve cnpj', async () => {
