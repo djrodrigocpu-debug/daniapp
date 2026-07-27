@@ -2,11 +2,13 @@
  * Troca obrigatória da senha temporária e bootstrap de parceiros sem CNPJ
  * (migration 0016), contra Postgres REAL (PGlite) com 0001..0016 e RLS ativa.
  *
- * O ponto central: o gate só é liberado quando a senha REALMENTE mudou. A prova
- * é o `encrypted_password` da identidade ter deixado de ser igual ao hash
- * guardado — nunca a palavra do cliente.
+ * Depois da 0017 o banco NÃO opina sobre senha: ele registra quem precisa
+ * trocar e quem já trocou. A prova da troca é do GoTrue, na Edge Function
+ * `initial-password-change` — comparar hash bcrypt aqui seria inútil, porque o
+ * salt é aleatório e a mesma senha produz hash diferente.
  *
- * Nenhuma senha real é usada; os "hashes" são strings sintéticas (§23).
+ * A conclusão é EXCLUSIVA do servidor (`service_role`): `authenticated` não
+ * pode encerrar o próprio gate por RPC.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { createTestDb, TestDb } from './testing/harness';
@@ -22,9 +24,6 @@ const EMAIL = {
   b: 'onboarding.b@sint.example',
 } as const;
 
-/** Valores sintéticos que fazem o papel do bcrypt do GoTrue. */
-const HASH_TEMP = '$fic$hash-temporario-sintetico';
-const HASH_NOVO = '$fic$hash-depois-da-troca';
 
 describe('onboarding de senha e bootstrap de parceiros (0016)', () => {
   let db: TestDb;
@@ -41,18 +40,16 @@ describe('onboarding de senha e bootstrap de parceiros (0016)', () => {
     db.asUser(userId, (tx) => tx.query<{ r: { required: boolean } }>(
       `select public.password_change_status() as r`)).then((r) => r[0].r);
 
-  const concluirComo = (userId: string) =>
-    db.asUser(userId, (tx) => tx.query<{ r: { required: boolean; changed: boolean } }>(
-      `select public.complete_initial_password_change() as r`)).then((r) => r[0].r);
+  /** Conclusão pelo SERVIDOR, como a Edge Function faz (uuid vindo do JWT). */
+  const concluirPeloServidor = (userId: string) =>
+    db.query<{ r: { required: boolean; changed: boolean } }>(
+      `select public.service_complete_initial_password_change($1::uuid) as r`, [userId],
+    ).then((r) => r[0].r);
 
-  const criarIdentidade = (id: string, email: string, hash: string) =>
-    db.exec(`insert into auth.users (id, email, email_confirmed_at, encrypted_password)
-             values ('${id}','${email}', now(), '${hash}')
+  const criarIdentidade = (id: string, email: string) =>
+    db.exec(`insert into auth.users (id, email, email_confirmed_at)
+             values ('${id}','${email}', now())
              on conflict (id) do nothing;`);
-
-  /** Simula a troca real de senha feita por supabase.auth.updateUser. */
-  const trocarSenhaNoAuth = (id: string, hash: string) =>
-    db.exec(`update auth.users set encrypted_password = '${hash}' where id = '${id}';`);
 
   const criarPerfil = (id: string, email: string) =>
     db.exec(`insert into public.users (id, display_name, corporate_email, status)
@@ -64,23 +61,23 @@ describe('onboarding de senha e bootstrap de parceiros (0016)', () => {
   beforeEach(async () => { await db.reset(); await seedScenario(db); });
 
   describe('marcação administrativa', () => {
-    it('1 — admin marca a identidade e o hash inicial NÃO é devolvido', async () => {
-      await criarIdentidade(AUTH.a, EMAIL.a, HASH_TEMP);
+    it('1 — admin marca a identidade e a resposta nao carrega nada sensivel', async () => {
+      await criarIdentidade(AUTH.a, EMAIL.a);
       const r = await exigirTroca([AUTH.a]);
 
       expect(r.marked).toBe(1);
-      expect(JSON.stringify(r)).not.toContain(HASH_TEMP);
+      expect(JSON.stringify(r)).not.toMatch(/hash|senha|password/i);
       expect(Object.keys(r).sort()).toEqual(['marked', 'missingIdentity']);
     });
 
     it('2 — identidade inexistente é contada à parte, sem derrubar o lote', async () => {
-      await criarIdentidade(AUTH.a, EMAIL.a, HASH_TEMP);
+      await criarIdentidade(AUTH.a, EMAIL.a);
       const r = await exigirTroca([AUTH.a, '00000000-0000-0000-0000-0000000060ff']);
       expect(r).toEqual({ marked: 1, missingIdentity: 1 });
     });
 
     it('3 — é idempotente: remarcar reinicia o estado sem duplicar', async () => {
-      await criarIdentidade(AUTH.a, EMAIL.a, HASH_TEMP);
+      await criarIdentidade(AUTH.a, EMAIL.a);
       await exigirTroca([AUTH.a]);
       await exigirTroca([AUTH.a]);
 
@@ -90,7 +87,7 @@ describe('onboarding de senha e bootstrap de parceiros (0016)', () => {
     });
 
     it('4 — não-administrador é recusado', async () => {
-      await criarIdentidade(AUTH.a, EMAIL.a, HASH_TEMP);
+      await criarIdentidade(AUTH.a, EMAIL.a);
       await expect(db.asUser(ID.uGcA, (tx) => tx.query(
         `select public.admin_require_password_change($1::uuid[])`, [[AUTH.a]],
       ))).rejects.toThrow(/apenas administrador/i);
@@ -103,16 +100,16 @@ describe('onboarding de senha e bootstrap de parceiros (0016)', () => {
     });
 
     it('6 — conta marcada fica presa no gate', async () => {
-      await criarIdentidade(AUTH.a, EMAIL.a, HASH_TEMP);
+      await criarIdentidade(AUTH.a, EMAIL.a);
       await criarPerfil(AUTH.a, EMAIL.a);
       await exigirTroca([AUTH.a]);
       expect(await statusDe(AUTH.a)).toEqual({ required: true });
     });
 
     it('7 — o status é sempre o de auth.uid(), nunca o de outro usuário', async () => {
-      await criarIdentidade(AUTH.a, EMAIL.a, HASH_TEMP);
+      await criarIdentidade(AUTH.a, EMAIL.a);
       await criarPerfil(AUTH.a, EMAIL.a);
-      await criarIdentidade(AUTH.b, EMAIL.b, HASH_TEMP);
+      await criarIdentidade(AUTH.b, EMAIL.b);
       await criarPerfil(AUTH.b, EMAIL.b);
       await exigirTroca([AUTH.a]);
 
@@ -123,59 +120,59 @@ describe('onboarding de senha e bootstrap de parceiros (0016)', () => {
 
   describe('conclusão da troca', () => {
     beforeEach(async () => {
-      await criarIdentidade(AUTH.a, EMAIL.a, HASH_TEMP);
+      await criarIdentidade(AUTH.a, EMAIL.a);
       await criarPerfil(AUTH.a, EMAIL.a);
       await exigirTroca([AUTH.a]);
     });
 
-    it('8 — RECUSA concluir enquanto a senha temporária não mudou', async () => {
-      await expect(concluirComo(AUTH.a)).rejects.toThrow(/senha temporaria ainda nao foi alterada/i);
-      expect(await statusDe(AUTH.a)).toEqual({ required: true });
-    });
-
-    it('9 — troca real no Auth libera a conclusão', async () => {
-      await trocarSenhaNoAuth(AUTH.a, HASH_NOVO);
-      expect(await concluirComo(AUTH.a)).toEqual({ required: false, changed: true });
+    it('8 — a conclusão libera o gate e é registrada', async () => {
+      expect(await concluirPeloServidor(AUTH.a)).toEqual({ required: false, changed: true });
       expect(await statusDe(AUTH.a)).toEqual({ required: false });
     });
 
-    it('10 — concluir de novo é idempotente (permite repetir após falha de rede)', async () => {
-      await trocarSenhaNoAuth(AUTH.a, HASH_NOVO);
-      await concluirComo(AUTH.a);
-      expect(await concluirComo(AUTH.a)).toEqual({ required: false, changed: false });
+    it('9 — concluir de novo é idempotente (permite repetir após falha de rede)', async () => {
+      await concluirPeloServidor(AUTH.a);
+      expect(await concluirPeloServidor(AUTH.a)).toEqual({ required: false, changed: false });
     });
 
-    it('11 — concluir NÃO altera papel, escopo nem status do perfil', async () => {
-      const antes = await db.query<{ status: string; escopos: number }>(
+    it('10 — concluir NÃO altera papel, escopo nem status do perfil', async () => {
+      const ler = () => db.query(
         `select u.status::text as status,
                 (select count(*)::int from public.user_scopes s where s.user_id = u.id and s.active) as escopos
            from public.users u where u.id = $1`, [AUTH.a]);
-      await trocarSenhaNoAuth(AUTH.a, HASH_NOVO);
-      await concluirComo(AUTH.a);
-      const depois = await db.query<{ status: string; escopos: number }>(
-        `select u.status::text as status,
-                (select count(*)::int from public.user_scopes s where s.user_id = u.id and s.active) as escopos
-           from public.users u where u.id = $1`, [AUTH.a]);
-      expect(depois[0]).toEqual(antes[0]);
+      const antes = await ler();
+      await concluirPeloServidor(AUTH.a);
+      expect((await ler())[0]).toEqual(antes[0]);
     });
 
-    it('12 — um usuário não conclui o onboarding de OUTRO', async () => {
-      await criarIdentidade(AUTH.b, EMAIL.b, HASH_TEMP);
+    it('11 — concluir um usuário não mexe no gate de OUTRO', async () => {
+      await criarIdentidade(AUTH.b, EMAIL.b);
       await criarPerfil(AUTH.b, EMAIL.b);
-      // A ordem importa: marcar guarda o hash VIGENTE. Marcar depois da troca
-      // gravaria o hash novo como inicial e a conclusão nunca passaria.
       await exigirTroca([AUTH.b]);
-      await trocarSenhaNoAuth(AUTH.b, HASH_NOVO);
 
-      // B conclui o dele; o de A continua exigido.
-      await concluirComo(AUTH.b);
+      await concluirPeloServidor(AUTH.b);
+      expect(await statusDe(AUTH.b)).toEqual({ required: false });
       expect(await statusDe(AUTH.a)).toEqual({ required: true });
     });
-  });
 
+    it('12 — authenticated NAO executa a conclusão: a porta é só do servidor', async () => {
+      // Se  pudesse chamar, qualquer pessoa logada encerraria o
+      // proprio gate sem trocar senha alguma — que e o defeito que a 0017 fecha.
+      await expect(db.asUser(AUTH.a, (tx) => tx.query(
+        `select public.service_complete_initial_password_change($1::uuid)`, [AUTH.a],
+      ))).rejects.toThrow();
+      expect(await statusDe(AUTH.a)).toEqual({ required: true });
+    });
+
+    it('13 — a RPC antiga do proprio usuario nao existe mais', async () => {
+      await expect(db.asUser(AUTH.a, (tx) => tx.query(
+        `select public.complete_initial_password_change()`,
+      ))).rejects.toThrow();
+    });
+  });
   describe('proteção da tabela', () => {
-    it('13 — authenticated NÃO consegue ler o onboarding nem os hashes', async () => {
-      await criarIdentidade(AUTH.a, EMAIL.a, HASH_TEMP);
+    it('14 — authenticated NÃO consegue ler a tabela de onboarding', async () => {
+      await criarIdentidade(AUTH.a, EMAIL.a);
       await criarPerfil(AUTH.a, EMAIL.a);
       await exigirTroca([AUTH.a]);
 
