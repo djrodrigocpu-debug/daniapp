@@ -182,11 +182,36 @@ export function UserImportFlow({ visible, onClose }: Props) {
 
 function ReportView({ report }: { report: UserImportReport }) {
   const { counters, coordinationsWithoutCoordinator } = report;
+  const pendentes = report.pendingAuth ?? [];
+  // No caminho corporativo a gravação é tudo-ou-nada: 'commit' com applied
+  // falso significa que NADA entrou — o oposto de aplicação parcial.
+  const recusado = report.mode === 'commit' && report.applied === false;
   return (
     <View style={styles.card}>
       <Text style={styles.cardTitle}>
         Relatório · {report.mode === 'simulate' ? 'simulação (nada foi gravado)' : 'confirmação'}
       </Text>
+
+      {recusado && (
+        <View style={styles.rejectedBox}>
+          <Text style={styles.rejectedTitle}>Lote recusado por inteiro — nada foi gravado</Text>
+          <Text style={styles.warnItem}>
+            A gravação é transacional: basta uma linha inválida para o lote todo ser revertido.
+            Corrija os pontos abaixo e confirme de novo.
+          </Text>
+        </View>
+      )}
+
+      {pendentes.length > 0 && (
+        <View style={styles.warnBox}>
+          <Text style={styles.warnTitle}>Aguardando convite de acesso</Text>
+          {pendentes.map((email) => <Text key={email} style={styles.warnItem}>{email}</Text>)}
+          <Text style={styles.warnItem}>
+            Estes e-mails ainda não têm identidade de login. Ao confirmar, o convite é enviado
+            automaticamente e a pessoa só passa a contar como ativa depois de aceitá-lo.
+          </Text>
+        </View>
+      )}
       <View style={styles.counterRow}>
         <Counter label="Total" value={counters.total} color={colors.ink} />
         <Counter label="Novos" value={counters.inserted} color={colors.success} />
@@ -266,6 +291,8 @@ const styles = StyleSheet.create({
   warnBox: { backgroundColor: colors.warningSoft, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
   warnTitle: { color: colors.warning, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', marginBottom: 4 },
   warnItem: { color: colors.ink, fontSize: 12, lineHeight: 18 },
+  rejectedBox: { backgroundColor: colors.dangerSoft, borderRadius: radius.md, borderWidth: 1, borderColor: '#F1B6B6', padding: spacing.md, marginBottom: spacing.md },
+  rejectedTitle: { color: colors.danger, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', marginBottom: 4 },
   reportRow: { borderWidth: 1, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
   reportRowHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm },
   reportRowTitle: { color: colors.ink, fontSize: 12, fontWeight: '800', flex: 1 },

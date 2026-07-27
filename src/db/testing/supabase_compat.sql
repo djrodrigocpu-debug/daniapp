@@ -33,10 +33,14 @@ end $$;
 -- o PostgREST faz por requisição autenticada.
 create schema if not exists auth;
 
+-- `email_confirmed_at` reproduz o sinal do GoTrue de que o convite foi aceito e
+-- há credencial utilizável — é o que public.admin_activate_confirmed_users
+-- consulta para promover 'invited' → 'active'.
 create table if not exists auth.users (
-  id           uuid primary key default gen_random_uuid(),
-  email        text unique,
-  created_at   timestamptz not null default now()
+  id                 uuid primary key default gen_random_uuid(),
+  email              text unique,
+  email_confirmed_at timestamptz,
+  created_at         timestamptz not null default now()
 );
 
 create or replace function auth.uid() returns uuid

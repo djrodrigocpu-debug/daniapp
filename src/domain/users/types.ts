@@ -51,8 +51,18 @@ export interface UserImportReport {
     inserted: number;
     updated: number;
     errors: number;
+    /** Only remoto: e-mails que ainda não têm identidade no Supabase Auth. */
+    pendingAuth?: number;
   };
   /** Coordenações citadas na planilha que ficaram sem coordenador ativo. */
   coordinationsWithoutCoordinator: string[];
   rows: UserImportReportRow[];
+  /**
+   * Somente remoto: `false` quando o lote foi recusado por inteiro. A gravação
+   * é tudo-ou-nada, então `mode='commit'` com `applied=false` significa que
+   * NADA foi escrito — o oposto de uma aplicação parcial silenciosa.
+   */
+  applied?: boolean;
+  /** Somente remoto: e-mails que precisam de convite antes de confirmar. */
+  pendingAuth?: string[];
 }

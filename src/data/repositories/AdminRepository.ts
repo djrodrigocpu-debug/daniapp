@@ -320,64 +320,101 @@ export class SupabaseAdminUsersRepository implements AdminUsersRepository {
   }
 
   /**
-   * Não há RPC de importação de usuários (a 0009 cobre só Parceiros AACE), então
-   * o lote é aplicado pelas RPCs existentes, uma linha por vez.
+   * Onboarding corporativo em três fases (migration 0010 + Edge Function).
    *
-   * LIMITAÇÕES CONHECIDAS deste caminho (não use em produção sem resolvê-las):
-   * 1. NÃO é atômico — falha no meio deixa as linhas anteriores gravadas. O
-   *    relatório diz exatamente quais entraram.
-   * 2. Atualização de existente só troca o PAPEL: não há RPC para alterar nome,
-   *    área de atuação ou reativar. Cada linha atualizada leva um warning
-   *    dizendo isso, para o operador não supor que a planilha foi espelhada.
-   * 3. O vínculo GC→coordenador calculado por applyUserImport é LOCAL: não há
-   *    RPC que grave escopo de coordenação, então ele não chega ao servidor.
-   * 4. admin_create_user insere em auth.users SEM credencial (status 'invited'),
-   *    logo o usuário criado por aqui NÃO consegue fazer login por senha.
-   * Ver o relatório da etapa Supabase para a proposta de RPC transacional.
+   * A ordem é imposta pelo schema: `public.users.id` referencia `auth.users(id)`,
+   * então o PERFIL NÃO PODE PRECEDER A IDENTIDADE.
+   *
+   *   1. RPC em modo simulação — valida o lote inteiro, não grava nada em lugar
+   *      nenhum e devolve `pendingAuth`: os e-mails ainda sem identidade.
+   *   2. Edge Function `admin-invite-users` — cria/recupera as identidades com
+   *      service role (que jamais existe no bundle). Idempotente por e-mail;
+   *      falha aqui não tocou o Postgres e a operação é reexecutável.
+   *   3. RPC em modo commit, já com os `authUserId` — revalida e grava perfis e
+   *      escopos numa ÚNICA transação: ou entra tudo, ou não entra nada.
+   *
+   * Diferença deliberada em relação ao adapter local: o servidor NÃO ativa
+   * ninguém. O usuário nasce 'invited' e só vira 'active' quando confirma o
+   * e-mail — `admin_activate_confirmed_users`. Até lá, a importação de
+   * Parceiros AACE o recusa como GC/Coordenador, por desenho.
    */
   async importUsers(rows: UserImportRow[], commit: boolean): Promise<Result<UserImportReport>> {
     if (rows.length > MAX_USER_IMPORT_ROWS) {
       return err('validation/invalid-input', `Lote excede o limite de ${MAX_USER_IMPORT_ROWS} linhas.`);
     }
-    const listed = await this.listAll();
-    if (!listed.ok) return listed;
 
-    const { report } = applyUserImport(listed.value, rows);
-    if (!commit) return ok(report);
+    const simulated = await this.callImportRpc(rows, false);
+    if (!simulated.ok) return simulated;
+    if (!commit) return simulated;
 
-    const existingByEmail = new Map(listed.value.map((u) => [normalizeEmail(u.email), u]));
-    for (const reportRow of report.rows) {
-      const row = rows.find((r) => r.index === reportRow.index)!;
-      const existing = existingByEmail.get(reportRow.email);
-      const res = existing
-        ? await this.updateRole(existing.id, row.role)
-        : await this.create({ name: row.name, email: row.email, role: row.role, region: row.region });
-      if (res.ok) {
-        reportRow.userId = res.value.id;
-        if (existing) {
-          reportRow.warnings.push(
-            'Somente o perfil foi atualizado no servidor: nome, área de atuação e reativação não têm RPC.',
-          );
-        }
-      } else {
-        reportRow.status = 'error';
-        reportRow.action = 'none';
-        reportRow.userId = null;
-        reportRow.messages.push(res.error.message);
-      }
+    // Fase 2: só quem ainda não tem identidade entra no convite.
+    let prepared = rows;
+    const pending = simulated.value.pendingAuth ?? [];
+    if (pending.length > 0) {
+      const invited = await this.inviteIdentities(pending);
+      if (!invited.ok) return invited;
+      prepared = rows.map((row) => {
+        const authUserId = invited.value.get(normalizeEmail(row.email));
+        return authUserId ? { ...row, authUserId } : row;
+      });
     }
 
-    const errors = report.rows.filter((r) => r.status === 'error').length;
+    return this.callImportRpc(prepared, true);
+  }
+
+  /** Chama a RPC transacional e traduz o relatório para o contrato da UI. */
+  private async callImportRpc(
+    rows: Array<UserImportRow & { authUserId?: string }>,
+    commit: boolean,
+  ): Promise<Result<UserImportReport>> {
+    const { data, error } = await this.client.rpc('admin_import_users', { p_rows: rows, p_commit: commit });
+    if (error) return err(net(error.message || 'Falha na importação de usuários.', error));
+
+    const dto = data as {
+      mode: 'simulate' | 'commit';
+      applied: boolean;
+      counters: { total: number; inserted: number; updated: number; errors: number; pendingAuth: number };
+      pendingAuth: string[];
+      rows: UserImportReportRow[];
+    };
     return ok({
-      ...report,
-      mode: 'commit',
-      counters: {
-        ...report.counters,
-        errors,
-        inserted: report.rows.filter((r) => r.action === 'insert').length,
-        updated: report.rows.filter((r) => r.action === 'update').length,
-      },
+      mode: dto.mode,
+      applied: dto.applied,
+      counters: dto.counters,
+      pendingAuth: dto.pendingAuth ?? [],
+      // O vínculo com o coordenador é resolvido pelo servidor (coordination_id),
+      // então não há coordenação órfã a reportar aqui como no modo local.
+      coordinationsWithoutCoordinator: [],
+      rows: dto.rows ?? [],
     });
+  }
+
+  /** Fase 2 — convite via Edge Function. Devolve e-mail normalizado → authUserId. */
+  private async inviteIdentities(emails: string[]): Promise<Result<Map<string, string>>> {
+    const { data, error } = await this.client.functions.invoke('admin-invite-users', {
+      body: { emails },
+    });
+    if (error) {
+      return err(net(error.message || 'Falha ao convidar os usuários no Supabase Auth.', error));
+    }
+    const dto = data as {
+      ok: boolean;
+      rows: Array<{ email: string; state: string; authUserId: string | null; message?: string }>;
+    };
+    const resolved = new Map<string, string>();
+    for (const row of dto.rows ?? []) {
+      if (row.authUserId) resolved.set(normalizeEmail(row.email), row.authUserId);
+    }
+    if (!dto.ok) {
+      // Nada foi gravado no Postgres ainda; abortar aqui mantém a base íntegra.
+      const falhas = (dto.rows ?? []).filter((r) => !r.authUserId);
+      return err(net(
+        `Convite incompleto (${falhas.length} de ${dto.rows?.length ?? 0}). `
+        + 'Nada foi gravado — corrija e rode a importação novamente: '
+        + falhas.map((f) => `${f.email}: ${f.message ?? 'falha'}`).join('; '),
+      ));
+    }
+    return ok(resolved);
   }
 }
 
