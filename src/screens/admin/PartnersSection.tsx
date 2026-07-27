@@ -15,11 +15,14 @@ import { EmptyState } from '../../components/EmptyState';
 import { useAdmin } from '../../context/AdminProvider';
 import { AdminPartner, PartnerInput } from '../../data/repositories/PartnersRepository';
 import { normalizeKey } from '../../domain/partners/normalize';
+import { displayCnpj, formatCnpjInput } from '../../domain/partners/cnpj';
+import { applyCnpjToPayload, resolveCnpjField } from '../../domain/partners/cnpjForm';
 import { colors, radius, spacing } from '../../theme';
 import { PartnerImportFlow } from './PartnerImportFlow';
 
 const EMPTY_FORM = {
   partnerName: '',
+  cnpj: '',
   officeName: '',
   city: '',
   state: 'PR' as 'PR' | 'SC',
@@ -42,6 +45,9 @@ export function PartnersSection() {
   const [filterManager, setFilterManager] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
+  /** CNPJ gravado do parceiro em edição — `null` em legado e na criação. */
+  const [editingCnpj, setEditingCnpj] = useState<string | null>(null);
+  const [cnpjError, setCnpjError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [importVisible, setImportVisible] = useState(false);
 
@@ -66,8 +72,11 @@ export function PartnersSection() {
 
   function startEdit(partner: AdminPartner) {
     setEditingId(partner.id);
+    setEditingCnpj(partner.cnpj);
+    setCnpjError(null);
     setForm({
       partnerName: partner.partnerName,
+      cnpj: partner.cnpj ? formatCnpjInput(partner.cnpj) : '',
       officeName: partner.officeName,
       city: partner.city,
       state: partner.state,
@@ -79,12 +88,27 @@ export function PartnersSection() {
 
   function cancelEdit() {
     setEditingId(null);
+    setEditingCnpj(null);
+    setCnpjError(null);
     setForm(EMPTY_FORM);
   }
 
   async function submit() {
+    // A decisão do CNPJ mora em `cnpjForm.ts` porque errar aqui é caro: mandar
+    // `cnpj: ''` para um legado faria o servidor recusar a edição inteira.
+    const cnpj = resolveCnpjField({
+      typed: form.cnpj,
+      current: editingId ? editingCnpj : null,
+      creating: !editingId,
+    });
+    if (!cnpj.ok) {
+      setCnpjError(cnpj.message ?? 'CNPJ inválido.');
+      return;
+    }
+    setCnpjError(null);
+
     setBusy(true);
-    const input: PartnerInput = {
+    const input: PartnerInput = applyCnpjToPayload({
       partnerName: form.partnerName,
       officeName: form.officeName,
       city: form.city,
@@ -92,10 +116,13 @@ export function PartnersSection() {
       unitName: form.unitName || undefined,
       coordinationName: form.coordinationName || undefined,
       managerEmail: form.managerEmail,
-    };
+    }, cnpj);
+
     const res = editingId ? await updatePartner(editingId, input) : await createPartner(input);
     setBusy(false);
     if (!res.ok) {
+      // Conflito de CNPJ devolvido pela RPC: preserva o que foi digitado para
+      // que o operador corrija, em vez de recomeçar o formulário.
       alertDialog(editingId ? 'Não foi possível salvar' : 'Não foi possível criar', res.message);
       return;
     }
@@ -112,6 +139,23 @@ export function PartnersSection() {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{editingId ? 'Editar Parceiro AACE' : 'Novo Parceiro AACE'}</Text>
         <TextInput value={form.partnerName} onChangeText={(v) => setForm((f) => ({ ...f, partnerName: v }))} placeholder="Empresa parceira / razão social" placeholderTextColor={colors.neutral} style={styles.input} />
+        <Text style={styles.fieldLabel} nativeID="label-cnpj">CNPJ{editingId ? '' : ' *'}</Text>
+        <TextInput
+          value={form.cnpj}
+          onChangeText={(v) => { setForm((f) => ({ ...f, cnpj: formatCnpjInput(v) })); setCnpjError(null); }}
+          placeholder="00.000.000/0000-00"
+          placeholderTextColor={colors.neutral}
+          keyboardType="number-pad"
+          accessibilityLabel="CNPJ do parceiro"
+          accessibilityLabelledBy="label-cnpj"
+          accessibilityHint="Digite ou cole o CNPJ, com ou sem pontuação"
+          style={[styles.input, cnpjError ? styles.inputError : null]}
+        />
+        {cnpjError ? (
+          <Text style={styles.fieldError} accessibilityRole="alert">{cnpjError}</Text>
+        ) : editingId && editingCnpj === null ? (
+          <Text style={styles.hint}>CNPJ não informado neste cadastro. Você pode preenchê-lo agora.</Text>
+        ) : null}
         <TextInput value={form.officeName} onChangeText={(v) => setForm((f) => ({ ...f, officeName: v }))} placeholder="Nome do escritório (identificação operacional)" placeholderTextColor={colors.neutral} style={styles.input} />
         <View style={styles.inlineRow}>
           <TextInput value={form.city} onChangeText={(v) => setForm((f) => ({ ...f, city: v }))} placeholder="Cidade" placeholderTextColor={colors.neutral} style={[styles.input, styles.flex]} />
@@ -178,6 +222,7 @@ export function PartnersSection() {
                 </Text>
               </Pressable>
             </View>
+            <Text style={styles.partnerMeta}>CNPJ: {displayCnpj(partner.cnpj)}</Text>
             <Text style={styles.partnerMeta}>
               {partner.city}/{partner.state} · {partner.coordinationName || 'sem coordenação'} · {partner.unitName}
             </Text>
@@ -247,6 +292,9 @@ const styles = StyleSheet.create({
   chipText: { color: colors.inkMuted, fontSize: 10, fontWeight: '800' },
   chipTextActive: { color: colors.white },
   hint: { color: colors.inkMuted, fontSize: 11, lineHeight: 16, marginBottom: spacing.md },
+  fieldLabel: { color: colors.ink, fontSize: 11, fontWeight: '800', marginBottom: 4 },
+  inputError: { borderColor: colors.danger },
+  fieldError: { color: colors.danger, fontSize: 11, fontWeight: '700', marginBottom: spacing.sm },
   importRow: { marginBottom: spacing.md },
   problemBanner: { backgroundColor: colors.warningSoft, borderRadius: radius.md, borderWidth: 1, borderColor: '#EBD3A8', padding: spacing.md, marginBottom: spacing.md },
   problemText: { color: colors.warning, fontSize: 12, fontWeight: '800' },

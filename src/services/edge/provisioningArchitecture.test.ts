@@ -27,6 +27,10 @@ function ler(caminho: string): string {
  */
 function semComentarios(fonte: string): string {
   return fonte
+    // Remove CR ANTES de tudo: em arquivo CRLF o `.*$` do strip de comentario
+    // de linha para antes do CR, e o comentario sobreviveria inteiro — a prova
+    // de ausencia passaria a ler o que a propria documentacao menciona.
+    .replace(new RegExp(String.fromCharCode(13), 'g'), '')
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .split('\n')
     .map((linha) => linha.replace(/(^|[^:])\/\/.*$/, '$1'))

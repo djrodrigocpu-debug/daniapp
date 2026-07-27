@@ -77,3 +77,32 @@ export function formatCnpj(raw: unknown): string {
   if (d.length !== CNPJ_DIGITS) return d;
   return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
 }
+
+/**
+ * Máscara PROGRESSIVA para o campo de digitação: aceita de 0 a 14 dígitos e vai
+ * pontuando conforme o operador escreve. Descarta o excedente de 14 — melhor
+ * truncar de forma determinística do que deixar o campo aceitar um número que o
+ * servidor vai recusar.
+ *
+ * O valor ENVIADO ao servidor é sempre `normalizeCnpj`, nunca este texto.
+ */
+export function formatCnpjInput(raw: unknown): string {
+  const d = normalizeCnpj(raw).slice(0, CNPJ_DIGITS);
+  if (d.length <= 2) return d;
+  if (d.length <= 5) return `${d.slice(0, 2)}.${d.slice(2)}`;
+  if (d.length <= 8) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`;
+  if (d.length <= 12) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8)}`;
+  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
+}
+
+/** Rótulo usado quando o registro é legado (anterior à migration 0014). */
+export const CNPJ_AUSENTE = 'Não informado';
+
+/**
+ * Texto para listagem, detalhes e relatório. Nunca devolve `null`, `undefined`
+ * nem string vazia para a tela — o usuário lê "Não informado", não um buraco.
+ */
+export function displayCnpj(cnpj: string | null | undefined): string {
+  const d = normalizeCnpj(cnpj);
+  return d.length === CNPJ_DIGITS ? formatCnpj(d) : CNPJ_AUSENTE;
+}
