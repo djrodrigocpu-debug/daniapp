@@ -212,6 +212,7 @@ declare
   v_role       app.role_code;
   v_area       text;
   v_auth_id    uuid;
+  v_auth_email text;
   v_msgs       jsonb;
   v_warns      jsonb;
   v_region     uuid;
@@ -308,10 +309,23 @@ begin
           exception when others then
             v_msgs := v_msgs || to_jsonb('authUserId nao e um uuid valido'::text);
           end;
-          if v_auth_id is not null
-             and not exists (select 1 from auth.users a where a.id = v_auth_id) then
-            v_msgs := v_msgs || to_jsonb(('Identidade Auth inexistente para '
-              || v_email || ' — rode o convite antes de confirmar')::text);
+          -- O par (authUserId, email) vem do CLIENTE e não pode ser aceito por
+          -- confiança: um id válido apontando para OUTRO e-mail criaria um perfil
+          -- corporativo colado na identidade errada — a pessoa entraria com a
+          -- credencial dela e assumiria o papel/escopo de outra. O servidor
+          -- confere o vínculo contra auth.users; divergência é erro nominal e,
+          -- pela regra de tudo-ou-nada, impede a gravação do lote inteiro.
+          if v_auth_id is not null then
+            select lower(btrim(a.email)) into v_auth_email
+              from auth.users a where a.id = v_auth_id;
+            if v_auth_email is null then
+              v_msgs := v_msgs || to_jsonb(('Identidade Auth inexistente para '
+                || v_email || ' — rode o convite antes de confirmar')::text);
+            elsif v_auth_email <> v_email then
+              -- Não revela a QUEM pertence a identidade (dado de outra pessoa).
+              v_msgs := v_msgs || to_jsonb(('Identidade Auth informada pertence a outro e-mail; '
+                || 'recusada para ' || v_email)::text);
+            end if;
           end if;
         end if;
       end if;

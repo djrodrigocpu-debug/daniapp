@@ -306,9 +306,43 @@ export class SupabaseAdminUsersRepository implements AdminUsersRepository {
   // recusa de RLS) é a informação ÚTIL — engoli-lo atrás de um texto genérico
   // deixa o relatório de importação inacionável. Mesmo padrão do adapter de
   // Parceiros AACE: mensagem do servidor primeiro, fallback só se vier vazia.
+  /**
+   * Cadastro avulso ("Novo usuário" na aba Admin) é um LOTE DE UM: delega ao
+   * mesmo fluxo de três fases da importação.
+   *
+   * Antes chamava public.admin_create_user, depreciada na migration 0011 por
+   * criar identidade Auth incompleta — o usuário aparecia na lista e nunca
+   * conseguia entrar. Reaproveitar importUsers mantém um único caminho de
+   * onboarding: mesma validação, mesmo convite real e mesma transação.
+   */
   async create(input: CreateUserInput): Promise<Result<User>> {
-    const { data, error } = await this.client.rpc('admin_create_user', { p_input: input });
-    return error ? err(net(error.message || 'Falha ao criar usuário.', error)) : ok(data as User);
+    const row: UserImportRow = {
+      index: 1,
+      name: input.name,
+      email: input.email,
+      role: input.role,
+      region: input.region,
+    };
+    const res = await this.importUsers([row], true);
+    if (!res.ok) return res;
+
+    const report = res.value;
+    const line = report.rows[0];
+    if (!report.applied || !line || line.status === 'error') {
+      const motivo = line?.messages.join('; ')
+        || (report.pendingAuth?.length ? 'convite de acesso não concluído' : 'lote recusado pelo servidor');
+      return err('validation/invalid-input', `Não foi possível criar o usuário: ${motivo}`);
+    }
+    return ok({
+      id: line.userId ?? '',
+      name: line.name,
+      email: line.email,
+      role: line.role,
+      region: input.region,
+      avatarInitials: initials(line.name),
+      // Nasce convidado: só vira ativo quando confirmar o e-mail (0010).
+      active: false,
+    });
   }
   async setActive(userId: string, active: boolean): Promise<Result<User>> {
     const { data, error } = await this.client.rpc('admin_set_user_active', { p_user_id: userId, p_active: active });

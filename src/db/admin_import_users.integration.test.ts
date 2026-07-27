@@ -343,6 +343,60 @@ describe('admin_import_users — onboarding transacional (0010)', () => {
     expect(await perfil('sem.auth@fic.example')).toBeUndefined();
   });
 
+  // ---- vínculo authUserId ↔ e-mail (o cliente não é fonte de verdade) -----
+  it('17d — authUserId de OUTRO e-mail é recusado (troca maliciosa de identidade)', async () => {
+    await criarIdentidade(AUTH.novoGc, 'vitima@fic.example');
+    await criarIdentidade(AUTH.outro, 'atacante@fic.example');
+
+    // A linha diz "vitima", mas carrega a identidade do "atacante": se passasse,
+    // o atacante entraria com a credencial dele no perfil/escopo da vítima.
+    const report = await importAs(ID.uAdmin, [
+      { index: 1, name: 'Vitima Fic', email: 'vitima@fic.example', role: 'channel_manager', region: 'Coord 1', authUserId: AUTH.outro },
+    ], true);
+
+    expect(report.applied).toBe(false);
+    expect(report.counters.errors).toBe(1);
+    expect(report.rows[0].messages.join(' ')).toMatch(/Identidade Auth informada pertence a outro e-mail/);
+    // A mensagem não revela de quem é a identidade.
+    expect(report.rows[0].messages.join(' ')).not.toMatch(/atacante@fic\.example/);
+    expect(await perfil('vitima@fic.example')).toBeUndefined();
+    expect(await perfil('atacante@fic.example')).toBeUndefined();
+  });
+
+  it('17e — troca cruzada de ids entre dois e-mails do mesmo lote reverte tudo', async () => {
+    await criarIdentidade(AUTH.novoGc, 'um@fic.example');
+    await criarIdentidade(AUTH.outro, 'dois@fic.example');
+
+    const report = await importAs(ID.uAdmin, [
+      { index: 1, name: 'Um Fic', email: 'um@fic.example', role: 'channel_manager', region: 'Coord 1', authUserId: AUTH.outro },
+      { index: 2, name: 'Dois Fic', email: 'dois@fic.example', role: 'channel_manager', region: 'Coord 2', authUserId: AUTH.novoGc },
+    ], true);
+
+    expect(report.applied).toBe(false);
+    expect(report.counters.errors).toBe(2);
+    expect(await perfil('um@fic.example')).toBeUndefined();
+    expect(await perfil('dois@fic.example')).toBeUndefined();
+  });
+
+  it('17f — o par correto continua passando (a validação não é falso positivo)', async () => {
+    await criarIdentidade(AUTH.novoGc, 'certo@fic.example');
+    const report = await importAs(ID.uAdmin, [
+      { index: 1, name: 'Certo Fic', email: 'certo@fic.example', role: 'channel_manager', region: 'Coord 1', authUserId: AUTH.novoGc },
+    ], true);
+
+    expect(report.applied).toBe(true);
+    expect((await perfil('certo@fic.example')).id).toBe(AUTH.novoGc);
+  });
+
+  it('17g — e-mail com caixa/espaço diferentes ainda casa a identidade', async () => {
+    await criarIdentidade(AUTH.novoGc, 'caixa@fic.example');
+    const report = await importAs(ID.uAdmin, [
+      { index: 1, name: 'Caixa Fic', email: '  CAIXA@Fic.Example  ', role: 'channel_manager', region: 'Coord 1', authUserId: AUTH.novoGc },
+    ], true);
+
+    expect(report.applied).toBe(true);
+  });
+
   it('17c — authUserId apontando para identidade inexistente é recusado', async () => {
     const report = await importAs(ID.uAdmin, [
       { index: 1, name: 'Fantasma Fic', email: 'fantasma@fic.example', role: 'channel_manager', region: 'Coord 1', authUserId: '00000000-0000-0000-0000-0000000099ff' },
@@ -430,6 +484,34 @@ describe('admin_import_users — onboarding transacional (0010)', () => {
     const doOutroGc = await db.asUser(ID.uGcB, (tx) =>
       tx.query<{ id: string }>(`select "id" from public.ui_operations`));
     expect(doOutroGc.map((o) => o.id)).not.toContain(novaOp[0].id);
+  });
+
+  // ---- depreciação do caminho antigo (migration 0011) ---------------------
+  it('admin_create_user está depreciada e recusa com orientação, sem gravar', async () => {
+    const erro = await db.asUser(ID.uAdmin, (tx) => tx.expectError(
+      `select public.admin_create_user($1::jsonb)`,
+      [JSON.stringify({ name: 'Nao Deve Entrar Fic', email: 'nao.entra@fic.example', role: 'coordinator', region: 'Coord 1' })]));
+
+    expect(erro.message).toMatch(/DEPRECIADA/);
+    expect(await perfil('nao.entra@fic.example')).toBeUndefined();
+    // Nenhuma identidade incompleta foi deixada para trás (leitura como
+    // superuser: auth.users não é — nem deve ser — legível por `authenticated`).
+    const orfas = await db.query<{ n: number }>(
+      `select count(*)::int n from auth.users where email = 'nao.entra@fic.example'`);
+    expect(orfas[0].n).toBe(0);
+  });
+
+  it('não-administrador recebe "apenas administrador" na função depreciada, não a orientação', async () => {
+    const erro = await db.asUser(ID.uGcA, (tx) => tx.expectError(
+      `select public.admin_create_user($1::jsonb)`, [JSON.stringify({ name: 'X', email: 'x@fic.example' })]));
+    expect(erro.message).toMatch(/apenas administrador/);
+    expect(erro.message).not.toMatch(/admin_import_users/);
+  });
+
+  it('anon não alcança a função depreciada', async () => {
+    const erro = await db.asAnon((tx) => tx.expectError(
+      `select public.admin_create_user($1::jsonb)`, [JSON.stringify({ name: 'X', email: 'x@fic.example' })]));
+    expect(erro.message).toBeTruthy();
   });
 
   it('lote acima de 200 linhas é rejeitado antes de processar', async () => {

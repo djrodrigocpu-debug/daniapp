@@ -334,3 +334,56 @@ describe('SupabaseAdminUsersRepository.importUsers — orquestração das 3 fase
     expect(fnCalls).toHaveLength(0);
   });
 });
+
+describe('SupabaseAdminUsersRepository.create — cadastro avulso usa o fluxo novo', () => {
+  const input = { name: 'Solo Sintetico', email: 'Solo@Sint.Example', role: 'coordinator' as const, region: 'COORD NORTE' };
+
+  it('NÃO chama mais a RPC depreciada admin_create_user', async () => {
+    const { client, rpcCalls, fnCalls } = fakeClient({
+      rpc: {
+        admin_import_users: (p) => ({
+          data: rpcReport({
+            mode: p.p_commit ? 'commit' : 'simulate',
+            applied: !!p.p_commit,
+            counters: { total: 1, inserted: 1, updated: 0, errors: 0, pendingAuth: p.p_commit ? 0 : 1 },
+            pendingAuth: p.p_commit ? [] : ['solo@sint.example'],
+            rows: [{ index: 1, name: 'Solo Sintetico', email: 'solo@sint.example', role: 'coordinator', status: 'ok', action: 'insert', userId: 'auth-solo', messages: [], warnings: [] }],
+          }),
+        }),
+      },
+      functions: {
+        'admin-invite-users': () => ({
+          data: { ok: true, rows: [{ email: 'solo@sint.example', state: 'invited', authUserId: 'auth-solo' }] },
+        }),
+      },
+    });
+    const res = await new SupabaseAdminUsersRepository(client).create(input);
+
+    expect(rpcCalls.map((c) => c.name)).toEqual(['admin_import_users', 'admin_import_users']);
+    expect(rpcCalls.map((c) => c.name)).not.toContain('admin_create_user');
+    expect(fnCalls).toHaveLength(1); // o convite real acontece
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.value.email).toBe('solo@sint.example');
+      expect(res.value.active).toBe(false); // nasce convidado, não ativo
+    }
+  });
+
+  it('lote recusado pelo servidor vira erro com o motivo da linha', async () => {
+    const { client } = fakeClient({
+      rpc: {
+        admin_import_users: () => ({
+          data: rpcReport({
+            applied: false,
+            counters: { total: 1, inserted: 0, updated: 0, errors: 1, pendingAuth: 0 },
+            rows: [{ index: 1, name: 'Solo Sintetico', email: 'solo@sint.example', role: 'coordinator', status: 'error', action: 'none', userId: null, messages: ['Coordenacao inexistente: COORD NORTE'], warnings: [] }],
+          }),
+        }),
+      },
+    });
+    const res = await new SupabaseAdminUsersRepository(client).create(input);
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error.message).toMatch(/Coordenacao inexistente: COORD NORTE/);
+  });
+});

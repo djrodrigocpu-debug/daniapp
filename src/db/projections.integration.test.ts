@@ -213,16 +213,24 @@ describe('RPCs administrativos exigem is_admin (D-05)', () => {
     expect(res.versions.length).toBe(1);
   });
 
-  it('admin cria usuário (perfil convidado) visível em ui_users', async () => {
-    const user = (await db.asUser(ID.uAdmin, (tx) =>
-      tx.query<{ u: any }>(`select public.admin_create_user($1::jsonb) as u`,
-        [JSON.stringify({ name: 'Novo Usuário', email: 'novo@fic.example', role: 'coordinator', region: 'Região Fictícia' })])))[0].u;
-    expect(user.email).toBe('novo@fic.example');
-    expect(user.role).toBe('coordinator');
-
-    const count = await db.asUser(ID.uAdmin, (tx) =>
+  /**
+   * Contrato ALTERADO na migration 0011. A função criava um perfil apoiado numa
+   * identidade Auth incompleta — o usuário aparecia em ui_users e nunca
+   * conseguia autenticar. Agora recusa e aponta o caminho correto; o onboarding
+   * real é coberto em src/db/admin_import_users.integration.test.ts.
+   */
+  it('admin_create_user está depreciada e não cria mais perfil algum', async () => {
+    const antes = await db.asUser(ID.uAdmin, (tx) =>
       tx.query<{ n: number }>(`select count(*)::int n from public.ui_users`));
-    expect(count[0].n).toBe(8);
+
+    const erro = await db.asUser(ID.uAdmin, (tx) =>
+      tx.expectError(`select public.admin_create_user($1::jsonb)`,
+        [JSON.stringify({ name: 'Novo Usuário', email: 'novo@fic.example', role: 'coordinator', region: 'Região Fictícia' })]));
+    expect(erro.message).toMatch(/DEPRECIADA/);
+
+    const depois = await db.asUser(ID.uAdmin, (tx) =>
+      tx.query<{ n: number }>(`select count(*)::int n from public.ui_users`));
+    expect(depois[0].n).toBe(antes[0].n);
   });
 
   it('não-admin não altera papel de usuário', async () => {
