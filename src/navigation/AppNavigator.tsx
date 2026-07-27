@@ -9,6 +9,7 @@ import { useOperationalUser } from '../context/useOperationalUser';
 import { localStore } from '../data/store/localStore';
 import { AppButton } from '../components/AppButton';
 import { LoginScreen } from '../screens/LoginScreen';
+import { SetPasswordScreen } from '../screens/SetPasswordScreen';
 import { DashboardScreen } from '../screens/DashboardScreen';
 import { OperationsScreen } from '../screens/OperationsScreen';
 import { ActionsScreen } from '../screens/ActionsScreen';
@@ -80,6 +81,24 @@ function MainTabs() {
  * Administrador ativo (que é válido sem região/coordenadoria/operação) nem para
  * demais perfis com escopo — apenas quando a sessão não tem papel/escopo ativo.
  */
+/**
+ * Erro do fluxo de link: expirado, ja usado, malformado, perfil suspenso ou
+ * sessao sem perfil corporativo. Sempre oferece caminho de volta ao login —
+ * nunca deixa o usuario preso numa tela morta.
+ */
+function CallbackErrorScreen({ message, onBack }: { message: string | null; onBack: () => void }) {
+  return (
+    <View style={styles.notice}>
+      <View style={styles.loadingLogo}><Text style={styles.loadingLogoText}>A</Text></View>
+      <Text style={styles.noticeTitle}>Não foi possível concluir o acesso</Text>
+      <Text style={styles.noticeBody}>
+        {message ?? 'Este link de acesso não pôde ser validado. Peça um novo convite ao Administrador.'}
+      </Text>
+      <AppButton title="Voltar ao login" variant="secondary" onPress={onBack} />
+    </View>
+  );
+}
+
 function NoScopeScreen() {
   const { state, signOut } = useAuth();
   return (
@@ -96,7 +115,7 @@ function NoScopeScreen() {
 }
 
 export function AppNavigator() {
-  const { state } = useAuth();
+  const { state, onboarding, finishOnboarding, cancelOnboarding, dismissOnboardingError, updatePassword, activateSelf } = useAuth();
   const ready = useSyncExternalStore(localStore.subscribe, localStore.isReady);
   const currentUser = useOperationalUser();
 
@@ -109,6 +128,25 @@ export function AppNavigator() {
         <Text style={styles.loadingText}>Carregando AAPEx...</Text>
       </View>
     );
+  }
+
+  // Fluxo de link (convite/recuperação) tem precedência sobre tudo: quem chegou
+  // por convite ainda NÃO tem acesso operacional, mesmo com sessão no Auth.
+  if (onboarding.phase === 'password_setup') {
+    return (
+      <SetPasswordScreen
+        needsActivation={onboarding.needsActivation}
+        accountLabel={onboarding.accountLabel}
+        updatePassword={updatePassword}
+        activateSelf={activateSelf}
+        onCompleted={() => { void finishOnboarding(); }}
+        onCancel={() => { void cancelOnboarding(); }}
+      />
+    );
+  }
+
+  if (onboarding.phase === 'callback_error' || onboarding.phase === 'blocked' || onboarding.phase === 'no_profile') {
+    return <CallbackErrorScreen message={onboarding.message} onBack={dismissOnboardingError} />;
   }
 
   // Bloqueio de navegação sem sessão corporativa (§7).
