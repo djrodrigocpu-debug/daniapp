@@ -25,12 +25,13 @@ import {
   MAX_IMPORT_ROWS,
 } from './types';
 import { collapseSpaces, isValidEmail, labelKey, normalizeEmail, normalizeState } from './normalize';
+import { normalizeCnpj, validateCnpj } from './cnpj';
 import { SheetFieldSpec, readSheet } from '../sheets/reader';
 
 type Field = keyof Omit<ImportRow, 'index'>;
 
 interface FieldSpec extends SheetFieldSpec<Field> {
-  kind: 'text' | 'email' | 'state';
+  kind: 'text' | 'email' | 'state' | 'cnpj';
 }
 
 const FIELDS: FieldSpec[] = [
@@ -44,6 +45,15 @@ const FIELDS: FieldSpec[] = [
     label: 'Empresa parceira',
     kind: 'text',
     required: true,
+  },
+  {
+    field: 'cnpj',
+    // Aliases deliberadamente restritos: nada que possa significar CPF, para
+    // que documento de PESSOA jamais entre no cadastro da EMPRESA.
+    prefixes: ['cnpj do parceiro', 'cnpj da empresa', 'cnpj', 'documento da empresa', 'documento'],
+    label: 'CNPJ',
+    kind: 'cnpj',
+    required: false,
   },
   {
     field: 'officeName',
@@ -119,6 +129,20 @@ export function parsePartnersSheet(grid: string[][]): ParseResult {
           recordIssues.push({ column: at, field: spec.field, message: `${spec.label} inválido: ${email}` });
         } else {
           (draft as Record<string, unknown>)[spec.field] = email;
+        }
+        continue;
+      }
+
+      if (spec.kind === 'cnpj') {
+        const bruto = collapseSpaces(value);
+        if (bruto === '') continue;  // ausente: o servidor decide se é erro
+        const check = validateCnpj(bruto);
+        if (!check.ok) {
+          // A mensagem não ecoa o valor completo — célula colada pode conter
+          // qualquer coisa, inclusive documento de pessoa.
+          recordIssues.push({ column: at, field: spec.field, message: 'CNPJ inválido' });
+        } else {
+          draft.cnpj = normalizeCnpj(bruto);
         }
         continue;
       }

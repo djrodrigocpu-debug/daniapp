@@ -30,6 +30,15 @@ export interface ImportRow {
   unitName: string;
   coordinationName: string;
   partnerName: string;
+  /**
+   * CNPJ da empresa parceira, SOMENTE 14 dígitos.
+   *
+   * Opcional no parse de propósito: o cliente não sabe se a linha atualiza uma
+   * operação já existente (onde o legado pode seguir sem CNPJ) ou cria uma nova
+   * (onde é obrigatório). Quem decide é o servidor — bloquear aqui recusaria
+   * planilhas antigas que apenas atualizam cadastro.
+   */
+  cnpj?: string;
   officeName: string;
   city: string;
   state: 'PR' | 'SC';
@@ -63,6 +72,12 @@ export interface ImportReportRow {
   index: number;
   officeName: string;
   partnerName: string;
+  /**
+   * CNPJ já FORMATADO pelo servidor (`00.000.000/0000-00`), ou `null` quando a
+   * linha não trouxe um valor válido. Entrada inválida nunca volta aqui — o
+   * relatório não é lugar para devolver o que o operador colou errado.
+   */
+  cnpj?: string | null;
   status: ImportRowStatus;
   action: ImportRowAction;
   operationId: string | null;

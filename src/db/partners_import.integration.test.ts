@@ -37,6 +37,21 @@ interface ImportRowJson {
   state: string;
   coordinatorEmail: string;
   managerEmail: string;
+  /** Sintético. Ausente ⇒ o servidor decide se é atualização legada ou erro. */
+  cnpj?: string;
+}
+
+/** Gera um CNPJ SINTÉTICO válido a partir de 12 dígitos base (§23). */
+export function cnpjFixture(base12: string): string {
+  const dv = (digits: string, pesos: number[]) => {
+    let soma = 0;
+    for (let i = 0; i < pesos.length; i += 1) soma += Number(digits[i]) * pesos[i];
+    const resto = soma % 11;
+    return resto < 2 ? 0 : 11 - resto;
+  };
+  const d1 = dv(base12, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  const d2 = dv(`${base12}${d1}`, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+  return `${base12}${d1}${d2}`;
 }
 
 /** 14 linhas: coordenação NORTE (1-4), SUL (5-8), OESTE (9-14). */
@@ -68,6 +83,7 @@ function buildRows(): ImportRowJson[] {
       // Maiúsculas propositalmente (normalização obrigatória — teste 11).
       coordinatorEmail: n === 1 ? 'CoordN@Sint.Example' : COORD_EMAILS[group],
       managerEmail: n === 5 ? 'GC5.Maiusculo@Sint.Example' : GC_EMAILS[(n - 1) % 9],
+      cnpj: cnpjFixture(`2000${String(n).padStart(4, '0')}0001`),
     };
   });
 }
@@ -229,8 +245,8 @@ describe('Importador de Parceiros AACE (banco real)', () => {
   it('Escritório duplicado no mesmo lote: segunda linha vira erro e só uma grava', async () => {
     const base = buildRows()[0];
     const rows = [
-      { ...base, index: 1, officeName: 'PS - LOTE DUP - 0001' },
-      { ...base, index: 2, officeName: 'ps - lote  dup - 0001' }, // mesmo escritório normalizado
+      { ...base, index: 1, cnpj: cnpjFixture('300000010001'), officeName: 'PS - LOTE DUP - 0001' },
+      { ...base, index: 2, cnpj: cnpjFixture('300000020001'), officeName: 'ps - lote  dup - 0001' }, // mesmo escritório normalizado
     ];
     const before = await counts();
     const report = await runImport(rows, true);
@@ -247,8 +263,8 @@ describe('Importador de Parceiros AACE (banco real)', () => {
   it('partner_name repetido com office_name diferente é permitido', async () => {
     const base = buildRows()[0];
     const rows = [
-      { ...base, index: 1, partnerName: 'REPETIDO LTDA', officeName: 'PS - REPETIDO - 0001' },
-      { ...base, index: 2, partnerName: 'REPETIDO LTDA', officeName: 'PS - REPETIDO - 0002' },
+      { ...base, index: 1, cnpj: cnpjFixture('300000030001'), partnerName: 'REPETIDO LTDA', officeName: 'PS - REPETIDO - 0001' },
+      { ...base, index: 2, cnpj: cnpjFixture('300000040001'), partnerName: 'REPETIDO LTDA', officeName: 'PS - REPETIDO - 0002' },
     ];
     const report = await runImport(rows, true);
     expect(report.counters.inserted).toBe(2);
@@ -259,9 +275,9 @@ describe('Importador de Parceiros AACE (banco real)', () => {
   it('GC/coordenador não encontrados: erro nominal por linha, válidas seguem', async () => {
     const base = buildRows()[0];
     const rows = [
-      { ...base, index: 1, officeName: 'PS - VALIDA - 0001' },
-      { ...base, index: 2, officeName: 'PS - SEM GC - 0001', managerEmail: 'naoexiste@sint.example' },
-      { ...base, index: 3, officeName: 'PS - SEM COORD - 0001', coordinatorEmail: 'tambemnao@sint.example' },
+      { ...base, index: 1, cnpj: cnpjFixture('300000050001'), officeName: 'PS - VALIDA - 0001' },
+      { ...base, index: 2, cnpj: cnpjFixture('300000060001'), officeName: 'PS - SEM GC - 0001', managerEmail: 'naoexiste@sint.example' },
+      { ...base, index: 3, cnpj: cnpjFixture('300000070001'), officeName: 'PS - SEM COORD - 0001', coordinatorEmail: 'tambemnao@sint.example' },
     ];
     const before = await counts();
     const report = await runImport(rows, true);
@@ -280,8 +296,8 @@ describe('Importador de Parceiros AACE (banco real)', () => {
   it('Papel errado ou usuário não-ativo geram erro nominal (E2)', async () => {
     const base = buildRows()[0];
     const rows = [
-      { ...base, index: 1, officeName: 'PS - PAPEL ERRADO - 0001', managerEmail: 'coordn@sint.example' },
-      { ...base, index: 2, officeName: 'PS - INATIVO - 0001', managerEmail: 'gcx@sint.example' },
+      { ...base, index: 1, cnpj: cnpjFixture('300000080001'), officeName: 'PS - PAPEL ERRADO - 0001', managerEmail: 'coordn@sint.example' },
+      { ...base, index: 2, cnpj: cnpjFixture('300000090001'), officeName: 'PS - INATIVO - 0001', managerEmail: 'gcx@sint.example' },
     ];
     const report = await runImport(rows, true);
     expect(report.rows[0].status).toBe('error');
@@ -324,7 +340,7 @@ describe('Importador de Parceiros AACE (banco real)', () => {
   it('Lote acima de 200 linhas é rejeitado globalmente antes de processar', async () => {
     const base = buildRows()[0];
     const rows = Array.from({ length: 201 }, (_, i) => ({
-      ...base, index: i + 1, officeName: `PS - LIMITE - ${String(i + 1).padStart(4, '0')}`,
+      ...base, cnpj: cnpjFixture(`40${String(i + 1).padStart(6, '0')}0001`), index: i + 1, officeName: `PS - LIMITE - ${String(i + 1).padStart(4, '0')}`,
     }));
     const e = await db.asUser(ID.uAdmin, (tx) =>
       tx.expectError(
