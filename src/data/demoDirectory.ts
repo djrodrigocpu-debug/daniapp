@@ -24,6 +24,7 @@ import { Operation, User } from '../types';
 import { Role, UserScope } from '../domain/model';
 import { DemoProfile } from '../services/auth/DemoAuthRepository';
 import { initialData } from './mock';
+import { localStore } from './store/localStore';
 
 const EPOCH = '2020-01-01T00:00:00.000Z';
 
@@ -78,11 +79,24 @@ export function buildOperationalDemoDirectory(users: User[], operations: Operati
   }));
 }
 
-/** Diretório efetivo do app em modo demonstração (derivado do seed operacional). */
+/** Diretório derivado do SEED — referência estável usada nos testes. */
 export const operationalDemoDirectory: DemoProfile[] = buildOperationalDemoDirectory(
   initialData.users,
   initialData.operations,
 );
+
+/**
+ * Diretório EFETIVO do app em modo demonstração, lido do store no momento do
+ * login. Precisa ser função: usuários criados ou importados na aba Admin entram
+ * no store depois do boot, e um diretório congelado no seed os deixaria sem
+ * conseguir entrar mesmo estando cadastrados e ativos.
+ *
+ * Usuário inativo é omitido — inativar na aba Admin passa a bloquear o acesso.
+ */
+export function currentOperationalDemoDirectory(): DemoProfile[] {
+  const { users, operations } = localStore.getSnapshot();
+  return buildOperationalDemoDirectory(users.filter((u) => u.active !== false), operations);
+}
 
 /** Sessão mínima necessária para resolver a identidade operacional. */
 export interface SessionIdentity {

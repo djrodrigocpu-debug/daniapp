@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { alertDialog } from '../utils/dialog';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
@@ -60,7 +61,7 @@ export function PerformanceScreen({ route }: NativeStackScreenProps<RootStackPar
       actionPlanIds: plans.map((plan) => plan.id),
       nextReviewDate: new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10),
     });
-    Alert.alert('Visita registrada', 'O diagnóstico foi salvo e já ficará disponível para retroalimentar a próxima visita.');
+    alertDialog('Visita registrada', 'O diagnóstico foi salvo e já ficará disponível para retroalimentar a próxima visita.');
   }
 
   return (

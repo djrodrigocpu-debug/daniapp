@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { alertDialog } from '../utils/dialog';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
@@ -28,7 +29,7 @@ export function OperationDetailScreen({ route, navigation }: NativeStackScreenPr
   async function launch(frequency: 'weekly' | 'monthly') {
     const existing = getCurrentDraft(activeOperation.id);
     if (existing && existing.frequency !== frequency) {
-      Alert.alert('Rascunho existente', 'Há uma avaliação em andamento para este Parceiro AACE. Finalize ou envie o rascunho atual antes de iniciar outro ciclo.');
+      alertDialog('Rascunho existente', 'Há uma avaliação em andamento para este Parceiro AACE. Finalize ou envie o rascunho atual antes de iniciar outro ciclo.');
       return;
     }
     const id = await startEvaluation(activeOperation.id, frequency);

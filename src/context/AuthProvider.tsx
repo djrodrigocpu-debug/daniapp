@@ -12,7 +12,7 @@ import { getRuntimeConfig } from '../config/env';
 import { getSupabaseClient } from '../services/supabase/client';
 import { createAuthBackend, AuthMode } from '../services/auth/authFactory';
 import { AuthController, AuthState } from '../services/auth/AuthController';
-import { operationalDemoDirectory } from '../data/demoDirectory';
+import { currentOperationalDemoDirectory } from '../data/demoDirectory';
 
 interface AuthContextValue {
   state: AuthState;
@@ -29,9 +29,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const backend = useMemo(() => {
     const config = getRuntimeConfig();
     const client = getSupabaseClient(config);
-    // Em modo demo, o diretório de perfis é derivado do seed operacional para
-    // que a sessão corporativa mapeie 1:1 no `User` operacional (§9.3).
-    return createAuthBackend(config, client, { demoDirectory: operationalDemoDirectory });
+    // Em modo demo, o diretório de perfis é derivado do estado operacional VIVO
+    // (não do seed) para que a sessão mapeie 1:1 no `User` operacional (§9.3) e
+    // para que quem foi cadastrado/importado na aba Admin consiga entrar.
+    return createAuthBackend(config, client, { demoDirectory: currentOperationalDemoDirectory });
   }, []);
 
   const controllerRef = useRef<AuthController | null>(null);

@@ -1,0 +1,58 @@
+/**
+ * Usuários AACE — tipos do importador de planilha.
+ *
+ * Espelha o contrato do importador de Parceiros AACE (simular → confirmar,
+ * idempotente por e-mail), para que as duas telas de importação se comportem
+ * igual e o operador não precise aprender dois fluxos.
+ */
+import { UserRole } from '../../types';
+import { SheetIssue, SheetLayout } from '../sheets/reader';
+
+/** Limite de linhas por lote (mesma ordem de grandeza do lote de parceiros). */
+export const MAX_USER_IMPORT_ROWS = 200;
+
+export interface UserImportRow {
+  /** Posição 1-based do registro na planilha. */
+  index: number;
+  name: string;
+  email: string;
+  role: UserRole;
+  /** Área de atuação: coordenação do GC/coordenador, região do regional. */
+  region: string;
+}
+
+export type UserIssue = SheetIssue<keyof Omit<UserImportRow, 'index'>>;
+
+export interface UserParseResult {
+  rows: UserImportRow[];
+  issues: UserIssue[];
+  layout: SheetLayout;
+}
+
+export type UserImportRowStatus = 'ok' | 'duplicate' | 'error';
+export type UserImportRowAction = 'insert' | 'update' | 'none';
+
+export interface UserImportReportRow {
+  index: number;
+  name: string;
+  email: string;
+  role: UserRole;
+  status: UserImportRowStatus;
+  action: UserImportRowAction;
+  userId: string | null;
+  messages: string[];
+  warnings: string[];
+}
+
+export interface UserImportReport {
+  mode: 'simulate' | 'commit';
+  counters: {
+    total: number;
+    inserted: number;
+    updated: number;
+    errors: number;
+  };
+  /** Coordenações citadas na planilha que ficaram sem coordenador ativo. */
+  coordinationsWithoutCoordinator: string[];
+  rows: UserImportReportRow[];
+}

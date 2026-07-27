@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { alertDialog } from '../utils/dialog';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -46,7 +47,7 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
   async function takePhoto(themeId: string) {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permissão necessária', 'Autorize o acesso à câmera para registrar a comprovação.');
+      alertDialog('Permissão necessária', 'Autorize o acesso à câmera para registrar a comprovação.');
       return;
     }
     const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.72, allowsEditing: false });
@@ -75,10 +76,10 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
   async function handleSubmit() {
     const result = await submit(activeEvaluation.id);
     if (!result.ok) {
-      Alert.alert('Avaliação incompleta', result.message);
+      alertDialog('Avaliação incompleta', result.message);
       return;
     }
-    Alert.alert('Avaliação enviada', 'O ciclo foi encaminhado para validação da coordenação.', [
+    alertDialog('Avaliação enviada', 'O ciclo foi encaminhado para validação da coordenação.', [
       { text: 'OK', onPress: () => navigation.goBack() },
     ]);
   }

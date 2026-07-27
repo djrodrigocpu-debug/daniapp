@@ -74,13 +74,25 @@ export const DEMO_DIRECTORY: DemoProfile[] = [
   },
 ];
 
+/**
+ * Diretório fixo, ou função avaliada a CADA login. A forma de função existe
+ * porque o diretório operacional muda em runtime (usuário criado ou importado
+ * na aba Admin): congelá-lo na construção deixava quem acabou de ser cadastrado
+ * sem conseguir entrar.
+ */
+export type DemoDirectorySource = DemoProfile[] | (() => DemoProfile[]);
+
 export class DemoAuthRepository implements AuthRepository {
   private current: AuthenticatedSession | null = null;
 
   constructor(
-    private readonly directory: DemoProfile[] = DEMO_DIRECTORY,
+    private readonly directory: DemoDirectorySource = DEMO_DIRECTORY,
     private readonly clock: () => string = now,
   ) {}
+
+  private profiles(): DemoProfile[] {
+    return typeof this.directory === 'function' ? this.directory() : this.directory;
+  }
 
   private toSession(profile: DemoProfile): AuthenticatedSession {
     const nowISO = this.clock();
@@ -94,7 +106,7 @@ export class DemoAuthRepository implements AuthRepository {
 
   // Sem senha (dev): identifica o perfil apenas pelo e-mail fictício.
   async signIn(email: string, _password: string): Promise<Result<AuthenticatedSession>> {
-    const profile = this.directory.find(
+    const profile = this.profiles().find(
       (p) => p.user.corporateEmail.toLowerCase() === email.trim().toLowerCase(),
     );
     if (!profile) {

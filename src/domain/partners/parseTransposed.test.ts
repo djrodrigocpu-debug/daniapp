@@ -66,10 +66,20 @@ describe('parsePartnersSheet — formato transposto', () => {
   });
 
   it('rótulo obrigatório ausente é erro GLOBAL sem linhas (E9)', () => {
-    const grid = buildGrid().filter((row) => row[0] !== 'Estado: PR ou SC');
+    const grid = buildGrid().filter((row) => !row[0].startsWith('Cidade'));
     const { rows, issues } = parsePartnersSheet(grid);
     expect(rows).toEqual([]);
-    expect(issues.some((i) => i.column === null && /Rótulo obrigatório ausente.*Estado/.test(i.message))).toBe(true);
+    expect(issues.some((i) => i.column === null && /Rótulo obrigatório ausente.*Cidade/.test(i.message))).toBe(true);
+  });
+
+  it('sem coluna Estado e sem como deduzir, cada registro vira issue (não inventa UF)', () => {
+    // As coordenações sintéticas ("COORD NORTE"…) não carregam a UF.
+    const grid = buildGrid(2).filter((row) => !row[0].startsWith('Estado'));
+    const { rows, issues } = parsePartnersSheet(grid);
+    expect(rows).toEqual([]);
+    expect(issues).toHaveLength(2);
+    expect(issues[0].field).toBe('state');
+    expect(issues[0].message).toMatch(/Estado ausente e não foi possível deduzir da coordenação "COORD NORTE"/);
   });
 
   it('rótulo desconhecido é erro GLOBAL — nunca interpreta planilha estranha (E9)', () => {
@@ -125,5 +135,91 @@ describe('parsePartnersSheet — formato transposto', () => {
     const { rows, issues } = parsePartnersSheet(buildGrid(0));
     expect(rows).toEqual([]);
     expect(issues.some((i) => /Nenhum registro encontrado/.test(i.message))).toBe(true);
+  });
+
+  it('reconhece a orientação transposta', () => {
+    expect(parsePartnersSheet(buildGrid(3)).layout).toBe('transposed');
+  });
+});
+
+/**
+ * Formato TABULAR do canal: rótulos na linha 1, um escritório por linha, e
+ * SEM as colunas Organização, Região, Estado e E-mail do Coordenador — que a
+ * planilha operacional real não traz.
+ */
+const TABULAR_HEADER = [
+  'Empresa parceira / Razao Social',
+  'Nome do escritorio',
+  'Cidade',
+  'Unidade',
+  'Coordenação de vendas',
+  'Email Gerentes de Canais',
+];
+
+function buildTabular(records = 3): string[][] {
+  const grid: string[][] = [TABULAR_HEADER];
+  for (let n = 1; n <= records; n += 1) {
+    grid.push([
+      'ALFA SINTETICA LTDA ', // espaço final proposital
+      `PS - ESCRITORIO SINT - ${String(n).padStart(4, '0')}`,
+      n % 2 === 0 ? 'Curitiba' : 'Joinville',
+      'RPS',
+      n === 1 ? 'PR CAPITAL' : n === 2 ? 'SANTA CATARINA' : 'PR INTERIOR',
+      `GC${n}@Sint.Example`,
+    ]);
+  }
+  return grid;
+}
+
+describe('parsePartnersSheet — formato tabular do canal', () => {
+  it('reconhece a orientação e os registros linha a linha', () => {
+    const { rows, issues, layout } = parsePartnersSheet(buildTabular());
+    expect(issues).toEqual([]);
+    expect(layout).toBe('tabular');
+    expect(rows).toHaveLength(3);
+    expect(rows[0].index).toBe(1);
+    expect(rows[0].partnerName).toBe('ALFA SINTETICA LTDA'); // espaço final removido
+    expect(rows[0].officeName).toBe('PS - ESCRITORIO SINT - 0001');
+    expect(rows[0].unitName).toBe('RPS');
+    expect(rows[0].managerEmail).toBe('gc1@sint.example'); // lowercase
+  });
+
+  it('deduz a UF pela coordenação e informa a dedução em warnings', () => {
+    const { rows, warnings } = parsePartnersSheet(buildTabular());
+    expect(rows.map((r) => r.state)).toEqual(['PR', 'SC', 'PR']);
+    expect(warnings).toHaveLength(3);
+    expect(warnings[0].message).toMatch(/Estado PR deduzido da coordenação "PR CAPITAL"/);
+  });
+
+  it('deixa Organização, Região e e-mail do Coordenador ausentes para o repositório resolver', () => {
+    const { rows } = parsePartnersSheet(buildTabular(1));
+    expect(rows[0].organizationName).toBeUndefined();
+    expect(rows[0].regionName).toBeUndefined();
+    expect(rows[0].coordinatorEmail).toBeUndefined();
+  });
+
+  it('a issue aponta a LINHA da planilha (linha 3 = segundo registro)', () => {
+    const grid = buildTabular();
+    grid[2][5] = 'sem-arroba'; // e-mail do GC do segundo registro
+    const { rows, issues } = parsePartnersSheet(grid);
+    expect(rows).toHaveLength(2);
+    expect(issues).toEqual([
+      { column: 3, field: 'managerEmail', message: 'E-mail do GC inválido: sem-arroba' },
+    ]);
+  });
+
+  it('coluna com rótulo desconhecido é erro GLOBAL também no formato tabular (E9)', () => {
+    const grid = buildTabular();
+    grid[0] = [...TABULAR_HEADER, 'Faturamento anual'];
+    grid.slice(1).forEach((row) => row.push('1000'));
+    const { rows, issues } = parsePartnersSheet(grid);
+    expect(rows).toEqual([]);
+    expect(issues.some((i) => /Rótulo desconhecido na coluna 7.*Faturamento anual/.test(i.message))).toBe(true);
+  });
+
+  it('planilha sem nenhum rótulo conhecido é recusada com mensagem clara', () => {
+    const { rows, issues } = parsePartnersSheet([['a', 'b'], ['1', '2']]);
+    expect(rows).toEqual([]);
+    expect(issues[0].message).toMatch(/não está no formato esperado/);
   });
 });

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { alertDialog } from '../utils/dialog';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
 import { AppButton } from '../components/AppButton';
@@ -22,7 +23,7 @@ export function ProfileScreen() {
   if (!currentUser) return null;
 
   function confirmReset() {
-    Alert.alert('Restaurar dados da demonstração?', 'Rascunhos, evidências e alterações locais serão substituídos pelos dados iniciais da versão 1.0.', [
+    alertDialog('Restaurar dados da demonstração?', 'Rascunhos, evidências e alterações locais serão substituídos pelos dados iniciais da versão 1.0.', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Restaurar', style: 'destructive', onPress: () => void resetDemo() },
     ]);

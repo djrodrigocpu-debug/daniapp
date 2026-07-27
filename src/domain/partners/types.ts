@@ -13,18 +13,28 @@ export const MAX_FIELD_LENGTH = 300;
 /** Limite de tamanho de e-mails (RFC 5321). */
 export const MAX_EMAIL_LENGTH = 254;
 
+/**
+ * Estruturas que a planilha do canal não nomeia, preenchidas pelo cliente antes
+ * de chamar a RPC (que exige os 10 campos). Ficam visíveis na simulação.
+ */
+export const DEFAULT_ORGANIZATION_NAME = 'AACE';
+export const DEFAULT_REGION_NAME = 'PR/SC';
+
 export interface ImportRow {
-  /** Posição 1-based do registro na planilha (coluna de dados). */
+  /** Posição 1-based do registro na planilha (coluna/linha de dados). */
   index: number;
-  organizationName: string;
-  regionName: string;
+  /** Ausente na planilha do canal ⇒ DEFAULT_ORGANIZATION_NAME no envio. */
+  organizationName?: string;
+  /** Ausente na planilha do canal ⇒ DEFAULT_REGION_NAME no envio. */
+  regionName?: string;
   unitName: string;
   coordinationName: string;
   partnerName: string;
   officeName: string;
   city: string;
   state: 'PR' | 'SC';
-  coordinatorEmail: string;
+  /** Ausente ⇒ o repositório resolve o coordenador pela coordenação. */
+  coordinatorEmail?: string;
   managerEmail: string;
 }
 
@@ -37,9 +47,13 @@ export interface RowIssue {
 }
 
 export interface ParseResult {
-  /** Somente colunas válidas — colunas com issues ficam de fora. */
+  /** Somente registros válidos — registros com issues ficam de fora. */
   rows: ImportRow[];
   issues: RowIssue[];
+  /** Deduções aplicadas (ex.: Estado inferido da coordenação). Não bloqueiam. */
+  warnings: RowIssue[];
+  /** Orientação reconhecida na planilha — exibida para o operador conferir. */
+  layout: 'transposed' | 'tabular';
 }
 
 export type ImportRowStatus = 'ok' | 'duplicate' | 'error';

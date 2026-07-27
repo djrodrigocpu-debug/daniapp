@@ -8,7 +8,8 @@
  * sem coordenador) ficam visíveis na listagem.
  */
 import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { alertDialog } from '../../utils/dialog';
 import { AppButton } from '../../components/AppButton';
 import { EmptyState } from '../../components/EmptyState';
 import { useAdmin } from '../../context/AdminProvider';
@@ -95,7 +96,7 @@ export function PartnersSection() {
     const res = editingId ? await updatePartner(editingId, input) : await createPartner(input);
     setBusy(false);
     if (!res.ok) {
-      Alert.alert(editingId ? 'Não foi possível salvar' : 'Não foi possível criar', res.message);
+      alertDialog(editingId ? 'Não foi possível salvar' : 'Não foi possível criar', res.message);
       return;
     }
     cancelEdit();
@@ -103,7 +104,7 @@ export function PartnersSection() {
 
   async function toggleActive(partner: AdminPartner) {
     const res = await updatePartner(partner.id, { active: !partner.active });
-    if (!res.ok) Alert.alert('Não foi possível alterar a situação', res.message);
+    if (!res.ok) alertDialog('Não foi possível alterar a situação', res.message);
   }
 
   return (

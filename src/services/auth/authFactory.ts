@@ -14,7 +14,7 @@ import { AuthRepository, AuthenticatedSession } from '../../domain/repositories'
 import { Result, ok, err } from '../../domain/errors/result';
 import { AppError } from '../../domain/errors/AppError';
 import { SupabaseAuthRepository } from '../supabase/SupabaseAuthRepository';
-import { DemoAuthRepository, DemoProfile } from './DemoAuthRepository';
+import { DemoAuthRepository, DemoDirectorySource } from './DemoAuthRepository';
 
 export type AuthMode = 'supabase' | 'demo' | 'unconfigured';
 
@@ -45,11 +45,11 @@ export function selectAuthMode(config: AppConfig, client: SupabaseClient | null)
 
 export interface AuthBackendOptions {
   /**
-   * Diretório de perfis demo alinhado ao seed operacional (§9.3). Injetado pela
-   * camada de app; ignorado fora do modo demo. Quando ausente, usa o diretório
-   * fictício padrão do `DemoAuthRepository`.
+   * Diretório de perfis demo alinhado ao estado operacional (§9.3). Injetado
+   * pela camada de app; ignorado fora do modo demo. Aceita função para
+   * acompanhar cadastros feitos em runtime. Ausente ⇒ diretório fictício padrão.
    */
-  demoDirectory?: DemoProfile[];
+  demoDirectory?: DemoDirectorySource;
 }
 
 export function createAuthBackend(

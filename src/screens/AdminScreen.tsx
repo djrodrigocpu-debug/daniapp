@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { alertDialog } from '../utils/dialog';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppButton } from '../components/AppButton';
@@ -9,6 +10,7 @@ import { colors, radius, spacing } from '../theme';
 import { UserRole } from '../types';
 import { roleLabel } from '../utils/format';
 import { PartnersSection } from './admin/PartnersSection';
+import { UserImportFlow } from './admin/UserImportFlow';
 
 const ROLES: UserRole[] = ['admin', 'regional', 'coordinator', 'channel_manager'];
 
@@ -46,9 +48,58 @@ export function AdminScreen() {
           ))}
         </View>
 
+        <DemoDataBanner />
+
         {mode === 'partners' ? <PartnersSection /> : mode === 'users' ? <UsersSection /> : <IndicatorsSection />}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+/**
+ * Os perfis de demonstração usam as MESMAS áreas do canal ("PR Capital",
+ * "Santa Catarina"). Convivendo com os dados reais, cada área fica com dois
+ * coordenadores ativos, a resolução por coordenação vira ambígua e nenhum GC é
+ * vinculado — travando a importação de Parceiros AACE. Por isso o aviso aparece
+ * antes da carga, e não como uma opção escondida.
+ */
+function DemoDataBanner() {
+  const { demoDataCount, clearDemoData } = useAdmin();
+  if (demoDataCount === 0) return null;
+
+  function confirm() {
+    alertDialog(
+      'Remover dados de demonstração?',
+      `Serão excluídos ${demoDataCount} registro(s) fictícios (usuários e Parceiros AACE de exemplo), `
+      + 'junto com as avaliações e planos deles. Os dados importados das suas planilhas não são tocados. '
+      + 'Esta ação não pode ser desfeita.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Remover',
+          style: 'destructive',
+          onPress: () => {
+            const res = clearDemoData();
+            if (!res.ok) alertDialog('Ainda não é possível remover', res.message);
+          },
+        },
+      ],
+    );
+  }
+
+  return (
+    <View style={styles.demoBanner}>
+      <Text style={styles.demoTitle}>Base ainda contém dados de demonstração</Text>
+      <Text style={styles.demoText}>
+        {demoDataCount} registro(s) fictícios usam as mesmas áreas do canal (PR Capital, Santa Catarina).
+        Enquanto existirem, cada área fica com dois coordenadores e os Gerentes de Canal não conseguem
+        ser vinculados.{'\n\n'}
+        Ordem correta: 1) importe a planilha de Usuários · 2) remova os dados de demonstração ·
+        3) importe a planilha de Parceiros AACE. Depois entre com o seu e-mail corporativo — a conta
+        de demonstração deixa de existir.
+      </Text>
+      <AppButton title="Remover dados de demonstração" variant="danger" compact onPress={confirm} style={styles.mt} />
+    </View>
   );
 }
 
@@ -59,13 +110,14 @@ function UsersSection() {
   const [region, setRegion] = useState('');
   const [role, setRole] = useState<UserRole>('channel_manager');
   const [busy, setBusy] = useState(false);
+  const [importVisible, setImportVisible] = useState(false);
 
   async function submit() {
     setBusy(true);
     const res = await createUser({ name, email, region, role });
     setBusy(false);
     if (!res.ok) {
-      Alert.alert('Não foi possível criar', res.message);
+      alertDialog('Não foi possível criar', res.message);
       return;
     }
     setName('');
@@ -76,7 +128,7 @@ function UsersSection() {
   async function cycleRole(userId: string, current: UserRole) {
     const next = ROLES[(ROLES.indexOf(current) + 1) % ROLES.length];
     const res = await updateUserRole(userId, next);
-    if (!res.ok) Alert.alert('Falha', res.message);
+    if (!res.ok) alertDialog('Falha', res.message);
   }
 
   return (
@@ -95,6 +147,10 @@ function UsersSection() {
           ))}
         </View>
         <AppButton title="Criar usuário" onPress={() => void submit()} loading={busy} style={styles.mt} />
+      </View>
+
+      <View style={styles.mb}>
+        <AppButton title="Importar planilha (.xlsx)" variant="secondary" onPress={() => setImportVisible(true)} />
       </View>
 
       <Text style={styles.listTitle}>{users.length} usuário(s)</Text>
@@ -116,6 +172,8 @@ function UsersSection() {
           </View>
         );
       })}
+
+      <UserImportFlow visible={importVisible} onClose={() => setImportVisible(false)} />
     </View>
   );
 }
@@ -135,7 +193,7 @@ function IndicatorsSection() {
     });
     setBusy(false);
     if (!res.ok) {
-      Alert.alert('Não foi possível criar', res.message);
+      alertDialog('Não foi possível criar', res.message);
       return;
     }
     setCode('');
@@ -148,12 +206,12 @@ function IndicatorsSection() {
     const res = await addIndicatorVersion(indicatorId, {
       unit: '%', direction: 'higher_better', target: lastTarget, yellowTolerance: 0, weight: lastWeight, effectiveFrom: new Date().toISOString().slice(0, 10),
     });
-    if (!res.ok) Alert.alert('Falha', res.message);
+    if (!res.ok) alertDialog('Falha', res.message);
   }
 
   async function tryRemove(indicatorId: string) {
     const res = await removeIndicator(indicatorId);
-    if (!res.ok) Alert.alert('Exclusão bloqueada', res.message);
+    if (!res.ok) alertDialog('Exclusão bloqueada', res.message);
   }
 
   return (
@@ -220,6 +278,10 @@ const styles = StyleSheet.create({
   chipText: { color: colors.inkMuted, fontSize: 10, fontWeight: '800' },
   chipTextActive: { color: colors.white },
   mt: { marginTop: spacing.md },
+  mb: { marginBottom: spacing.md },
+  demoBanner: { backgroundColor: colors.warningSoft, borderRadius: radius.lg, borderWidth: 1, borderColor: '#EBD3A8', padding: spacing.lg, marginBottom: spacing.md },
+  demoTitle: { color: colors.warning, fontSize: 13, fontWeight: '900', marginBottom: 6 },
+  demoText: { color: colors.ink, fontSize: 12, lineHeight: 18 },
   listTitle: { color: colors.inkMuted, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.6, marginTop: spacing.sm, marginBottom: spacing.md },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.sm },
   avatar: { width: 40, height: 40, borderRadius: 13, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },

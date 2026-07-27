@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { alertDialog } from '../utils/dialog';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,30 +29,30 @@ export function LoginScreen() {
 
   async function handleLogin() {
     if (!email.trim()) {
-      Alert.alert('Informe o e-mail', 'Digite o e-mail corporativo para entrar.');
+      alertDialog('Informe o e-mail', 'Digite o e-mail corporativo para entrar.');
       return;
     }
     // Em ambiente corporativo (Supabase) a senha é obrigatória; no modo
     // demonstração o backend identifica o perfil apenas pelo e-mail fictício.
     if (!isDemo && !password) {
-      Alert.alert('Informe a senha', 'A senha é obrigatória na autenticação corporativa.');
+      alertDialog('Informe a senha', 'A senha é obrigatória na autenticação corporativa.');
       return;
     }
     const result = await signIn(email.trim(), password);
-    if (!result.ok) Alert.alert('Não foi possível entrar', result.message ?? 'Falha na autenticação.');
+    if (!result.ok) alertDialog('Não foi possível entrar', result.message ?? 'Falha na autenticação.');
   }
 
   async function handleForgotPassword() {
     if (!email.trim()) {
-      Alert.alert('Informe o e-mail', 'Digite o e-mail corporativo para receber as instruções.');
+      alertDialog('Informe o e-mail', 'Digite o e-mail corporativo para receber as instruções.');
       return;
     }
     if (isDemo) {
-      Alert.alert('Ambiente de demonstração', 'A recuperação de senha só está disponível com a autenticação corporativa (Supabase).');
+      alertDialog('Ambiente de demonstração', 'A recuperação de senha só está disponível com a autenticação corporativa (Supabase).');
       return;
     }
     const result = await requestPasswordReset(email.trim());
-    Alert.alert(
+    alertDialog(
       result.ok ? 'Verifique seu e-mail' : 'Não foi possível continuar',
       result.ok
         ? 'Se o e-mail estiver cadastrado, você receberá as instruções de redefinição.'

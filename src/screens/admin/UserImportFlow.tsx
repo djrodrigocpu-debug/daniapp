@@ -1,11 +1,10 @@
 /**
- * Fluxo de importação da planilha de Parceiros AACE (AAPEx v2).
+ * Fluxo de importação da planilha de Usuários AACE.
  *
- * Duas etapas obrigatórias: SIMULAR (não grava nada; mostra válidos,
- * duplicidades, vínculos ausentes e estruturas a criar) e CONFIRMAR
- * (habilitada somente após a simulação; grava em transação no servidor e
- * exibe o relatório final). O parse é estrito (E9) e o servidor re-valida
- * tudo (RPC admin_import_partners, admin-only).
+ * Mesmas duas etapas obrigatórias do importador de Parceiros: SIMULAR (não
+ * grava; mostra quem entra, quem é atualizado e quais áreas ficam sem
+ * coordenador) e CONFIRMAR (habilitada só depois da simulação). A importação é
+ * idempotente por e-mail — reimportar a mesma planilha não duplica ninguém.
  */
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -14,9 +13,10 @@ import { AppButton } from '../../components/AppButton';
 import { useAdmin } from '../../context/AdminProvider';
 import { colors, radius, spacing } from '../../theme';
 import { parseWorkbookGrid, XlsxParseError } from '../../domain/partners/xlsx';
-import { parsePartnersSheet } from '../../domain/partners/parseTransposed';
-import { ImportReport, ImportReportRow, ImportRow, RowIssue } from '../../domain/partners/types';
+import { parseUsersSheet } from '../../domain/users/parseUsersSheet';
+import { UserImportReport, UserImportReportRow, UserImportRow, UserIssue } from '../../domain/users/types';
 import { readDocumentBytes } from '../../utils/readDocumentBytes';
+import { roleLabel } from '../../utils/format';
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -27,15 +27,14 @@ interface Props {
   onClose: () => void;
 }
 
-export function PartnerImportFlow({ visible, onClose }: Props) {
-  const { importPartners } = useAdmin();
+export function UserImportFlow({ visible, onClose }: Props) {
+  const { importUsers } = useAdmin();
   const [phase, setPhase] = useState<Phase>('pick');
   const [fileName, setFileName] = useState<string | null>(null);
-  const [rows, setRows] = useState<ImportRow[]>([]);
-  const [issues, setIssues] = useState<RowIssue[]>([]);
-  const [warnings, setWarnings] = useState<RowIssue[]>([]);
-  const [unit, setUnit] = useState<'linha' | 'coluna'>('coluna');
-  const [report, setReport] = useState<ImportReport | null>(null);
+  const [rows, setRows] = useState<UserImportRow[]>([]);
+  const [issues, setIssues] = useState<UserIssue[]>([]);
+  const [unit, setUnit] = useState<'linha' | 'coluna'>('linha');
+  const [report, setReport] = useState<UserImportReport | null>(null);
   const [fatal, setFatal] = useState<string | null>(null);
 
   const reset = useCallback(() => {
@@ -43,7 +42,6 @@ export function PartnerImportFlow({ visible, onClose }: Props) {
     setFileName(null);
     setRows([]);
     setIssues([]);
-    setWarnings([]);
     setReport(null);
     setFatal(null);
   }, []);
@@ -66,46 +64,31 @@ export function PartnerImportFlow({ visible, onClose }: Props) {
     setFileName(asset.name);
     try {
       const bytes = await readDocumentBytes(asset);
-      const parsed = parsePartnersSheet(parseWorkbookGrid(bytes));
+      const parsed = parseUsersSheet(parseWorkbookGrid(bytes));
       setRows(parsed.rows);
       setIssues(parsed.issues);
-      setWarnings(parsed.warnings);
       setUnit(parsed.layout === 'tabular' ? 'linha' : 'coluna');
       setReport(null);
       setPhase('parsed');
     } catch (e) {
       setRows([]);
       setIssues([]);
-      setWarnings([]);
       setFatal(e instanceof XlsxParseError ? e.message : 'Falha ao ler o arquivo selecionado.');
       setPhase('pick');
     }
   }
 
-  async function simulate() {
-    setPhase('simulating');
+  async function run(commit: boolean) {
+    setPhase(commit ? 'committing' : 'simulating');
     setFatal(null);
-    const res = await importPartners(rows, false);
+    const res = await importUsers(rows, commit);
     if (!res.ok) {
       setFatal(res.message);
-      setPhase('parsed');
+      setPhase(commit ? 'simulated' : 'parsed');
       return;
     }
     setReport(res.report);
-    setPhase('simulated');
-  }
-
-  async function confirm() {
-    setPhase('committing');
-    setFatal(null);
-    const res = await importPartners(rows, true);
-    if (!res.ok) {
-      setFatal(res.message);
-      setPhase('simulated');
-      return;
-    }
-    setReport(res.report);
-    setPhase('done');
+    setPhase(commit ? 'done' : 'simulated');
   }
 
   const busy = phase === 'parsing' || phase === 'simulating' || phase === 'committing';
@@ -114,15 +97,15 @@ export function PartnerImportFlow({ visible, onClose }: Props) {
     <Modal visible={visible} animationType="slide" onRequestClose={close}>
       <View style={styles.safe}>
         <View style={styles.header}>
-          <Text style={styles.title}>Importar Parceiros AACE</Text>
+          <Text style={styles.title}>Importar Usuários</Text>
           <Pressable onPress={close} accessibilityLabel="Fechar importação">
             <Text style={styles.closeText}>Fechar</Text>
           </Pressable>
         </View>
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Text style={styles.help}>
-            A planilha pode estar em tabela (rótulos na linha 1, um Parceiro AACE por linha) ou
-            transposta (rótulos na coluna A, um por coluna). Nada é gravado antes da confirmação.
+            A planilha precisa ter as colunas Nome, E-mail, Área de atuação e Perfil (Administrador,
+            Gerência Regional, Coordenação ou Gerente de Canal). Nada é gravado antes da confirmação.
           </Text>
 
           <View style={styles.card}>
@@ -149,25 +132,13 @@ export function PartnerImportFlow({ visible, onClose }: Props) {
             </View>
           )}
 
-          {warnings.length > 0 && (
-            <View style={styles.card}>
-              <Text style={[styles.cardTitle, { color: colors.warning }]}>Campos deduzidos da planilha</Text>
-              <Text style={styles.meta}>Confira antes de confirmar — nada foi inventado em silêncio.</Text>
-              {warnings.map((warning, i) => (
-                <Text key={i} style={styles.warningText}>
-                  {warning.column ? `${unit === 'linha' ? 'Linha' : 'Coluna'} ${warning.column}: ` : ''}{warning.message}
-                </Text>
-              ))}
-            </View>
-          )}
-
           {phase !== 'pick' && rows.length > 0 && (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>2 · Simulação</Text>
-              <Text style={styles.meta}>{rows.length} registro(s) reconhecido(s) na planilha.</Text>
+              <Text style={styles.meta}>{rows.length} usuário(s) reconhecido(s) na planilha.</Text>
               <AppButton
                 title="Simular importação (não grava)"
-                onPress={() => void simulate()}
+                onPress={() => void run(false)}
                 loading={phase === 'simulating'}
                 disabled={busy || phase === 'done'}
               />
@@ -180,29 +151,26 @@ export function PartnerImportFlow({ visible, onClose }: Props) {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>3 · Confirmação</Text>
               <Text style={styles.meta}>
-                Somente as linhas válidas serão gravadas. Linhas com erro permanecem de fora e podem
-                ser reimportadas depois de resolvidas (a importação é idempotente).
+                Usuários já existentes são atualizados pelo e-mail — reimportar a mesma planilha não
+                duplica ninguém.
               </Text>
-              <AppButton
-                title="Confirmar importação"
-                onPress={() => void confirm()}
-                loading={false}
-                disabled={busy}
-              />
+              <AppButton title="Confirmar importação" onPress={() => void run(true)} disabled={busy} />
             </View>
           )}
 
           {phase === 'committing' && (
             <View style={styles.centerRow}>
               <ActivityIndicator color={colors.primary} />
-              <Text style={styles.meta}>Gravando em transação…</Text>
+              <Text style={styles.meta}>Gravando…</Text>
             </View>
           )}
 
           {phase === 'done' && (
             <View style={styles.card}>
               <Text style={[styles.cardTitle, { color: colors.success }]}>Importação concluída</Text>
-              <Text style={styles.meta}>O relatório final acima é o resultado definitivo desta importação.</Text>
+              <Text style={styles.meta}>
+                Agora os Parceiros AACE podem ser vinculados a estes Gerentes de Canal.
+              </Text>
               <AppButton title="Fechar" variant="secondary" onPress={close} />
             </View>
           )}
@@ -212,10 +180,8 @@ export function PartnerImportFlow({ visible, onClose }: Props) {
   );
 }
 
-function ReportView({ report }: { report: ImportReport }) {
-  const { counters, toCreate } = report;
-  const willCreate =
-    toCreate.organizations.length + toCreate.regions.length + toCreate.units.length + toCreate.coordinations.length;
+function ReportView({ report }: { report: UserImportReport }) {
+  const { counters, coordinationsWithoutCoordinator } = report;
   return (
     <View style={styles.card}>
       <Text style={styles.cardTitle}>
@@ -228,15 +194,15 @@ function ReportView({ report }: { report: ImportReport }) {
         <Counter label="Erros" value={counters.errors} color={colors.danger} />
       </View>
 
-      {willCreate > 0 && (
-        <View style={styles.toCreate}>
-          <Text style={styles.toCreateTitle}>
-            {report.mode === 'simulate' ? 'Estruturas que serão criadas' : 'Estruturas criadas'}
+      {coordinationsWithoutCoordinator.length > 0 && (
+        <View style={styles.warnBox}>
+          <Text style={styles.warnTitle}>Áreas sem coordenador ativo</Text>
+          {coordinationsWithoutCoordinator.map((c) => (
+            <Text key={c} style={styles.warnItem}>{c}</Text>
+          ))}
+          <Text style={styles.warnItem}>
+            Os GCs dessas áreas entram sem coordenador vinculado.
           </Text>
-          {toCreate.organizations.map((n) => <Text key={`o${n}`} style={styles.toCreateItem}>Organização: {n}</Text>)}
-          {toCreate.regions.map((n) => <Text key={`r${n}`} style={styles.toCreateItem}>Região: {n}</Text>)}
-          {toCreate.units.map((n) => <Text key={`u${n}`} style={styles.toCreateItem}>Unidade: {n}</Text>)}
-          {toCreate.coordinations.map((n) => <Text key={`c${n}`} style={styles.toCreateItem}>Coordenação: {n}</Text>)}
         </View>
       )}
 
@@ -260,15 +226,15 @@ const ROW_STYLE = {
   error: { border: '#F1B6B6', bg: colors.dangerSoft, label: 'Erro · não importa' },
 } as const;
 
-function ReportRow({ row }: { row: ImportReportRow }) {
+function ReportRow({ row }: { row: UserImportReportRow }) {
   const s = ROW_STYLE[row.status];
   return (
     <View style={[styles.reportRow, { borderColor: s.border, backgroundColor: s.bg }]}>
       <View style={styles.reportRowHeader}>
-        <Text style={styles.reportRowTitle}>#{row.index} · {row.officeName || '(sem escritório)'}</Text>
+        <Text style={styles.reportRowTitle}>#{row.index} · {row.name}</Text>
         <Text style={styles.reportRowStatus}>{s.label}</Text>
       </View>
-      {row.partnerName ? <Text style={styles.reportRowMeta}>{row.partnerName}</Text> : null}
+      <Text style={styles.reportRowMeta}>{row.email} · {roleLabel[row.role]}</Text>
       {row.messages.map((m, i) => <Text key={i} style={styles.reportRowError}>{m}</Text>)}
       {row.warnings.map((w, i) => <Text key={`w${i}`} style={styles.reportRowWarn}>{w}</Text>)}
     </View>
@@ -292,15 +258,14 @@ const styles = StyleSheet.create({
   meta: { color: colors.inkMuted, fontSize: 12, lineHeight: 18, marginBottom: spacing.sm },
   fatal: { color: colors.danger, fontSize: 12, fontWeight: '800', marginBottom: spacing.md },
   issueText: { color: colors.danger, fontSize: 12, lineHeight: 18 },
-  warningText: { color: colors.warning, fontSize: 12, lineHeight: 18 },
   centerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },
   counterRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.md },
   counter: { flex: 1, alignItems: 'center', backgroundColor: colors.background, borderRadius: radius.md, paddingVertical: spacing.sm },
   counterValue: { fontSize: 18, fontWeight: '900' },
   counterLabel: { color: colors.inkMuted, fontSize: 10, fontWeight: '800', textTransform: 'uppercase' },
-  toCreate: { backgroundColor: colors.infoSoft, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
-  toCreateTitle: { color: colors.info, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', marginBottom: 4 },
-  toCreateItem: { color: colors.ink, fontSize: 12, lineHeight: 18 },
+  warnBox: { backgroundColor: colors.warningSoft, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
+  warnTitle: { color: colors.warning, fontSize: 11, fontWeight: '900', textTransform: 'uppercase', marginBottom: 4 },
+  warnItem: { color: colors.ink, fontSize: 12, lineHeight: 18 },
   reportRow: { borderWidth: 1, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
   reportRowHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm },
   reportRowTitle: { color: colors.ink, fontSize: 12, fontWeight: '800', flex: 1 },

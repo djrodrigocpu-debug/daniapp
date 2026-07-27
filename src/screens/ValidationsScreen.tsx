@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { alertDialog } from '../utils/dialog';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,7 +32,7 @@ export function ValidationsScreen() {
     const result = await validate(selected.id, decision, note.trim());
     setBusy(false);
     if (!result.ok) {
-      Alert.alert('Não foi possível concluir', result.message);
+      alertDialog('Não foi possível concluir', result.message);
       return;
     }
     setSelected(null);

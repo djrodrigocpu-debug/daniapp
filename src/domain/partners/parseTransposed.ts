@@ -1,14 +1,21 @@
 /**
- * Parser da planilha TRANSPOSTA de Parceiros AACE (AAPEx v2).
+ * Parser da planilha de Parceiros AACE (AAPEx v2).
  *
- * Formato esperado (e SOMENTE ele — emenda E9):
- *   - coluna A: rótulos dos 10 campos (um por linha, ordem livre);
- *   - colunas B..: um Parceiro AACE/escritório por coluna.
- * Rótulos são casados por prefixo normalizado (tolera acentos/caixa e textos
- * de ajuda como "Estado: PR ou SC"). Rótulo obrigatório ausente, duplicado ou
- * linha com rótulo desconhecido => erro GLOBAL e nenhuma linha retornada.
- * Colunas totalmente vazias são ignoradas; colunas com problemas viram issues
- * e ficam fora de rows (a RPC re-valida tudo de novo no servidor).
+ * Aceita as DUAS orientações que o canal usa de fato:
+ *   - TRANSPOSTA: coluna A com os rótulos, um Parceiro AACE por coluna;
+ *   - TABULAR:    linha 1 com os rótulos, um Parceiro AACE por linha.
+ * A orientação é detectada pela quantidade de rótulos reconhecidos na coluna A
+ * contra a linha 1 — empate favorece a transposta (formato histórico).
+ *
+ * Rótulos casam por prefixo de `labelKey` (tolera acento, caixa, hífen,
+ * dois-pontos e texto de ajuda como "Estado: PR ou SC"). Rótulo duplicado ou
+ * desconhecido continua sendo erro GLOBAL sem nenhuma linha interpretada
+ * (emenda E9) — o que mudou é QUAIS rótulos são obrigatórios.
+ *
+ * Campos que a planilha do canal não traz são derivados, nunca inventados em
+ * silêncio: Estado sai da coordenação (PR CAPITAL/PR INTERIOR ⇒ PR, SANTA
+ * CATARINA ⇒ SC) e vira `warnings` visível na simulação; Organização, Região e
+ * e-mail do Coordenador ficam ausentes aqui e são resolvidos no repositório.
  */
 import {
   ImportRow,
@@ -17,136 +24,160 @@ import {
   MAX_FIELD_LENGTH,
   MAX_IMPORT_ROWS,
 } from './types';
-import { collapseSpaces, isValidEmail, normalizeEmail, normalizeKey, normalizeState } from './normalize';
+import { collapseSpaces, isValidEmail, labelKey, normalizeEmail, normalizeState } from './normalize';
+import { SheetFieldSpec, readSheet } from '../sheets/reader';
 
-interface FieldSpec {
-  field: keyof Omit<ImportRow, 'index' | 'state'> | 'state';
-  /** Prefixo do rótulo já normalizado com normalizeKey. */
-  prefix: string;
-  label: string;
+type Field = keyof Omit<ImportRow, 'index'>;
+
+interface FieldSpec extends SheetFieldSpec<Field> {
   kind: 'text' | 'email' | 'state';
 }
 
 const FIELDS: FieldSpec[] = [
-  { field: 'organizationName', prefix: 'organizacao', label: 'Organização', kind: 'text' },
-  { field: 'regionName', prefix: 'regiao', label: 'Região', kind: 'text' },
-  { field: 'unitName', prefix: 'unidade', label: 'Unidade', kind: 'text' },
-  { field: 'coordinationName', prefix: 'coordenacao', label: 'Coordenação', kind: 'text' },
-  { field: 'partnerName', prefix: 'nome do parceiro', label: 'Empresa parceira', kind: 'text' },
-  { field: 'officeName', prefix: 'nome do escritorio', label: 'Nome do escritório', kind: 'text' },
-  { field: 'city', prefix: 'cidade', label: 'Cidade', kind: 'text' },
-  { field: 'state', prefix: 'estado', label: 'Estado', kind: 'state' },
-  { field: 'coordinatorEmail', prefix: 'e-mail do coordenador', label: 'E-mail do Coordenador', kind: 'email' },
-  { field: 'managerEmail', prefix: 'e-mail do gc', label: 'E-mail do GC', kind: 'email' },
+  { field: 'organizationName', prefixes: ['organizacao'], label: 'Organização', kind: 'text', required: false },
+  { field: 'regionName', prefixes: ['regiao'], label: 'Região', kind: 'text', required: false },
+  { field: 'unitName', prefixes: ['unidade'], label: 'Unidade', kind: 'text', required: true },
+  { field: 'coordinationName', prefixes: ['coordenacao'], label: 'Coordenação', kind: 'text', required: true },
+  {
+    field: 'partnerName',
+    prefixes: ['nome do parceiro', 'empresa parceira', 'razao social'],
+    label: 'Empresa parceira',
+    kind: 'text',
+    required: true,
+  },
+  {
+    field: 'officeName',
+    prefixes: ['nome do escritorio', 'escritorio'],
+    label: 'Nome do escritório',
+    kind: 'text',
+    required: true,
+  },
+  { field: 'city', prefixes: ['cidade'], label: 'Cidade', kind: 'text', required: true },
+  { field: 'state', prefixes: ['estado', 'uf'], label: 'Estado', kind: 'state', required: false },
+  {
+    field: 'coordinatorEmail',
+    prefixes: ['email do coordenador', 'email da coordenacao', 'email coordenador'],
+    label: 'E-mail do Coordenador',
+    kind: 'email',
+    required: false,
+  },
+  {
+    field: 'managerEmail',
+    prefixes: ['email do gc', 'email gc', 'email gerentes de canais', 'email gerente de canal', 'email do gerente'],
+    label: 'E-mail do GC',
+    kind: 'email',
+    required: true,
+  },
 ];
 
+/** Campos textuais que precisam de valor em cada registro. */
+const TEXT_REQUIRED: Field[] = ['unitName', 'coordinationName', 'partnerName', 'officeName', 'city'];
+
+/**
+ * Deduz a UF pelo nome da coordenação de vendas — a coordenação do canal já
+ * carrega o estado ("PR CAPITAL", "PR INTERIOR", "SANTA CATARINA"). Retorna
+ * null quando não dá para afirmar; nesse caso o registro exige coluna Estado.
+ */
+export function deriveStateFromCoordination(coordination: string): 'PR' | 'SC' | null {
+  const key = labelKey(coordination);
+  if (key === '') return null;
+  if (key === 'pr' || key.startsWith('pr ') || key.startsWith('parana')) return 'PR';
+  if (key === 'sc' || key.startsWith('sc ') || key.includes('santa catarina')) return 'SC';
+  return null;
+}
+
 export function parsePartnersSheet(grid: string[][]): ParseResult {
+  const { layout, reader, issues: readIssues } = readSheet(grid, FIELDS, {
+    maxRecords: MAX_IMPORT_ROWS,
+    unknownLabelHint: 'A planilha de Parceiros AACE não está no formato esperado:',
+  });
+  if (reader === null) return { rows: [], issues: readIssues, warnings: [], layout };
+
   const issues: RowIssue[] = [];
+  const warnings: RowIssue[] = [];
 
-  // 1) Mapeia cada linha da grade para um campo pelo rótulo da coluna A.
-  const rowOfField = new Map<FieldSpec['field'], number>();
-  for (let r = 0; r < grid.length; r += 1) {
-    const label = grid[r]?.[0] ?? '';
-    const rest = (grid[r] ?? []).slice(1);
-    const isEmptyRow = collapseSpaces(label) === '' && rest.every((v) => collapseSpaces(v ?? '') === '');
-    if (isEmptyRow) continue;
-
-    const key = normalizeKey(label);
-    const spec = FIELDS.find((f) => key.startsWith(f.prefix));
-    if (!spec) {
-      issues.push({
-        column: null,
-        message: `Rótulo desconhecido na linha ${r + 1}: "${collapseSpaces(label) || '(vazio)'}" — a planilha não está no formato esperado`,
-      });
-      continue;
-    }
-    if (rowOfField.has(spec.field)) {
-      issues.push({ column: null, message: `Rótulo duplicado na planilha: ${spec.label}` });
-      continue;
-    }
-    rowOfField.set(spec.field, r);
-  }
-
-  for (const spec of FIELDS) {
-    if (!rowOfField.has(spec.field)) {
-      issues.push({ column: null, message: `Rótulo obrigatório ausente na coluna A: ${spec.label}` });
-    }
-  }
-
-  // E9: estrutura incompatível => erro claro e NENHUMA linha interpretada.
-  if (issues.length > 0) {
-    return { rows: [], issues };
-  }
-
-  // 2) Colunas de dados (B..): ignora colunas totalmente vazias.
-  const maxCols = Math.max(...grid.map((row) => row.length));
-  const dataColumns: number[] = [];
-  for (let c = 1; c < maxCols; c += 1) {
-    const hasValue = FIELDS.some((spec) => collapseSpaces(grid[rowOfField.get(spec.field)!]?.[c] ?? '') !== '');
-    if (hasValue) dataColumns.push(c);
-  }
-
-  if (dataColumns.length === 0) {
-    return { rows: [], issues: [{ column: null, message: 'Nenhum registro encontrado nas colunas B em diante' }] };
-  }
-  if (dataColumns.length > MAX_IMPORT_ROWS) {
-    return {
-      rows: [],
-      issues: [{ column: null, message: `A planilha tem ${dataColumns.length} registros — o limite por importação é ${MAX_IMPORT_ROWS}` }],
-    };
-  }
-
-  // 3) Valida e monta cada registro; coluna com problema vira issue (fora de rows).
+  // Valida e monta cada registro; registro com problema vira issue (fora de rows).
   const rows: ImportRow[] = [];
-  dataColumns.forEach((c, position) => {
-    const columnIssues: RowIssue[] = [];
-    const value = (spec: FieldSpec) => grid[rowOfField.get(spec.field)!]?.[c] ?? '';
-    const record: Partial<ImportRow> = { index: position + 1 };
+  reader.records.forEach((record, position) => {
+    const recordIssues: RowIssue[] = [];
+    const at = reader.sheetRef(record);
+    const draft: Partial<ImportRow> = { index: position + 1 };
 
     for (const spec of FIELDS) {
-      const raw = value(spec);
+      const present = reader.has(spec.field);
+      const value = reader.value(spec.field, record);
+
       if (spec.kind === 'email') {
-        const email = normalizeEmail(raw);
+        const email = normalizeEmail(value);
         if (email === '') {
-          columnIssues.push({ column: c + 1, field: spec.field, message: `Campo obrigatório ausente: ${spec.label}` });
+          // Só o GC é obrigatório na planilha; o coordenador é resolvido depois
+          // pela coordenação, no repositório.
+          if (spec.required) {
+            recordIssues.push({ column: at, field: spec.field, message: `Campo obrigatório ausente: ${spec.label}` });
+          }
         } else if (!isValidEmail(email)) {
-          columnIssues.push({ column: c + 1, field: spec.field, message: `${spec.label} inválido: ${email}` });
+          recordIssues.push({ column: at, field: spec.field, message: `${spec.label} inválido: ${email}` });
         } else {
-          (record as Record<string, unknown>)[spec.field] = email;
+          (draft as Record<string, unknown>)[spec.field] = email;
         }
-      } else if (spec.kind === 'state') {
-        const state = normalizeState(raw);
+        continue;
+      }
+
+      if (spec.kind === 'state') {
+        const state = normalizeState(value);
+        if (state === '' && !present) continue; // sem coluna Estado: deduz no passo 4
         if (state !== 'PR' && state !== 'SC') {
-          columnIssues.push({
-            column: c + 1,
+          recordIssues.push({
+            column: at,
             field: spec.field,
             message: `Estado inválido: ${state === '' ? '(vazio)' : state} (esperado PR ou SC)`,
           });
         } else {
-          record.state = state;
+          draft.state = state;
         }
+        continue;
+      }
+
+      const text = collapseSpaces(value);
+      if (text === '') {
+        if (TEXT_REQUIRED.includes(spec.field)) {
+          recordIssues.push({ column: at, field: spec.field, message: `Campo obrigatório ausente: ${spec.label}` });
+        }
+      } else if (text.length > MAX_FIELD_LENGTH) {
+        recordIssues.push({
+          column: at,
+          field: spec.field,
+          message: `${spec.label} excede o limite de ${MAX_FIELD_LENGTH} caracteres`,
+        });
       } else {
-        const text = collapseSpaces(raw);
-        if (text === '') {
-          columnIssues.push({ column: c + 1, field: spec.field, message: `Campo obrigatório ausente: ${spec.label}` });
-        } else if (text.length > MAX_FIELD_LENGTH) {
-          columnIssues.push({
-            column: c + 1,
-            field: spec.field,
-            message: `${spec.label} excede o limite de ${MAX_FIELD_LENGTH} caracteres`,
-          });
-        } else {
-          (record as Record<string, unknown>)[spec.field] = text;
-        }
+        (draft as Record<string, unknown>)[spec.field] = text;
       }
     }
 
-    if (columnIssues.length > 0) {
-      issues.push(...columnIssues);
-    } else {
-      rows.push(record as ImportRow);
+    // 4) Estado ausente na planilha: deduz pela coordenação e registra o aviso.
+    if (draft.state === undefined && recordIssues.length === 0) {
+      const derived = deriveStateFromCoordination(draft.coordinationName ?? '');
+      if (derived === null) {
+        recordIssues.push({
+          column: at,
+          field: 'state',
+          message:
+            `Estado ausente e não foi possível deduzir da coordenação "${draft.coordinationName ?? ''}" — `
+            + 'inclua uma coluna Estado com PR ou SC',
+        });
+      } else {
+        draft.state = derived;
+        warnings.push({
+          column: at,
+          field: 'state',
+          message: `Estado ${derived} deduzido da coordenação "${draft.coordinationName}"`,
+        });
+      }
     }
+
+    if (recordIssues.length > 0) issues.push(...recordIssues);
+    else rows.push(draft as ImportRow);
   });
 
-  return { rows, issues };
+  return { rows, issues, warnings, layout };
 }

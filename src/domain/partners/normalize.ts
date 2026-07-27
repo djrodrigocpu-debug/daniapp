@@ -40,3 +40,16 @@ const COMBINING_MARKS = new RegExp(
 export function normalizeKey(value: string): string {
   return collapseSpaces(value).normalize('NFD').replace(COMBINING_MARKS, '').toLowerCase();
 }
+
+/**
+ * Chave de RÓTULO de planilha: normalizeKey + remoção da pontuação que as
+ * planilhas do canal usam livremente. Assim "E-mail do GC:", "Email do GC" e
+ * "E‑mail / GC" casam o mesmo prefixo, sem afrouxar a comparação de DADOS
+ * (nomes de escritório no formato "PS - NOME - CÓDIGO" seguem usando
+ * normalizeKey, que preserva hífens e distingue registros parecidos).
+ */
+export function labelKey(value: string): string {
+  // Remove a pontuação SEM criar separador ("e-mail" vira "email"), mas preserva
+  // os espaços que já existiam ("parceira / razao" vira "parceira razao").
+  return collapseSpaces(normalizeKey(value).replace(/[^a-z0-9\s]+/g, ''));
+}

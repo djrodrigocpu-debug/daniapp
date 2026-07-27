@@ -6,9 +6,13 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildOperationalDemoDirectory,
+  currentOperationalDemoDirectory,
   operationalDemoDirectory,
   resolveOperationalUser,
 } from './demoDirectory';
+import { localStore } from './store/localStore';
+import { LocalAdminUsersRepository } from './repositories/AdminRepository';
+import { DemoAuthRepository } from '../services/auth/DemoAuthRepository';
 import { rolesFromScopes } from '../domain/auth/session';
 import { subjectFromSession } from '../domain/auth/session';
 import { canAccessOperation, canManageUsers, isAdmin } from '../domain/authz/policy';
@@ -108,5 +112,33 @@ describe('operationalDemoDirectory — diretório efetivo do app', () => {
       expect(resolved).not.toBeNull();
       expect(resolved!.id).toBe(profile.user.id);
     }
+  });
+});
+
+describe('currentOperationalDemoDirectory — diretório VIVO (usuário criado consegue entrar)', () => {
+  it('inclui quem foi cadastrado depois do boot e omite quem foi inativado', async () => {
+    const before = currentOperationalDemoDirectory();
+    expect(before.some((p) => p.user.corporateEmail === 'nova.pessoa@sint.example')).toBe(false);
+
+    const repo = new LocalAdminUsersRepository(localStore);
+    const created = await repo.create({
+      name: 'Nova Pessoa', email: 'nova.pessoa@sint.example', role: 'coordinator', region: 'COORD SINT',
+    });
+    expect(created.ok).toBe(true);
+
+    const after = currentOperationalDemoDirectory();
+    const profile = after.find((p) => p.user.corporateEmail === 'nova.pessoa@sint.example');
+    expect(profile).toBeDefined();
+    // Login pelo repositório demo: o diretório é reavaliado a cada signIn.
+    const auth = new DemoAuthRepository(currentOperationalDemoDirectory);
+    const session = await auth.signIn('nova.pessoa@sint.example', 'irrelevante');
+    expect(session.ok).toBe(true);
+    if (session.ok) expect(session.value.roles).toContain('coordinator');
+
+    if (created.ok) await repo.setActive(created.value.id, false);
+    const afterDeactivate = currentOperationalDemoDirectory();
+    expect(afterDeactivate.some((p) => p.user.corporateEmail === 'nova.pessoa@sint.example')).toBe(false);
+    const blocked = await auth.signIn('nova.pessoa@sint.example', 'irrelevante');
+    expect(blocked.ok).toBe(false);
   });
 });

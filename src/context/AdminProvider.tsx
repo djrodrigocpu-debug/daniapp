@@ -9,11 +9,14 @@ import { useRepositories } from '../data/repositories/RepositoryProvider';
 import { CreateUserInput } from '../data/repositories/AdminRepository';
 import { AdminPartner, PartnerInput, PartnerPatch, deriveAdminPartners } from '../data/repositories/PartnersRepository';
 import { ImportReport, ImportRow } from '../domain/partners/types';
+import { UserImportReport, UserImportRow } from '../domain/users/types';
+import { canRemoveDemoSeedData, countDemoSeedData, removeDemoSeedData } from '../data/demoCleanup';
 import { localStore } from '../data/store/localStore';
 import { useOperationalUser } from './useOperationalUser';
 
 export type AdminResult = { ok: true } | { ok: false; message: string };
 export type AdminImportResult = { ok: true; report: ImportReport } | { ok: false; message: string };
+export type AdminUserImportResult = { ok: true; report: UserImportReport } | { ok: false; message: string };
 type NewVersion = Omit<AdminIndicatorVersion, 'id' | 'versionNumber'>;
 
 interface AdminContextValue {
@@ -35,6 +38,11 @@ interface AdminContextValue {
   updatePartner: (id: string, patch: PartnerPatch) => Promise<AdminResult>;
   /** Retorna o relatório (simulação/confirmação) — não usa wrap() porque o chamador precisa dele. */
   importPartners: (rows: ImportRow[], commit: boolean) => Promise<AdminImportResult>;
+  importUsers: (rows: UserImportRow[], commit: boolean) => Promise<AdminUserImportResult>;
+  /** Quantos registros de demonstração ainda existem (0 no modo Supabase). */
+  demoDataCount: number;
+  /** Remove os registros do seed. Recusa se isso deixaria a base sem Administrador. */
+  clearDemoData: () => AdminResult;
 }
 
 const AdminContext = createContext<AdminContextValue | undefined>(undefined);
@@ -96,13 +104,21 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     return { ok: true, report: res.value };
   }, [adminPartners, load]);
 
+  const importUsers = useCallback(async (rows: UserImportRow[], commit: boolean): Promise<AdminUserImportResult> => {
+    const res = await adminUsers.importUsers(rows, commit);
+    if (!res.ok) return { ok: false, message: res.error.message };
+    if (commit) void load();
+    return { ok: true, report: res.value };
+  }, [adminUsers, load]);
+
   const value = useMemo<AdminContextValue>(
     () => ({
       isAdmin,
-      users: data.users,
-      indicators: data.adminIndicators ?? indicators,
-      // Modo local: deriva do snapshot reativo (mesmo padrão de users acima) —
-      // o estado carregado via listAll() vale para o modo Supabase.
+      // Modo local: snapshot reativo do store (reflete mutações na hora).
+      // Modo Supabase: o estado carregado por listAll() — o store local não é a
+      // fonte e usá-lo aqui mostrava dados de seed em cima do backend real.
+      users: source === 'local' ? data.users : users,
+      indicators: source === 'local' ? (data.adminIndicators ?? []) : indicators,
       partners: source === 'local' ? deriveAdminPartners(data.operations, data.users) : partners,
       loading,
       error,
@@ -117,8 +133,17 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       createPartner: (input) => wrap(adminPartners.create(input)),
       updatePartner: (id, patch) => wrap(adminPartners.update(id, patch)),
       importPartners,
+      importUsers,
+      demoDataCount: source === 'local' ? countDemoSeedData(data) : 0,
+      clearDemoData: () => {
+        const guard = canRemoveDemoSeedData(data);
+        if (!guard.ok) return { ok: false, message: guard.reason };
+        localStore.update(removeDemoSeedData);
+        void load();
+        return { ok: true };
+      },
     }),
-    [isAdmin, data.users, data.adminIndicators, data.operations, source, indicators, partners, loading, error, load, wrap, adminUsers, adminIndicators, adminPartners, importPartners],
+    [isAdmin, data, source, users, indicators, partners, loading, error, load, wrap, adminUsers, adminIndicators, adminPartners, importPartners, importUsers],
   );
 
   return <AdminContext.Provider value={value}>{children}</AdminContext.Provider>;

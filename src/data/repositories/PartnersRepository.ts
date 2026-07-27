@@ -18,6 +18,8 @@ import { makeId } from '../../utils/ids';
 import { LocalStore, localStore } from '../store/localStore';
 import { collapseSpaces, normalizeEmail, normalizeKey } from '../../domain/partners/normalize';
 import {
+  DEFAULT_ORGANIZATION_NAME,
+  DEFAULT_REGION_NAME,
   ImportReport,
   ImportReportRow,
   ImportRow,
@@ -132,6 +134,50 @@ function resolveByEmail(
   if (!isActiveUser(user)) return { error: `${label} nao esta ativo: ${normalized}` };
   if (user.role !== role) return { error: `E-mail nao tem papel de ${label} ativo: ${normalized}` };
   return { user };
+}
+
+/**
+ * Coordenadores ATIVOS cuja área de atuação é a coordenação informada.
+ * A planilha do canal nomeia a coordenação ("PR CAPITAL") mas não o e-mail do
+ * coordenador; a planilha de usuários dá a ponte pela área de atuação.
+ */
+export function findCoordinatorsByCoordination(users: User[], coordinationName: string): User[] {
+  const key = normalizeKey(coordinationName);
+  if (key === '') return [];
+  return users.filter((u) => u.role === 'coordinator' && isActiveUser(u) && normalizeKey(u.region) === key);
+}
+
+/**
+ * Resolve o coordenador de uma linha de importação: pelo e-mail quando a
+ * planilha traz a coluna, senão pela coordenação. Ambiguidade e ausência viram
+ * erro explícito — nunca escolhe um coordenador "provável" em silêncio (E2).
+ */
+export function resolveRowCoordinator(
+  users: User[],
+  row: Pick<ImportRow, 'coordinatorEmail' | 'coordinationName'>,
+): { user?: User; error?: string; note?: string } {
+  if (row.coordinatorEmail) {
+    return resolveByEmail(users, row.coordinatorEmail, 'coordinator', 'Coordenador');
+  }
+  const coordination = collapseSpaces(row.coordinationName ?? '');
+  if (coordination === '') {
+    return { error: 'Campo obrigatorio ausente: e-mail do coordenador' };
+  }
+  const candidates = findCoordinatorsByCoordination(users, coordination);
+  if (candidates.length === 0) {
+    return {
+      error: `Coordenador nao encontrado para a coordenacao "${coordination}": cadastre um usuario com perfil Coordenacao e area de atuacao "${coordination}"`,
+    };
+  }
+  if (candidates.length > 1) {
+    return {
+      error: `Mais de um Coordenador ativo para a coordenacao "${coordination}" (${candidates.map((c) => c.email).join(', ')}): informe o e-mail do coordenador na planilha`,
+    };
+  }
+  return {
+    user: candidates[0],
+    note: `Coordenador ${candidates[0].name} resolvido pela coordenação "${coordination}"`,
+  };
 }
 
 function newOperation(input: PartnerInput, manager: User | null, coordinator: User | null): Operation {
@@ -268,6 +314,7 @@ export class LocalAdminPartnersRepository implements AdminPartnersRepository {
 
     for (const row of rows) {
       const messages: string[] = [];
+      const rowWarnings: string[] = [];
       const partnerName = collapseSpaces(row.partnerName ?? '');
       const officeName = collapseSpaces(row.officeName ?? '');
       const city = collapseSpaces(row.city ?? '');
@@ -281,10 +328,10 @@ export class LocalAdminPartnersRepository implements AdminPartnersRepository {
         messages.push('Linha inválida: campos obrigatórios ausentes ou estado fora de PR/SC');
       }
 
-      const coordinator = row.coordinatorEmail
-        ? resolveByEmail(users, row.coordinatorEmail, 'coordinator', 'Coordenador')
-        : { error: 'Campo obrigatorio ausente: e-mail do coordenador' };
+      // Sem coluna de e-mail do coordenador, a coordenação resolve o vínculo.
+      const coordinator = resolveRowCoordinator(users, { ...row, coordinationName });
       if (coordinator.error) messages.push(coordinator.error);
+      else if (coordinator.note) rowWarnings.push(coordinator.note);
 
       const manager = row.managerEmail
         ? resolveByEmail(users, row.managerEmail, 'channel_manager', 'GC')
@@ -353,7 +400,7 @@ export class LocalAdminPartnersRepository implements AdminPartnersRepository {
         action,
         operationId,
         messages,
-        warnings: [],
+        warnings: rowWarnings,
       });
     }
 
@@ -424,8 +471,33 @@ export class SupabaseAdminPartnersRepository implements AdminPartnersRepository 
       : ok(splitDto(data as PartnerDto));
   }
 
+  /**
+   * A RPC 0009 exige os 10 campos. A planilha do canal não traz Organização,
+   * Região nem o e-mail do Coordenador, então completamos aqui, no cliente,
+   * mantendo o contrato do servidor intacto: os padrões documentados em
+   * types.ts e o coordenador resolvido pela coordenação (mesma regra do
+   * adapter local). Linha que não resolve segue sem o e-mail — a RPC devolve o
+   * erro por linha, sem chute.
+   */
+  private async completeRows(rows: ImportRow[]): Promise<Result<ImportRow[]>> {
+    let users: User[] = [];
+    if (rows.some((row) => !row.coordinatorEmail)) {
+      const { data, error } = await this.client.from('ui_users').select('*');
+      if (error) return err(net('Falha ao carregar usuários para resolver a coordenação.', error));
+      users = (data ?? []) as User[];
+    }
+    return ok(rows.map((row) => ({
+      ...row,
+      organizationName: row.organizationName ?? DEFAULT_ORGANIZATION_NAME,
+      regionName: row.regionName ?? DEFAULT_REGION_NAME,
+      coordinatorEmail: row.coordinatorEmail ?? resolveRowCoordinator(users, row).user?.email,
+    })));
+  }
+
   async importPartners(rows: ImportRow[], commit: boolean): Promise<Result<ImportReport>> {
-    const { data, error } = await this.client.rpc('admin_import_partners', { p_rows: rows, p_commit: commit });
+    const prepared = await this.completeRows(rows);
+    if (!prepared.ok) return prepared;
+    const { data, error } = await this.client.rpc('admin_import_partners', { p_rows: prepared.value, p_commit: commit });
     return error
       ? err(net(error.message || 'Falha na importação de Parceiros AACE.', error))
       : ok(data as ImportReport);
