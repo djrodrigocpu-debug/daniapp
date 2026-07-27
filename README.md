@@ -1,6 +1,6 @@
-# AACE Excelência Mobile 1.3.0
+# AAPEx
 
-Aplicativo em React Native, Expo e TypeScript para apoiar a gestão dos parceiros AACE PR/SC.
+Aplicativo em React Native, Expo e TypeScript para avaliar se os Parceiros AACE do canal PR/SC estão cumprindo os indicadores definidos. (Nome anterior do produto: AACE Excelência Mobile — os identificadores técnicos, como slug e bundle id, permanecem os originais por compatibilidade.)
 
 ## Novidade da v1.3.0
 
@@ -40,12 +40,15 @@ O resultado será criado na pasta `dist`.
 
 Consulte também `docs/DEPLOY_VERCEL.md`.
 
-## Credenciais de demonstração
+## Modo de demonstração (desenvolvimento)
 
-- `regional@aace.app`
-- `coordenador@aace.app`
-- `gerente@aace.app`
-- Senha: `Aace@2026`
+> **AAPEX V2:** a senha única de demonstração foi removida do bundle e do
+> repositório (Masterplan §9.2, Anexo D — T30). O modo demonstração é
+> exclusivo de desenvolvimento (`featureFlags.demoMode`) e não usa senha.
+> A autenticação corporativa usa Supabase Auth — ver `.env.example` e
+> `docs/OPERACAO_E_DEPLOY_AAPEX_V2.md`.
+
+E-mails de demonstração (apenas dev): `regional@aace.app`, `coordenador@aace.app`, `gerente@aace.app`.
 
 ## Validação
 

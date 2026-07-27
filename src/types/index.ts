@@ -1,4 +1,4 @@
-export type UserRole = 'regional' | 'coordinator' | 'channel_manager';
+export type UserRole = 'admin' | 'regional' | 'coordinator' | 'channel_manager';
 export type TrafficLight = 'green' | 'yellow' | 'red' | 'not_evaluated' | 'not_applicable';
 export type EvaluationStatus = 'draft' | 'submitted' | 'approved' | 'returned';
 export type ActionStatus = 'not_started' | 'in_progress' | 'waiting_partner' | 'waiting_internal' | 'completed' | 'validated' | 'overdue';
@@ -6,10 +6,17 @@ export type Frequency = 'weekly' | 'monthly';
 export type IndicatorDirection = 'higher_better' | 'lower_better';
 export type IndicatorUnit = '%' | 'R$' | 'qtd' | 'p.p.' | 'x';
 
-export interface User { id: string; name: string; email: string; role: UserRole; coordinatorId?: string; region: string; avatarInitials: string; }
-export interface Operation { id: string; partnerName: string; officeName: string; city: string; state: 'PR' | 'SC'; coordinatorId: string; managerId: string; active: boolean; currentScore: number; previousScore: number; lastAudit?: string; nextAudit: string; status: TrafficLight; openActions: number; }
+export interface User { id: string; name: string; email: string; role: UserRole; coordinatorId?: string; region: string; avatarInitials: string; active?: boolean; }
+
+/** Indicador versionado gerido pelo Administrador (§8.1, §11.3). */
+export interface AdminIndicatorVersion { id: string; versionNumber: number; unit: IndicatorUnit; direction: IndicatorDirection; target: number; yellowTolerance: number; weight: number; effectiveFrom: string; }
+export interface AdminIndicator { id: string; code: string; name: string; lifecycle: 'active' | 'inactive'; createdAt: string; usageCount: number; versions: AdminIndicatorVersion[]; }
+export interface Operation { id: string; partnerName: string; officeName: string; city: string; state: 'PR' | 'SC'; coordinatorId: string; managerId: string; active: boolean; currentScore: number; previousScore: number; lastAudit?: string; nextAudit: string; status: TrafficLight; openActions: number;
+  /** Campos administrativos opcionais (modo local deriva a visão de Parceiros AACE daqui — fonte única, sem coleção paralela). */
+  regionName?: string; unitName?: string; coordinationName?: string; }
 export interface Theme { id: string; pillar: string; title: string; kpi: string; target: string; frequency: Frequency; evidenceRequired: boolean; evidenceHint: string; validationMethod: string; weight: number; strategic: boolean; }
-export interface Evidence { id: string; themeId: string; name: string; uri: string; mimeType?: string; type: 'photo' | 'document'; createdAt: string; }
+export type EvidenceStatus = 'local' | 'uploading' | 'stored' | 'failed';
+export interface Evidence { id: string; themeId: string; name: string; uri: string; mimeType?: string; type: 'photo' | 'document'; createdAt: string; status?: EvidenceStatus; sizeBytes?: number; }
 export interface AssessmentAnswer { themeId: string; status: TrafficLight; measuredValue: string; observation: string; evidenceIds: string[]; }
 export interface Evaluation { id: string; operationId: string; cycleLabel: string; periodStart: string; periodEnd: string; frequency: Frequency; evaluatorId: string; submittedAt?: string; validatedAt?: string; validatorId?: string; validatorNote?: string; status: EvaluationStatus; score: number; answers: AssessmentAnswer[]; createdAt: string; updatedAt: string; }
 export interface ActionPlan { id: string; operationId: string; evaluationId: string; themeId: string; problem: string; rootCause: string; action: string; owner: string; dueDate: string; priority: 'high' | 'medium' | 'low'; expectedEvidence: string; status: ActionStatus; completionNote?: string; createdAt: string; updatedAt: string; }
@@ -51,7 +58,7 @@ export interface VisitReport {
   nextReviewDate: string;
 }
 
-export interface AppData { users: User[]; operations: Operation[]; evaluations: Evaluation[]; actionPlans: ActionPlan[]; evidences: Evidence[]; indicatorDefinitions: IndicatorDefinition[]; indicatorResults: IndicatorResult[]; visitReports: VisitReport[]; }
+export interface AppData { users: User[]; operations: Operation[]; evaluations: Evaluation[]; actionPlans: ActionPlan[]; evidences: Evidence[]; indicatorDefinitions: IndicatorDefinition[]; indicatorResults: IndicatorResult[]; visitReports: VisitReport[]; adminIndicators?: AdminIndicator[]; }
 
 export type RootStackParamList = {
   Main: undefined;

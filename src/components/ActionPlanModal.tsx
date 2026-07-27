@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { alertDialog } from '../utils/dialog';
 import { ActionPlan } from '../types';
 import { colors, radius, spacing } from '../theme';
 import { AppButton } from './AppButton';
@@ -42,7 +43,7 @@ export function ActionPlanModal({ visible, existing, defaultOwner, onClose, onSa
 
   function handleSave() {
     if (!problem.trim() || !action.trim() || !owner.trim() || !dueDate.trim()) {
-      Alert.alert('Campos obrigatórios', 'Preencha problema, ação, responsável e prazo.');
+      alertDialog('Campos obrigatórios', 'Preencha problema, ação, responsável e prazo.');
       return;
     }
     onSave({ problem: problem.trim(), rootCause: rootCause.trim(), action: action.trim(), owner: owner.trim(), dueDate: dueDate.trim(), priority, expectedEvidence: expectedEvidence.trim() });

@@ -36,6 +36,7 @@ export const actionStatusLabel: Record<ActionStatus, string> = {
 };
 
 export const roleLabel: Record<UserRole, string> = {
+  admin: 'Administrador',
   regional: 'Gerência Regional',
   coordinator: 'Coordenação',
   channel_manager: 'Gerente de Canal',

@@ -1,18 +1,29 @@
 import React from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { alertDialog } from '../utils/dialog';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
 import { AppButton } from '../components/AppButton';
-import { useApp } from '../context/AppContext';
+import { SyncBadge } from '../components/SyncBadge';
+import { useAuth } from '../context/AuthProvider';
+import { useOperationalUser } from '../context/useOperationalUser';
+import { useOperations } from '../context/OperationsProvider';
+import { localStore } from '../data/store/localStore';
 import { colors, radius, spacing } from '../theme';
 import { roleLabel } from '../utils/format';
+import { appVersion, dataModeLabel } from '../domain/version/appVersion';
 
 export function ProfileScreen() {
-  const { currentUser, logout, resetDemo, visibleOperations } = useApp();
+  const { signOut } = useAuth();
+  const currentUser = useOperationalUser();
+  const { operations } = useOperations();
+  const logout = signOut;
+  const resetDemo = () => localStore.reset();
+  const visibleOperations = operations;
   if (!currentUser) return null;
 
   function confirmReset() {
-    Alert.alert('Restaurar dados da demonstração?', 'Rascunhos, evidências e alterações locais serão substituídos pelos dados iniciais da versão 1.0.', [
+    alertDialog('Restaurar dados da demonstração?', 'Rascunhos, evidências e alterações locais serão substituídos pelos dados iniciais da versão 1.0.', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Restaurar', style: 'destructive', onPress: () => void resetDemo() },
     ]);
@@ -27,11 +38,13 @@ export function ProfileScreen() {
         <Text style={styles.email}>{currentUser.email}</Text>
       </View>
 
+      <View style={styles.syncRow}><SyncBadge /></View>
+
       <View style={styles.infoCard}>
         <Info icon="map-outline" label="Área de atuação" value={currentUser.region} />
-        <Info icon="business-outline" label="Operações visíveis" value={`${visibleOperations.length}`} />
-        <Info icon="phone-portrait-outline" label="Versão do aplicativo" value="1.2.0" />
-        <Info icon="cloud-offline-outline" label="Modo de dados" value="Demonstração local" last />
+        <Info icon="business-outline" label="Parceiros AACE visíveis" value={`${visibleOperations.length}`} />
+        <Info icon="phone-portrait-outline" label="Versão do aplicativo" value={appVersion()} />
+        <Info icon="cloud-offline-outline" label="Modo de dados" value={dataModeLabel()} last />
       </View>
 
       <View style={styles.notice}>
@@ -45,7 +58,7 @@ export function ProfileScreen() {
       <AppButton title="Restaurar dados demonstrativos" variant="secondary" onPress={confirmReset} />
       <AppButton title="Sair" variant="ghost" onPress={() => void logout()} style={styles.logout} />
 
-      <Text style={styles.footer}>AACE Excelência · Avaliar. Comprovar. Evoluir.</Text>
+      <Text style={styles.footer}>AAPEx · Avaliar. Comprovar. Evoluir.</Text>
     </Screen>
   );
 }
@@ -66,6 +79,7 @@ const styles = StyleSheet.create({
   name: { color: colors.ink, fontSize: 21, fontWeight: '900', textAlign: 'center', marginTop: spacing.md },
   role: { color: colors.primary, fontSize: 12, fontWeight: '800', marginTop: 4 },
   email: { color: colors.inkMuted, fontSize: 12, marginTop: 4 },
+  syncRow: { marginTop: spacing.md },
   infoCard: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.lg, marginTop: spacing.md },
   infoRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
   infoRowLast: { borderBottomWidth: 0 },

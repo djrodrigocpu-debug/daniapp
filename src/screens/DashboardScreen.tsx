@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,26 +9,41 @@ import { SectionTitle } from '../components/SectionTitle';
 import { OperationCard } from '../components/OperationCard';
 import { ProgressBar } from '../components/ProgressBar';
 import { EmptyState } from '../components/EmptyState';
-import { useApp } from '../context/AppContext';
+import { AppButton } from '../components/AppButton';
+import { useDashboard } from '../context/OperationsProvider';
+import { useOperationalUser } from '../context/useOperationalUser';
 import { colors, radius, spacing } from '../theme';
 import { RootStackParamList } from '../types';
 import { getMaturity } from '../utils/format';
 
 export function DashboardScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { currentUser, visibleOperations, data } = useApp();
+  const currentUser = useOperationalUser();
+  const { metrics, loading, error, refresh } = useDashboard();
 
-  const stats = useMemo(() => {
-    const ids = new Set(visibleOperations.map((operation) => operation.id));
-    const average = visibleOperations.length ? Math.round(visibleOperations.reduce((sum, operation) => sum + operation.currentScore, 0) / visibleOperations.length) : 0;
-    const critical = visibleOperations.filter((operation) => operation.status === 'red');
-    const actions = data.actionPlans.filter((plan) => ids.has(plan.operationId) && !['validated', 'completed'].includes(plan.status));
-    const pending = data.evaluations.filter((evaluation) => ids.has(evaluation.operationId) && evaluation.status === 'submitted').length;
-    const overdue = actions.filter((plan) => plan.status === 'overdue' || new Date(plan.dueDate) < new Date()).length;
-    return { average, critical, actions, pending, overdue };
-  }, [data.actionPlans, data.evaluations, visibleOperations]);
+  if (!metrics && loading) {
+    return (
+      <Screen>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.centeredText}>Carregando indicadores…</Text>
+        </View>
+      </Screen>
+    );
+  }
 
-  const upcoming = [...visibleOperations].sort((a, b) => a.nextAudit.localeCompare(b.nextAudit)).slice(0, 3);
+  if (!metrics) {
+    return (
+      <Screen>
+        <View style={styles.centered}>
+          <Ionicons name="cloud-offline-outline" size={40} color={colors.danger} />
+          <Text style={styles.errorTitle}>Não foi possível carregar o painel</Text>
+          {error ? <Text style={styles.centeredText}>{error}</Text> : null}
+          <AppButton title="Tentar novamente" variant="secondary" onPress={refresh} />
+        </View>
+      </Screen>
+    );
+  }
 
   return (
     <Screen>
@@ -37,37 +52,39 @@ export function DashboardScreen() {
           <View>
             <Text style={styles.eyebrow}>{currentUser?.region}</Text>
             <Text style={styles.greeting}>Olá, {currentUser?.name.split(' ')[0]}</Text>
-            <Text style={styles.heroText}>Visão consolidada do Programa de Excelência AACE.</Text>
+            <Text style={styles.heroText}>Visão consolidada dos Parceiros AACE visíveis para o seu perfil.</Text>
           </View>
           <View style={styles.avatar}><Text style={styles.avatarText}>{currentUser?.avatarInitials}</Text></View>
         </View>
         <View style={styles.heroScoreRow}>
           <View>
-            <Text style={styles.heroScoreLabel}>Índice médio da estrutura</Text>
-            <Text style={styles.heroScore}>{stats.average}</Text>
+            <Text style={styles.heroScoreLabel}>Índice médio dos Parceiros AACE</Text>
+            <Text style={styles.heroScore}>{metrics.average}</Text>
           </View>
-          <View style={styles.maturity}><Ionicons name="ribbon-outline" size={17} color={colors.white} /><Text style={styles.maturityText}>{getMaturity(stats.average)}</Text></View>
+          <View style={styles.maturity}><Ionicons name="ribbon-outline" size={17} color={colors.white} /><Text style={styles.maturityText}>{getMaturity(metrics.average)}</Text></View>
         </View>
-        <ProgressBar value={stats.average} color={colors.white} />
+        <ProgressBar value={metrics.average} color={colors.white} />
       </View>
 
       <View style={styles.metrics}>
-        <MetricCard label="Operações" value={visibleOperations.length} helper="sob sua responsabilidade" />
-        <MetricCard label="Críticas" value={stats.critical.length} helper="com nota abaixo de 70" tone={stats.critical.length ? 'danger' : 'success'} />
-        <MetricCard label="Ações abertas" value={stats.actions.length} helper={`${stats.overdue} vencidas`} tone={stats.overdue ? 'warning' : 'neutral'} />
-        <MetricCard label="Validações" value={stats.pending} helper="aguardando decisão" tone={stats.pending ? 'warning' : 'success'} />
+        <MetricCard label="Parceiros AACE" value={metrics.operationsCount} helper="visíveis para o seu perfil" />
+        <MetricCard label="Em conformidade" value={metrics.compliantCount} helper="semáforo verde" tone={metrics.compliantCount ? 'success' : 'neutral'} />
+        <MetricCard label="Em atenção" value={metrics.attentionCount} helper="semáforo amarelo" tone={metrics.attentionCount ? 'warning' : 'neutral'} />
+        <MetricCard label="Críticos" value={metrics.criticalCount} helper="com nota abaixo de 70" tone={metrics.criticalCount ? 'danger' : 'success'} />
+        <MetricCard label="Avaliações pendentes" value={metrics.pendingAuditsCount} helper="ciclos a realizar" tone={metrics.pendingAuditsCount ? 'warning' : 'success'} />
+        <MetricCard label="Planos abertos" value={metrics.openActionsCount} helper={`${metrics.overdueActionsCount} vencidos`} tone={metrics.overdueActionsCount ? 'warning' : 'neutral'} />
       </View>
 
-      <SectionTitle title="Próximas auditorias" subtitle="Operações com ciclo mais próximo do vencimento." />
-      {upcoming.length ? upcoming.map((operation) => (
+      <SectionTitle title="Próximas avaliações" subtitle="Parceiros AACE com ciclo mais próximo do vencimento." />
+      {metrics.upcoming.length ? metrics.upcoming.map((operation) => (
         <OperationCard key={operation.id} operation={operation} onPress={() => navigation.navigate('OperationDetail', { operationId: operation.id })} />
-      )) : <EmptyState title="Nenhuma operação" description="Não há operações associadas a este perfil." />}
+      )) : <EmptyState title="Nenhum Parceiro AACE" description="Não há Parceiros AACE associados a este perfil." />}
 
       <SectionTitle title="Foco da semana" subtitle="Sinais que exigem atuação gerencial imediata." />
       <View style={styles.focusCard}>
-        <FocusRow icon="alert-circle-outline" title="Operações críticas" value={`${stats.critical.length}`} tone={colors.danger} />
-        <FocusRow icon="time-outline" title="Planos vencidos" value={`${stats.overdue}`} tone={colors.warning} />
-        <FocusRow icon="clipboard-outline" title="Auditorias pendentes" value={`${visibleOperations.filter((operation) => !operation.lastAudit || operation.nextAudit <= new Date().toISOString().slice(0, 10)).length}`} tone={colors.info} last />
+        <FocusRow icon="alert-circle-outline" title="Parceiros críticos" value={`${metrics.criticalCount}`} tone={colors.danger} />
+        <FocusRow icon="time-outline" title="Planos vencidos" value={`${metrics.overdueActionsCount}`} tone={colors.warning} />
+        <FocusRow icon="shield-checkmark-outline" title="Validações pendentes" value={`${metrics.pendingValidationsCount}`} tone={colors.info} last />
       </View>
     </Screen>
   );
@@ -84,6 +101,9 @@ function FocusRow({ icon, title, value, tone, last }: { icon: keyof typeof Ionic
 }
 
 const styles = StyleSheet.create({
+  centered: { alignItems: 'center', justifyContent: 'center', gap: spacing.md, paddingVertical: 64 },
+  centeredText: { color: colors.inkMuted, fontSize: 13, textAlign: 'center' },
+  errorTitle: { color: colors.ink, fontSize: 16, fontWeight: '800' },
   hero: { backgroundColor: colors.primary, borderRadius: 24, padding: spacing.xl, marginBottom: spacing.lg },
   heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.lg },
   eyebrow: { color: '#FFD4D6', fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.8 },

@@ -1,0 +1,156 @@
+/**
+ * Provider administrativo (Masterplan §10). Expõe usuários e indicadores
+ * versionados + mutações, apenas para Administrador. As telas consomem
+ * `useAdmin()`; a navegação impede o acesso de outros perfis.
+ */
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { AdminIndicator, AdminIndicatorVersion, User, UserRole } from '../types';
+import { useRepositories } from '../data/repositories/RepositoryProvider';
+import { CreateUserInput } from '../data/repositories/AdminRepository';
+import { AdminPartner, PartnerInput, PartnerPatch, deriveAdminPartners } from '../data/repositories/PartnersRepository';
+import { ImportReport, ImportRow } from '../domain/partners/types';
+import { UserImportReport, UserImportRow } from '../domain/users/types';
+import { canRemoveDemoSeedData, countDemoSeedData, removeDemoSeedData } from '../data/demoCleanup';
+import { localStore } from '../data/store/localStore';
+import { useOperationalUser } from './useOperationalUser';
+
+export type AdminResult = { ok: true } | { ok: false; message: string };
+export type AdminImportResult = { ok: true; report: ImportReport } | { ok: false; message: string };
+export type AdminUserImportResult = { ok: true; report: UserImportReport } | { ok: false; message: string };
+type NewVersion = Omit<AdminIndicatorVersion, 'id' | 'versionNumber'>;
+
+interface AdminContextValue {
+  isAdmin: boolean;
+  users: User[];
+  indicators: AdminIndicator[];
+  partners: AdminPartner[];
+  loading: boolean;
+  error: string | null;
+  refresh: () => void;
+  createUser: (input: CreateUserInput) => Promise<AdminResult>;
+  setUserActive: (userId: string, active: boolean) => Promise<AdminResult>;
+  updateUserRole: (userId: string, role: UserRole) => Promise<AdminResult>;
+  createIndicator: (code: string, name: string, version: NewVersion) => Promise<AdminResult>;
+  addIndicatorVersion: (indicatorId: string, version: NewVersion) => Promise<AdminResult>;
+  deactivateIndicator: (indicatorId: string) => Promise<AdminResult>;
+  removeIndicator: (indicatorId: string) => Promise<AdminResult>;
+  createPartner: (input: PartnerInput) => Promise<AdminResult>;
+  updatePartner: (id: string, patch: PartnerPatch) => Promise<AdminResult>;
+  /** Retorna o relatório (simulação/confirmação) — não usa wrap() porque o chamador precisa dele. */
+  importPartners: (rows: ImportRow[], commit: boolean) => Promise<AdminImportResult>;
+  importUsers: (rows: UserImportRow[], commit: boolean) => Promise<AdminUserImportResult>;
+  /** Quantos registros de demonstração ainda existem (0 no modo Supabase). */
+  demoDataCount: number;
+  /** Remove os registros do seed. Recusa se isso deixaria a base sem Administrador. */
+  clearDemoData: () => AdminResult;
+}
+
+const AdminContext = createContext<AdminContextValue | undefined>(undefined);
+
+export function AdminProvider({ children }: { children: React.ReactNode }) {
+  const { adminUsers, adminIndicators, adminPartners, source } = useRepositories();
+  const data = useSyncExternalStore(localStore.subscribe, localStore.getSnapshot);
+  const currentUser = useOperationalUser();
+  const isAdmin = currentUser?.role === 'admin';
+
+  const [users, setUsers] = useState<User[]>([]);
+  const [indicators, setIndicators] = useState<AdminIndicator[]>([]);
+  const [partners, setPartners] = useState<AdminPartner[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!isAdmin) {
+      setUsers([]);
+      setIndicators([]);
+      setPartners([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    const [uRes, iRes, pRes] = await Promise.all([
+      adminUsers.listAll(),
+      adminIndicators.listAll(),
+      adminPartners.listAll(),
+    ]);
+    if (!uRes.ok) setError(uRes.error.message);
+    else setUsers(uRes.value);
+    if (iRes.ok) setIndicators(iRes.value);
+    else if (!error) setError(iRes.error.message);
+    if (pRes.ok) setPartners(pRes.value);
+    else if (!error) setError(pRes.error.message);
+    setLoading(false);
+  }, [isAdmin, adminUsers, adminIndicators, adminPartners, error]);
+
+  useEffect(() => {
+    void load();
+  }, [isAdmin, adminUsers, adminIndicators, adminPartners]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (source !== 'local') return undefined;
+    return localStore.subscribe(() => void load());
+  }, [source]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const wrap = useCallback(async (op: Promise<{ ok: boolean; error?: { message: string } }>): Promise<AdminResult> => {
+    const res = await op;
+    return res.ok ? { ok: true } : { ok: false, message: res.error?.message ?? 'Falha na operação.' };
+  }, []);
+
+  const importPartners = useCallback(async (rows: ImportRow[], commit: boolean): Promise<AdminImportResult> => {
+    const res = await adminPartners.importPartners(rows, commit);
+    if (!res.ok) return { ok: false, message: res.error.message };
+    if (commit) void load(); // pós-confirmação: recarrega a listagem
+    return { ok: true, report: res.value };
+  }, [adminPartners, load]);
+
+  const importUsers = useCallback(async (rows: UserImportRow[], commit: boolean): Promise<AdminUserImportResult> => {
+    const res = await adminUsers.importUsers(rows, commit);
+    if (!res.ok) return { ok: false, message: res.error.message };
+    if (commit) void load();
+    return { ok: true, report: res.value };
+  }, [adminUsers, load]);
+
+  const value = useMemo<AdminContextValue>(
+    () => ({
+      isAdmin,
+      // Modo local: snapshot reativo do store (reflete mutações na hora).
+      // Modo Supabase: o estado carregado por listAll() — o store local não é a
+      // fonte e usá-lo aqui mostrava dados de seed em cima do backend real.
+      users: source === 'local' ? data.users : users,
+      indicators: source === 'local' ? (data.adminIndicators ?? []) : indicators,
+      partners: source === 'local' ? deriveAdminPartners(data.operations, data.users) : partners,
+      loading,
+      error,
+      refresh: () => void load(),
+      createUser: (input) => wrap(adminUsers.create(input)),
+      setUserActive: (userId, active) => wrap(adminUsers.setActive(userId, active)),
+      updateUserRole: (userId, role) => wrap(adminUsers.updateRole(userId, role)),
+      createIndicator: (code, name, version) => wrap(adminIndicators.createDefinition(code, name, version)),
+      addIndicatorVersion: (indicatorId, version) => wrap(adminIndicators.addVersion(indicatorId, version)),
+      deactivateIndicator: (indicatorId) => wrap(adminIndicators.deactivate(indicatorId)),
+      removeIndicator: (indicatorId) => wrap(adminIndicators.remove(indicatorId)),
+      createPartner: (input) => wrap(adminPartners.create(input)),
+      updatePartner: (id, patch) => wrap(adminPartners.update(id, patch)),
+      importPartners,
+      importUsers,
+      demoDataCount: source === 'local' ? countDemoSeedData(data) : 0,
+      clearDemoData: () => {
+        const guard = canRemoveDemoSeedData(data);
+        if (!guard.ok) return { ok: false, message: guard.reason };
+        localStore.update(removeDemoSeedData);
+        void load();
+        return { ok: true };
+      },
+    }),
+    [isAdmin, data, source, users, indicators, partners, loading, error, load, wrap, adminUsers, adminIndicators, adminPartners, importPartners, importUsers],
+  );
+
+  return <AdminContext.Provider value={value}>{children}</AdminContext.Provider>;
+}
+
+export function useAdmin(): AdminContextValue {
+  const ctx = useContext(AdminContext);
+  if (!ctx) throw new Error('useAdmin exige AdminProvider.');
+  return ctx;
+}

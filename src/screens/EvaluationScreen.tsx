@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { alertDialog } from '../utils/dialog';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -8,7 +9,7 @@ import { Screen } from '../components/Screen';
 import { AppButton } from '../components/AppButton';
 import { ActionPlanModal } from '../components/ActionPlanModal';
 import { ProgressBar } from '../components/ProgressBar';
-import { useApp } from '../context/AppContext';
+import { useEvaluations } from '../context/EvaluationsProvider';
 import { themes } from '../data/catalog';
 import { colors, radius, spacing } from '../theme';
 import { ActionPlan, AssessmentAnswer, RootStackParamList, Theme, TrafficLight } from '../types';
@@ -19,8 +20,8 @@ const selectableStatuses: TrafficLight[] = ['green', 'yellow', 'red', 'not_appli
 
 export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<RootStackParamList, 'Evaluation'>) {
   const {
-    getEvaluation, getOperation, data, updateAnswer, addEvidence, removeEvidence, saveActionPlan, submitEvaluation,
-  } = useApp();
+    getEvaluation, getOperation, getActionPlan, getEvidences, saveAnswer, addEvidence, removeEvidence, saveActionPlan, submit,
+  } = useEvaluations();
   const evaluation = route.params.evaluationId ? getEvaluation(route.params.evaluationId) : undefined;
   const operation = getOperation(route.params.operationId);
   const [selectedThemeId, setSelectedThemeId] = useState<string | null>(null);
@@ -41,13 +42,12 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
   const activeOperation = operation;
   const readOnly = activeEvaluation.status === 'submitted' || activeEvaluation.status === 'approved';
   const progress = completionRate(activeEvaluation.answers);
-  const selectedTheme = selectedThemeId ? themes.find((item) => item.id === selectedThemeId) : undefined;
-  const existingPlan = selectedThemeId ? data.actionPlans.find((plan) => plan.evaluationId === activeEvaluation.id && plan.themeId === selectedThemeId) : undefined;
+  const existingPlan = selectedThemeId ? getActionPlan(activeEvaluation.id, selectedThemeId) : undefined;
 
   async function takePhoto(themeId: string) {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permissão necessária', 'Autorize o acesso à câmera para registrar a comprovação.');
+      alertDialog('Permissão necessária', 'Autorize o acesso à câmera para registrar a comprovação.');
       return;
     }
     const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.72, allowsEditing: false });
@@ -73,13 +73,13 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
     });
   }
 
-  function handleSubmit() {
-    const result = submitEvaluation(activeEvaluation.id);
+  async function handleSubmit() {
+    const result = await submit(activeEvaluation.id);
     if (!result.ok) {
-      Alert.alert('Avaliação incompleta', result.message);
+      alertDialog('Avaliação incompleta', result.message);
       return;
     }
-    Alert.alert('Avaliação enviada', 'O ciclo foi encaminhado para validação da coordenação.', [
+    alertDialog('Avaliação enviada', 'O ciclo foi encaminhado para validação da coordenação.', [
       { text: 'OK', onPress: () => navigation.goBack() },
     ]);
   }
@@ -128,8 +128,8 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
           <Text style={styles.groupTitle}>{group.pillar}</Text>
           <Text style={styles.groupSubtitle}>{group.items.length} item(ns) deste ciclo</Text>
           {group.items.map(({ theme, answer }) => {
-            const evidenceItems = answer.evidenceIds.map((id) => data.evidences.find((item) => item.id === id)).filter(Boolean);
-            const plan = data.actionPlans.find((item) => item.evaluationId === activeEvaluation.id && item.themeId === theme.id);
+            const evidenceItems = getEvidences(answer.evidenceIds);
+            const plan = getActionPlan(activeEvaluation.id, theme.id);
             return (
               <View key={theme.id} style={styles.itemCard}>
                 <View style={styles.itemHeader}>
@@ -152,7 +152,7 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
                       <Pressable
                         key={status}
                         disabled={readOnly}
-                        onPress={() => updateAnswer(evaluation.id, theme.id, { status })}
+                        onPress={() => saveAnswer(evaluation.id, theme.id, { status })}
                         style={[styles.statusButton, active && { borderColor: trafficLightColor[status], backgroundColor: trafficLightSoftColor[status] }, readOnly && styles.disabled]}
                       >
                         <View style={[styles.statusDot, { backgroundColor: trafficLightColor[status] }]} />
@@ -166,7 +166,7 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
                 <TextInput
                   value={answer.measuredValue}
                   editable={!readOnly}
-                  onChangeText={(value) => updateAnswer(evaluation.id, theme.id, { measuredValue: value })}
+                  onChangeText={(value) => saveAnswer(evaluation.id, theme.id, { measuredValue: value })}
                   placeholder="Ex.: 82% da meta, 14 oportunidades, 1,2% de churn"
                   placeholderTextColor={colors.neutral}
                   style={[styles.input, readOnly && styles.readOnlyInput]}
@@ -176,7 +176,7 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
                 <TextInput
                   value={answer.observation}
                   editable={!readOnly}
-                  onChangeText={(value) => updateAnswer(evaluation.id, theme.id, { observation: value })}
+                  onChangeText={(value) => saveAnswer(evaluation.id, theme.id, { observation: value })}
                   placeholder="Registre o diagnóstico, a prática encontrada e os principais riscos."
                   placeholderTextColor={colors.neutral}
                   multiline
@@ -202,6 +202,9 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
                   <View key={evidence.id} style={styles.evidenceItem}>
                     <Ionicons name={evidence.type === 'photo' ? 'camera-outline' : 'document-attach-outline'} size={18} color={colors.primary} />
                     <Text style={styles.evidenceName} numberOfLines={1}>{evidence.name}</Text>
+                    <Text style={[styles.evidenceStatus, evidence.status === 'stored' ? styles.evidenceStored : styles.evidenceLocal]}>
+                      {evidence.status === 'stored' ? 'enviado' : 'local'}
+                    </Text>
                     {!readOnly && <Pressable onPress={() => removeEvidence(evaluation.id, evidence.id)}><Ionicons name="trash-outline" size={18} color={colors.danger} /></Pressable>}
                   </View>
                 ))}
@@ -225,7 +228,7 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
         <View style={styles.submitCard}>
           <Text style={styles.submitTitle}>Finalizar auditoria</Text>
           <Text style={styles.submitText}>O envio exige todos os itens classificados, evidências obrigatórias e plano de ação para cada não conformidade.</Text>
-          <AppButton title="Enviar para validação" onPress={handleSubmit} style={styles.submitButton} />
+          <AppButton title="Enviar para validação" onPress={() => void handleSubmit()} style={styles.submitButton} />
         </View>
       )}
 
@@ -285,6 +288,9 @@ const styles = StyleSheet.create({
   flexButton: { flex: 1 },
   evidenceItem: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
   evidenceName: { flex: 1, color: colors.ink, fontSize: 11 },
+  evidenceStatus: { fontSize: 8, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.4, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, overflow: 'hidden' },
+  evidenceLocal: { color: '#9A6B00', backgroundColor: '#FFF6E5' },
+  evidenceStored: { color: colors.success, backgroundColor: colors.successSoft },
   planAlert: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.dangerSoft, borderRadius: radius.md, padding: spacing.md, marginTop: spacing.lg },
   planTextBlock: { flex: 1 },
   planTitle: { color: colors.danger, fontSize: 12, fontWeight: '900' },

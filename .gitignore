@@ -30,8 +30,11 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
+# local env files — segredo fora do Git (Masterplan §13.3, §21.2)
+.env
+.env.*
 .env*.local
+!.env.example
 
 # typescript
 *.tsbuildinfo
@@ -42,3 +45,12 @@ yarn-error.*
 
 # Claude Code local settings
 .claude/
+
+# Supabase CLI — estado local (link/ref), não versionar
+supabase/.temp/
+supabase/.branches/
+
+# Dados reais do canal — planilhas de importação e relatórios NUNCA no Git (§23)
+DADOS APP.xlsx
+*.xlsx
+relatorio-importacao*.json
