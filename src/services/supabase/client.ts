@@ -9,6 +9,7 @@
  *
  * A instância é criada uma única vez (singleton) e reaproveitada.
  */
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { AppConfig } from '../../config/env';
 // Tipos GERADOS do schema remoto (npx supabase gen types --linked). Descrevem
@@ -19,10 +20,24 @@ import { Database } from './database.types';
 let cached: SupabaseClient | null = null;
 let cachedForUrl: string | null = null;
 
+/** Opções de auth comuns aos dois runtimes. */
+const baseAuthOptions = {
+  persistSession: true,
+  autoRefreshToken: true,
+  detectSessionInUrl: false,
+};
+
 /**
  * Cria (ou reaproveita) o cliente a partir da configuração validada.
- * Persistência de sessão fica desativada aqui por padrão; a camada de auth
- * decide o storage seguro (SecureStore no mobile) — §10.3.
+ *
+ * Persistência de sessão (§10.3):
+ *  - no web, o auth-js já usa `localStorage` por padrão — nenhum `storage`
+ *    é passado para não sobrescrever esse comportamento;
+ *  - no runtime nativo não existe `localStorage`, então a sessão é gravada em
+ *    `AsyncStorage` (sem isso o login se perde a cada reinício do app).
+ *
+ * A detecção usa `typeof document`: importar `Platform` de `react-native` aqui
+ * quebraria os testes Node (sintaxe Flow nos fontes do RN).
  */
 export function getSupabaseClient(config: AppConfig): SupabaseClient | null {
   if (!config.isConfigured || !config.supabaseUrl || !config.supabaseAnonKey) {
@@ -31,12 +46,15 @@ export function getSupabaseClient(config: AppConfig): SupabaseClient | null {
   if (cached && cachedForUrl === config.supabaseUrl) {
     return cached;
   }
+  const isWebRuntime = typeof document !== 'undefined';
+  const authOptions = isWebRuntime
+    ? baseAuthOptions
+    : {
+        ...baseAuthOptions,
+        storage: AsyncStorage,
+      };
   cached = createClient<Database>(config.supabaseUrl, config.supabaseAnonKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: false,
-    },
+    auth: authOptions,
   });
   cachedForUrl = config.supabaseUrl;
   return cached;
