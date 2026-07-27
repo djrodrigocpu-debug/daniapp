@@ -52,6 +52,17 @@ export interface ProvisionResponse {
   rows: ProvisionResultRow[];
   /** Relatório linha a linha devolvido pela RPC no commit. */
   report: unknown;
+  /**
+   * Identidades criadas NESTA execucao. E o material de compensacao: se o
+   * commit SQL falhar depois, elas ficaram no Auth sem perfil. Uma reexecucao
+   * as reencontra pelo indice e segue de onde parou, sem duplicar — por isso
+   * o relatorio as devolve em vez de tentar apagar identidade recem-criada.
+   */
+  createdIdentities: string[];
+  /** Identidades cuja senha foi redefinida por pedido explicito. */
+  resetIdentities: string[];
+  /** Identidades marcadas para trocar a senha no primeiro acesso. */
+  requiredPasswordChange: string[];
 }
 
 /** Linha do lote, já normalizada pelo aplicativo. */
@@ -86,6 +97,12 @@ export interface AuthAdminPort {
    * torna impossível disparar convite por engano.
    */
   createUser(email: string, password: string): Promise<{ id: string } | { error: string }>;
+  /**
+   * Redefine a senha de uma identidade JÁ existente. Só é chamada quando o
+   * administrador liga `resetExistingPasswords` explicitamente: reimportar uma
+   * planilha nunca pode trocar a senha de quem já usa o sistema por acidente.
+   */
+  updatePassword(userId: string, password: string): Promise<{ ok: true } | { error: string }>;
 }
 
 /** RPCs do Postgres usadas pelo provisionamento. */
@@ -94,6 +111,8 @@ export interface DbPort {
   importUsers(rows: unknown[], commit: boolean): Promise<{ data?: unknown; error?: string }>;
   /** `public.admin_activate_confirmed_users()`. */
   activateConfirmedUsers(): Promise<{ data?: unknown; error?: string }>;
+  /** `public.admin_require_password_change(uuid[])`. */
+  requirePasswordChange(userIds: string[]): Promise<{ data?: unknown; error?: string }>;
 }
 
 export interface HandlerDeps {
@@ -104,9 +123,20 @@ export interface HandlerDeps {
   hasServiceRole: boolean;
 }
 
+/**
+ * Opções da operação. Ambas nascem FALSE: o provisionamento comum não redefine
+ * senha de ninguém nem obriga troca. Só a carga inicial liga as duas, de forma
+ * explícita e nominal.
+ */
+export interface ProvisionOptions {
+  resetExistingPasswords?: boolean;
+  requirePasswordChange?: boolean;
+}
+
 export interface HandlerRequest {
   accessToken: string | null;
   rows: unknown;
+  options?: unknown;
 }
 
 export class HandlerError extends Error {
@@ -237,6 +267,14 @@ export async function handleProvisionUsers(
   }
 
   const rows = parseRows(request.rows);
+  // Só `true` literal liga cada opção. Qualquer outra coisa — ausente, string,
+  // número, null — cai no default seguro de NÃO mexer em senha nem obrigar troca.
+  const bruto = (typeof request.options === 'object' && request.options !== null
+    ? request.options : {}) as Record<string, unknown>;
+  const opcoes: Required<ProvisionOptions> = {
+    resetExistingPasswords: bruto.resetExistingPasswords === true,
+    requirePasswordChange: bruto.requirePasswordChange === true,
+  };
 
   // 4) SIMULAÇÃO: valida o lote inteiro no Postgres sem gravar nada. Se o lote
   //    for recusado aqui, nenhuma identidade é criada — ordem deliberada, para
@@ -255,14 +293,65 @@ export async function handleProvisionUsers(
   // 6) Cria só o que falta.
   const resultado: ProvisionResultRow[] = [];
   const idPorEmail = new Map<string, string>();
+  /** Identidades criadas NESTA execução — base do relatório de compensação. */
+  const criadas: string[] = [];
+  /** Identidades cuja senha foi redefinida por pedido explícito. */
+  const reiniciados: string[] = [];
+  /** Quem foi marcado para trocar a senha. Só UUIDs DO LOTE entram aqui. */
+  const marcados = new Set<string>();
 
   for (const row of rows) {
     const jaExiste = existentes.get(row.email);
     if (jaExiste) {
-      // Identidade preexistente: reaproveita o UUID e NÃO toca na senha. Trocar
-      // a senha de quem já usa o sistema por causa de uma reimportação seria
-      // sequestro de conta por planilha.
+      // Identidade preexistente: reaproveita o UUID. A senha só é tocada quando
+      // o administrador pediu explicitamente — reimportar uma planilha jamais
+      // pode virar troca silenciosa de senha de quem já usa o sistema.
       idPorEmail.set(row.email, jaExiste);
+
+      if (opcoes.resetExistingPasswords) {
+        if (!row.initialPassword) {
+          resultado.push({
+            email: row.email,
+            state: 'failed',
+            authUserId: jaExiste,
+            message: 'Senha inicial obrigatória para redefinir identidade existente.',
+          });
+          continue;
+        }
+        // ORDEM DELIBERADA: marcar o onboarding ANTES de redefinir. Se a
+        // redefinição falhar, a conta fica bloqueada pelo gate em vez de ficar
+        // com senha nova e acesso livre.
+        if (opcoes.requirePasswordChange) {
+          const marcado = await deps.db.requirePasswordChange([jaExiste]);
+          if (marcado.error) {
+            resultado.push({
+              email: row.email, state: 'failed', authUserId: jaExiste,
+              message: 'Não foi possível exigir a troca de senha.',
+            });
+            continue;
+          }
+          marcados.add(jaExiste);
+        }
+        try {
+          const trocada = await deps.auth.updatePassword(jaExiste, row.initialPassword);
+          if ('error' in trocada) {
+            resultado.push({
+              email: row.email, state: 'failed', authUserId: jaExiste, message: trocada.error,
+            });
+            continue;
+          }
+          reiniciados.push(jaExiste);
+        } catch {
+          resultado.push({
+            email: row.email, state: 'failed', authUserId: jaExiste,
+            message: 'Falha ao redefinir a senha.',
+          });
+          continue;
+        }
+      } else if (opcoes.requirePasswordChange) {
+        marcados.add(jaExiste);
+      }
+
       resultado.push({ email: row.email, state: 'already_exists', authUserId: jaExiste });
       continue;
     }
@@ -290,6 +379,19 @@ export async function handleProvisionUsers(
         resultado.push({ email: row.email, state: 'failed', authUserId: null, message: criado.error });
       } else {
         idPorEmail.set(row.email, criado.id);
+        criadas.push(criado.id);
+        // Identidade nova: criar → marcar → (adiante) gravar perfil e escopo.
+        if (opcoes.requirePasswordChange) {
+          const marcado = await deps.db.requirePasswordChange([criado.id]);
+          if (marcado.error) {
+            resultado.push({
+              email: row.email, state: 'failed', authUserId: criado.id,
+              message: 'Identidade criada, mas não foi possível exigir a troca de senha.',
+            });
+            continue;
+          }
+          marcados.add(criado.id);
+        }
         resultado.push({ email: row.email, state: 'created', authUserId: criado.id });
       }
     } catch {
@@ -314,6 +416,9 @@ export async function handleProvisionUsers(
       counters: { total: rows.length, created, alreadyExisting, failed, activated: 0 },
       rows: resultado,
       report: null,
+      createdIdentities: criadas,
+      resetIdentities: reiniciados,
+      requiredPasswordChange: [...marcados],
     };
   }
 
@@ -345,5 +450,8 @@ export async function handleProvisionUsers(
     },
     rows: resultado,
     report: comitado.data ?? null,
+    createdIdentities: criadas,
+    resetIdentities: reiniciados,
+    requiredPasswordChange: [...marcados],
   };
 }

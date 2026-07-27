@@ -64,6 +64,14 @@ const authPort: AuthAdminPort = {
     if (error) return { error: error.message };
     return { id: data.user.id };
   },
+  async updatePassword(userId, password) {
+    // Caminho ADMINISTRATIVO: usado só quando o operador liga
+    // `resetExistingPasswords`. Nunca no fluxo de troca pessoal, que precisa
+    // validar a senha atual — isso é da função `initial-password-change`.
+    const { error } = await admin.auth.admin.updateUserById(userId, { password });
+    if (error) return { error: error.message };
+    return { ok: true };
+  },
 };
 
 /** RPCs executadas COM O TOKEN DO SOLICITANTE: a RLS e o `app.is_admin()` valem. */
@@ -77,6 +85,12 @@ function dbPortFor(accessToken: string): DbPort {
       const { data, error } = await asCaller.rpc('admin_import_users', {
         p_rows: rows,
         p_commit: commit,
+      });
+      return error ? { error: error.message } : { data };
+    },
+    async requirePasswordChange(userIds) {
+      const { data, error } = await asCaller.rpc('admin_require_password_change', {
+        p_user_ids: userIds,
       });
       return error ? { error: error.message } : { data };
     },
@@ -128,7 +142,7 @@ serve(async (req: Request) => {
     const body = await req.json().catch(() => ({}));
 
     const result = await handleProvisionUsers(
-      { accessToken, rows: body?.rows },
+      { accessToken, rows: body?.rows, options: body?.options },
       {
         auth: authPort,
         caller: callerPort,

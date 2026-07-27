@@ -37,6 +37,8 @@ interface FakeOptions {
   falhaAoCriar?: Record<string, string>;
   lancaAoCriar?: string[];
   lancaAoIndexar?: boolean;
+  falhaAoRedefinir?: Record<string, string>;
+  erroAoMarcar?: string;
   erroSimulacao?: string;
   erroCommit?: string;
   erroAtivacao?: string;
@@ -47,6 +49,8 @@ interface FakeOptions {
 
 function deps(options: FakeOptions = {}) {
   const criados: string[] = [];
+  const redefinidos: Array<{ id: string; senha: string }> = [];
+  const marcados: string[][] = [];
   const senhasRecebidas: string[] = [];
   const chamadasImport: Array<{ rows: unknown[]; commit: boolean }> = [];
   const ativacoes: number[] = [];
@@ -69,6 +73,12 @@ function deps(options: FakeOptions = {}) {
       existentes[email] = id;
       return { id };
     }),
+    updatePassword: vi.fn(async (userId: string, password: string) => {
+      const erro = options.falhaAoRedefinir?.[userId];
+      if (erro) return { error: erro };
+      redefinidos.push({ id: userId, senha: password });
+      return { ok: true as const };
+    }),
   };
 
   const db: DbPort = {
@@ -89,6 +99,11 @@ function deps(options: FakeOptions = {}) {
       if (options.erroAtivacao) return { error: options.erroAtivacao };
       ativacoes.push(1);
       return { data: { promoted: options.promoted ?? 0, active: 0, stillInvited: 0 } };
+    }),
+    requirePasswordChange: vi.fn(async (ids: string[]) => {
+      if (options.erroAoMarcar) return { error: options.erroAoMarcar };
+      marcados.push([...ids]);
+      return { data: { marked: ids.length, missingIdentity: 0 } };
     }),
   };
 
@@ -111,11 +126,13 @@ function deps(options: FakeOptions = {}) {
     senhasRecebidas,
     chamadasImport,
     ativacoes,
+    redefinidos,
+    marcados,
   } satisfies HandlerDeps & Record<string, unknown>;
 }
 
-const call = (rows: unknown, token: string | null, d: HandlerDeps) =>
-  handleProvisionUsers({ accessToken: token, rows }, d);
+const call = (rows: unknown, token: string | null, d: HandlerDeps, options?: unknown) =>
+  handleProvisionUsers({ accessToken: token, rows, options }, d);
 
 describe('admin-provision-users — autorização', () => {
   it('token ausente ou inválido é recusado com 401', async () => {
@@ -165,7 +182,8 @@ describe('admin-provision-users — criação sem e-mail', () => {
   it('a porta de Auth NÃO expõe convite — inviteUserByEmail não existe', () => {
     const d = deps();
     expect((d.auth as unknown as Record<string, unknown>).inviteUserByEmail).toBeUndefined();
-    expect(Object.keys(d.auth).sort()).toEqual(['createUser', 'findExistingIdentities']);
+    // `updatePassword` entrou para o reset explícito; convite continua fora.
+    expect(Object.keys(d.auth).sort()).toEqual(['createUser', 'findExistingIdentities', 'updatePassword']);
   });
 
   it('simula antes de criar: a simulação roda com commit=false e vem primeiro', async () => {
@@ -363,5 +381,125 @@ describe('admin-provision-users — contrato do lote', () => {
     const d = deps();
     const grande = Array.from({ length: 201 }, (_, i) => linha({ email: `u${i}@sint.test`, index: i + 1 }));
     await expect(call(grande, ADMIN_TOKEN, d)).rejects.toMatchObject({ status: 400 });
+  });
+});
+
+/**
+ * Opções da carga inicial. Ambas nascem `false`: só a carga liga as duas, e
+ * ligar precisa ser explícito e nominal.
+ */
+describe('admin-provision-users — resetExistingPasswords e requirePasswordChange', () => {
+  const EXISTENTE = { 'ja@sint.test': 'auth-ja' };
+
+  it('18 — DEFAULT não redefine senha de identidade existente', async () => {
+    const d = deps({ existentes: EXISTENTE, pendingAuth: [] });
+    await call([linha({ email: 'ja@sint.test' })], ADMIN_TOKEN, d);
+
+    expect(d.auth.updatePassword).not.toHaveBeenCalled();
+    expect(d.redefinidos).toEqual([]);
+    expect(d.senhasRecebidas).toEqual([]);
+  });
+
+  it('19 — DEFAULT não marca ninguém para trocar senha', async () => {
+    const d = deps({ pendingAuth: ['nova@sint.test'] });
+    await call([linha({ email: 'nova@sint.test' })], ADMIN_TOKEN, d);
+
+    expect(d.db.requirePasswordChange).not.toHaveBeenCalled();
+    expect(d.marcados).toEqual([]);
+  });
+
+  it('20 — opção só liga com `true` literal; lixo cai no default seguro', async () => {
+    for (const ruim of [undefined, null, {}, 'true', 1, { resetExistingPasswords: 'sim' }]) {
+      const d = deps({ existentes: EXISTENTE, pendingAuth: [] });
+      await call([linha({ email: 'ja@sint.test' })], ADMIN_TOKEN, d, ruim);
+      expect(d.auth.updatePassword).not.toHaveBeenCalled();
+    }
+  });
+
+  it('21 — resetExistingPasswords=true redefine SOMENTE identidades do lote', async () => {
+    const d = deps({ existentes: { ...EXISTENTE, 'fora@sint.test': 'auth-fora' }, pendingAuth: [] });
+    await call([linha({ email: 'ja@sint.test' })], ADMIN_TOKEN, d, { resetExistingPasswords: true });
+
+    expect(d.redefinidos.map((r) => r.id)).toEqual(['auth-ja']);
+    expect(d.redefinidos.map((r) => r.id)).not.toContain('auth-fora');
+  });
+
+  it('22 — requirePasswordChange=true marca SOMENTE UUIDs do lote', async () => {
+    const d = deps({ pendingAuth: ['nova@sint.test'], promoted: 1 });
+    const res = await call([linha({ email: 'nova@sint.test' })], ADMIN_TOKEN, d, {
+      requirePasswordChange: true,
+    });
+
+    expect(res.requiredPasswordChange).toEqual(['auth-nova@sint.test']);
+    expect(d.marcados.flat()).toEqual(['auth-nova@sint.test']);
+  });
+
+  it('23 — em identidade existente, MARCA antes de redefinir', async () => {
+    const d = deps({ existentes: EXISTENTE, pendingAuth: [] });
+    await call([linha({ email: 'ja@sint.test' })], ADMIN_TOKEN, d, {
+      resetExistingPasswords: true, requirePasswordChange: true,
+    });
+
+    const ordemMarca = (d.db.requirePasswordChange as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
+    const ordemReset = (d.auth.updatePassword as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0];
+    // Se a redefinição falhar, a conta já está presa no gate.
+    expect(ordemMarca).toBeLessThan(ordemReset);
+  });
+
+  it('24 — falha ao marcar impede a redefinição da senha', async () => {
+    const d = deps({ existentes: EXISTENTE, pendingAuth: [], erroAoMarcar: 'indisponivel' });
+    const res = await call([linha({ email: 'ja@sint.test' })], ADMIN_TOKEN, d, {
+      resetExistingPasswords: true, requirePasswordChange: true,
+    });
+
+    expect(res.ok).toBe(false);
+    expect(d.auth.updatePassword).not.toHaveBeenCalled();
+    expect(d.chamadasImport.every((c) => c.commit === false)).toBe(true);
+  });
+
+  it('25 — falha ao redefinir vira linha failed e impede o commit', async () => {
+    const d = deps({
+      existentes: EXISTENTE, pendingAuth: [],
+      falhaAoRedefinir: { 'auth-ja': 'rate limit' },
+    });
+    const res = await call([linha({ email: 'ja@sint.test' })], ADMIN_TOKEN, d, {
+      resetExistingPasswords: true,
+    });
+
+    expect(res.ok).toBe(false);
+    expect(res.rows[0]).toMatchObject({ state: 'failed', authUserId: 'auth-ja' });
+    expect(d.chamadasImport.every((c) => c.commit === false)).toBe(true);
+  });
+
+  it('26 — identidade existente sem senha no lote não é redefinida às cegas', async () => {
+    const d = deps({ existentes: EXISTENTE, pendingAuth: [] });
+    const { initialPassword: _fora, ...semSenha } = linha({ email: 'ja@sint.test' });
+    const res = await call([semSenha], ADMIN_TOKEN, d, { resetExistingPasswords: true });
+
+    expect(res.ok).toBe(false);
+    expect(d.auth.updatePassword).not.toHaveBeenCalled();
+  });
+
+  it('27 — o relatório expõe o material de compensação, nunca senha', async () => {
+    const d = deps({ pendingAuth: ['nova@sint.test'], promoted: 1 });
+    const res = await call([linha({ email: 'nova@sint.test' })], ADMIN_TOKEN, d, {
+      requirePasswordChange: true,
+    });
+
+    expect(res.createdIdentities).toEqual(['auth-nova@sint.test']);
+    expect(res.resetIdentities).toEqual([]);
+    expect(JSON.stringify(res)).not.toContain(SENHA);
+  });
+
+  it('28 — reexecução com identidade já existente não recria nem redefine', async () => {
+    const d = deps({ existentes: { 'nova@sint.test': 'auth-nova' }, pendingAuth: [] });
+    const res = await call([linha({ email: 'nova@sint.test' })], ADMIN_TOKEN, d, {
+      requirePasswordChange: true,
+    });
+
+    expect(d.auth.createUser).not.toHaveBeenCalled();
+    expect(d.auth.updatePassword).not.toHaveBeenCalled();
+    expect(res.createdIdentities).toEqual([]);
+    expect(res.counters.created).toBe(0);
   });
 });
