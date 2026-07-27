@@ -21,7 +21,9 @@ const demoAccounts = [
 ];
 
 export function LoginScreen() {
-  const { mode, state, signIn, requestPasswordReset } = useAuth();
+  // `requestPasswordReset` continua existindo no contexto e no repositório, mas
+  // NÃO é consumida aqui enquanto não houver SMTP (ver handleForgotPassword).
+  const { mode, state, signIn } = useAuth();
   const isDemo = mode === 'demo';
   const [email, setEmail] = useState(isDemo ? 'gerente@aace.app' : '');
   const [password, setPassword] = useState('');
@@ -42,21 +44,22 @@ export function LoginScreen() {
     if (!result.ok) alertDialog('Não foi possível entrar', result.message ?? 'Falha na autenticação.');
   }
 
-  async function handleForgotPassword() {
-    if (!email.trim()) {
-      alertDialog('Informe o e-mail', 'Digite o e-mail corporativo para receber as instruções.');
-      return;
-    }
-    if (isDemo) {
-      alertDialog('Ambiente de demonstração', 'A recuperação de senha só está disponível com a autenticação corporativa (Supabase).');
-      return;
-    }
-    const result = await requestPasswordReset(email.trim());
+  /**
+   * Recuperação de senha por e-mail está DESLIGADA nesta fase.
+   *
+   * O provisionamento passou a ser administrativo (planilha com senha inicial) e
+   * o projeto não tem SMTP próprio configurado. Disparar `requestPasswordReset`
+   * aqui produziria a pior experiência possível: a tela diria "verifique seu
+   * e-mail" e nenhuma mensagem chegaria.
+   *
+   * A infraestrutura NÃO foi removida — `requestPasswordReset` continua no
+   * repositório e no contexto, pronta para religar quando houver SMTP.
+   */
+  function handleForgotPassword() {
     alertDialog(
-      result.ok ? 'Verifique seu e-mail' : 'Não foi possível continuar',
-      result.ok
-        ? 'Se o e-mail estiver cadastrado, você receberá as instruções de redefinição.'
-        : result.message ?? 'Tente novamente mais tarde.',
+      'Redefinição de senha',
+      'A redefinição por e-mail está indisponível nesta versão. '
+      + 'Solicite ao administrador do AAPEx a definição de uma nova senha de acesso.',
     );
   }
 
@@ -105,7 +108,7 @@ export function LoginScreen() {
 
           <AppButton title="Entrar" onPress={() => void handleLogin()} loading={state.busy} style={styles.loginButton} />
 
-          <Pressable onPress={() => void handleForgotPassword()} disabled={state.busy} style={styles.forgot}>
+          <Pressable onPress={handleForgotPassword} style={styles.forgot}>
             <Text style={styles.forgotText}>Esqueci minha senha</Text>
           </Pressable>
 

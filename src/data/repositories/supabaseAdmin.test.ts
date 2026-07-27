@@ -196,8 +196,8 @@ const rpcReport = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-describe('SupabaseAdminUsersRepository.importUsers — orquestração das 3 fases', () => {
-  it('simulação chama só a RPC em modo simulate e não convida ninguém', async () => {
+describe('SupabaseAdminUsersRepository.importUsers — provisionamento sem convite', () => {
+  it('simulação chama só a RPC em modo simulate e não provisiona ninguém', async () => {
     const { client, rpcCalls, fnCalls } = fakeClient({
       rpc: { admin_import_users: () => ({ data: rpcReport({ pendingAuth: ['ana@sint.example'] }) }) },
     });
@@ -210,57 +210,48 @@ describe('SupabaseAdminUsersRepository.importUsers — orquestração das 3 fase
     expect(res.ok && res.value.pendingAuth).toEqual(['ana@sint.example']);
   });
 
-  it('confirmação convida só os pendentes e devolve os authUserId ao commit', async () => {
+  it('confirmação delega o commit inteiro à Edge Function admin-provision-users', async () => {
     const { client, rpcCalls, fnCalls } = fakeClient({
-      rpc: {
-        admin_import_users: (p) => ({
-          data: p.p_commit
-            ? rpcReport({ mode: 'commit', applied: true })
-            : rpcReport({ pendingAuth: ['ana@sint.example'] }),
-        }),
-      },
+      rpc: { admin_import_users: () => ({ data: rpcReport({ pendingAuth: ['ana@sint.example'] }) }) },
       functions: {
-        'admin-invite-users': (body) => ({
+        'admin-provision-users': () => ({
           data: {
             ok: true,
-            rows: (body.emails as string[]).map((e) => ({ email: e, state: 'invited', authUserId: `auth-${e}` })),
+            counters: { total: 2, created: 1, alreadyExisting: 1, failed: 0, activated: 1 },
+            rows: [
+              { email: 'ana@sint.example', state: 'created', authUserId: 'auth-ana' },
+              { email: 'bruno@sint.example', state: 'already_exists', authUserId: 'auth-bruno' },
+            ],
+            report: rpcReport({ mode: 'commit', applied: true }),
           },
         }),
       },
     });
     const res = await new SupabaseAdminUsersRepository(client).importUsers(USER_ROWS, true);
 
-    // Só o e-mail pendente foi ao convite — bruno já tinha identidade.
-    expect(fnCalls).toEqual([{ name: 'admin-invite-users', body: { emails: ['ana@sint.example'] } }]);
-
-    const commitRows = rpcCalls[1].params.p_rows as Array<UserImportRow & { authUserId?: string }>;
-    expect(rpcCalls[1].params.p_commit).toBe(true);
-    expect(commitRows[0].authUserId).toBe('auth-ana@sint.example');
-    expect(commitRows[1].authUserId).toBeUndefined();
+    // O convite NÃO existe mais no caminho: só a função de provisionamento.
+    expect(fnCalls.map((c) => c.name)).toEqual(['admin-provision-users']);
+    // As LINHAS completas vão para a função (é ela que precisa da senha inicial).
+    expect((fnCalls[0].body.rows as UserImportRow[]).map((r) => r.email))
+      .toEqual(['ana@sint.example', 'bruno@sint.example']);
+    // O cliente emite apenas a simulação; o commit acontece dentro da função.
+    expect(rpcCalls.map((c) => c.params.p_commit)).toEqual([false]);
     expect(res.ok && res.value.applied).toBe(true);
   });
 
-  it('lote sem pendências vai direto ao commit, sem chamar a Edge Function', async () => {
-    const { client, fnCalls, rpcCalls } = fakeClient({
-      rpc: { admin_import_users: (p) => ({ data: rpcReport({ mode: p.p_commit ? 'commit' : 'simulate', applied: !!p.p_commit }) }) },
-    });
-    await new SupabaseAdminUsersRepository(client).importUsers(USER_ROWS, true);
-
-    expect(fnCalls).toHaveLength(0);
-    expect(rpcCalls.map((c) => c.params.p_commit)).toEqual([false, true]);
-  });
-
-  it('convite incompleto ABORTA antes do commit — nada é gravado', async () => {
+  it('provisionamento incompleto ABORTA — nada é gravado', async () => {
     const { client, rpcCalls } = fakeClient({
       rpc: { admin_import_users: () => ({ data: rpcReport({ pendingAuth: ['ana@sint.example', 'bruno@sint.example'] }) }) },
       functions: {
-        'admin-invite-users': () => ({
+        'admin-provision-users': () => ({
           data: {
             ok: false,
+            counters: { total: 2, created: 1, alreadyExisting: 0, failed: 1, activated: 0 },
             rows: [
-              { email: 'ana@sint.example', state: 'invited', authUserId: 'auth-ana' },
+              { email: 'ana@sint.example', state: 'created', authUserId: 'auth-ana' },
               { email: 'bruno@sint.example', state: 'failed', authUserId: null, message: 'rate limit' },
             ],
+            report: null,
           },
         }),
       },
@@ -269,18 +260,18 @@ describe('SupabaseAdminUsersRepository.importUsers — orquestração das 3 fase
 
     expect(res.ok).toBe(false);
     if (!res.ok) {
-      expect(res.error.message).toMatch(/Convite incompleto \(1 de 2\)/);
+      expect(res.error.message).toMatch(/Provisionamento incompleto \(1 de 2\)/);
       expect(res.error.message).toMatch(/Nada foi gravado/);
       expect(res.error.message).toMatch(/bruno@sint\.example: rate limit/);
     }
-    // Só a simulação rodou: NENHUM commit foi emitido.
+    // Só a simulação rodou: NENHUM commit foi emitido pelo cliente.
     expect(rpcCalls.map((c) => c.params.p_commit)).toEqual([false]);
   });
 
   it('falha da Edge Function em si também impede o commit', async () => {
     const { client, rpcCalls } = fakeClient({
       rpc: { admin_import_users: () => ({ data: rpcReport({ pendingAuth: ['ana@sint.example'] }) }) },
-      functions: { 'admin-invite-users': () => ({ error: { message: 'function not found' } }) },
+      functions: { 'admin-provision-users': () => ({ error: { message: 'function not found' } }) },
     });
     const res = await new SupabaseAdminUsersRepository(client).importUsers(USER_ROWS, true);
 
@@ -289,27 +280,28 @@ describe('SupabaseAdminUsersRepository.importUsers — orquestração das 3 fase
     expect(rpcCalls.map((c) => c.params.p_commit)).toEqual([false]);
   });
 
-  it('commit recusado pelo servidor chega ao chamador como applied=false', async () => {
-    const { client } = fakeClient({
-      rpc: {
-        admin_import_users: (p) => ({
-          data: rpcReport({
-            mode: p.p_commit ? 'commit' : 'simulate',
-            applied: false,
-            counters: { total: 2, inserted: 0, updated: 0, errors: 1, pendingAuth: 0 },
-            rows: [{ index: 1, email: 'ana@sint.example', status: 'error', action: 'none', messages: ['Coordenacao inexistente: X'], warnings: [] }],
-          }),
+  it('a senha inicial atravessa até a função, mas some do relatório devolvido', async () => {
+    const SENHA = 'Aacex2026Prov';
+    const comSenha: UserImportRow[] = USER_ROWS.map((r) => ({ ...r, initialPassword: SENHA }));
+    const { client, fnCalls } = fakeClient({
+      rpc: { admin_import_users: () => ({ data: rpcReport({ pendingAuth: ['ana@sint.example'] }) }) },
+      functions: {
+        'admin-provision-users': () => ({
+          data: {
+            ok: true,
+            counters: { total: 2, created: 2, alreadyExisting: 0, failed: 0, activated: 2 },
+            rows: [],
+            report: rpcReport({ mode: 'commit', applied: true }),
+          },
         }),
       },
     });
-    const res = await new SupabaseAdminUsersRepository(client).importUsers(USER_ROWS, true);
+    const res = await new SupabaseAdminUsersRepository(client).importUsers(comSenha, true);
 
-    expect(res.ok).toBe(true);
-    if (res.ok) {
-      expect(res.value.applied).toBe(false);
-      expect(res.value.counters.errors).toBe(1);
-      expect(res.value.rows[0].messages[0]).toMatch(/Coordenacao inexistente/);
-    }
+    // Vai no corpo da requisição (é o único jeito de o servidor criar a conta)...
+    expect(JSON.stringify(fnCalls[0].body)).toContain(SENHA);
+    // ...e NÃO volta em nada que a tela vá exibir ou persistir.
+    expect(JSON.stringify(res)).not.toContain(SENHA);
   });
 
   it('erro da RPC propaga a mensagem do servidor', async () => {
@@ -324,7 +316,7 @@ describe('SupabaseAdminUsersRepository.importUsers — orquestração das 3 fase
 
   it('lote acima do limite é rejeitado antes de qualquer chamada', async () => {
     const many: UserImportRow[] = Array.from({ length: 201 }, (_, i) => ({
-      index: i + 1, name: `P${i}`, email: `p${i}@sint.example`, role: 'channel_manager', region: 'COORD NORTE',
+      index: i + 1, name: 'P' + i, email: 'p' + i + '@sint.example', role: 'channel_manager', region: 'COORD NORTE',
     }));
     const { client, rpcCalls, fnCalls } = fakeClient({});
     const res = await new SupabaseAdminUsersRepository(client).importUsers(many, true);
@@ -335,49 +327,60 @@ describe('SupabaseAdminUsersRepository.importUsers — orquestração das 3 fase
   });
 });
 
-describe('SupabaseAdminUsersRepository.create — cadastro avulso usa o fluxo novo', () => {
+describe('SupabaseAdminUsersRepository.create — cadastro avulso usa o provisionamento', () => {
   const input = { name: 'Solo Sintetico', email: 'Solo@Sint.Example', role: 'coordinator' as const, region: 'COORD NORTE' };
 
-  it('NÃO chama mais a RPC depreciada admin_create_user', async () => {
+  it('NÃO chama a RPC depreciada admin_create_user nem o convite', async () => {
     const { client, rpcCalls, fnCalls } = fakeClient({
       rpc: {
-        admin_import_users: (p) => ({
+        admin_import_users: () => ({
           data: rpcReport({
-            mode: p.p_commit ? 'commit' : 'simulate',
-            applied: !!p.p_commit,
-            counters: { total: 1, inserted: 1, updated: 0, errors: 0, pendingAuth: p.p_commit ? 0 : 1 },
-            pendingAuth: p.p_commit ? [] : ['solo@sint.example'],
-            rows: [{ index: 1, name: 'Solo Sintetico', email: 'solo@sint.example', role: 'coordinator', status: 'ok', action: 'insert', userId: 'auth-solo', messages: [], warnings: [] }],
+            counters: { total: 1, inserted: 1, updated: 0, errors: 0, pendingAuth: 1 },
+            pendingAuth: ['solo@sint.example'],
           }),
         }),
       },
       functions: {
-        'admin-invite-users': () => ({
-          data: { ok: true, rows: [{ email: 'solo@sint.example', state: 'invited', authUserId: 'auth-solo' }] },
+        'admin-provision-users': () => ({
+          data: {
+            ok: true,
+            counters: { total: 1, created: 1, alreadyExisting: 0, failed: 0, activated: 1 },
+            rows: [{ email: 'solo@sint.example', state: 'created', authUserId: 'auth-solo' }],
+            report: rpcReport({
+              mode: 'commit',
+              applied: true,
+              counters: { total: 1, inserted: 1, updated: 0, errors: 0, pendingAuth: 0 },
+              rows: [{ index: 1, name: 'Solo Sintetico', email: 'solo@sint.example', role: 'coordinator', status: 'ok', action: 'insert', userId: 'auth-solo', messages: [], warnings: [] }],
+            }),
+          },
         }),
       },
     });
     const res = await new SupabaseAdminUsersRepository(client).create(input);
 
-    expect(rpcCalls.map((c) => c.name)).toEqual(['admin_import_users', 'admin_import_users']);
+    expect(rpcCalls.map((c) => c.name)).toEqual(['admin_import_users']);
     expect(rpcCalls.map((c) => c.name)).not.toContain('admin_create_user');
-    expect(fnCalls).toHaveLength(1); // o convite real acontece
+    expect(fnCalls.map((c) => c.name)).toEqual(['admin-provision-users']);
     expect(res.ok).toBe(true);
     if (res.ok) {
       expect(res.value.email).toBe('solo@sint.example');
-      expect(res.value.active).toBe(false); // nasce convidado, não ativo
+      // Nasce ATIVO: a identidade é criada com e-mail já confirmado e a RPC de
+      // ativação roda em seguida — não há mais espera por clique em convite.
+      expect(res.value.active).toBe(true);
     }
   });
 
   it('lote recusado pelo servidor vira erro com o motivo da linha', async () => {
     const { client } = fakeClient({
-      rpc: {
-        admin_import_users: () => ({
-          data: rpcReport({
-            applied: false,
-            counters: { total: 1, inserted: 0, updated: 0, errors: 1, pendingAuth: 0 },
-            rows: [{ index: 1, name: 'Solo Sintetico', email: 'solo@sint.example', role: 'coordinator', status: 'error', action: 'none', userId: null, messages: ['Coordenacao inexistente: COORD NORTE'], warnings: [] }],
-          }),
+      rpc: { admin_import_users: () => ({ data: rpcReport({ pendingAuth: ['solo@sint.example'] }) }) },
+      functions: {
+        'admin-provision-users': () => ({
+          data: {
+            ok: false,
+            counters: { total: 1, created: 0, alreadyExisting: 0, failed: 1, activated: 0 },
+            rows: [{ email: 'solo@sint.example', state: 'failed', authUserId: null, message: 'Coordenacao inexistente: COORD NORTE' }],
+            report: null,
+          },
         }),
       },
     });

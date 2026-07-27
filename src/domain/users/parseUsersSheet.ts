@@ -15,6 +15,7 @@ import { UserRole } from '../../types';
 import { collapseSpaces, isValidEmail, labelKey, normalizeEmail } from '../partners/normalize';
 import { MAX_FIELD_LENGTH } from '../partners/types';
 import { SheetFieldSpec, readSheet } from '../sheets/reader';
+import { checkInitialPassword } from './initialPassword';
 import { MAX_USER_IMPORT_ROWS, UserImportRow, UserIssue, UserParseResult } from './types';
 
 type Field = keyof Omit<UserImportRow, 'index'>;
@@ -29,7 +30,19 @@ const FIELDS: SheetFieldSpec<Field>[] = [
     required: true,
   },
   { field: 'role', prefixes: ['perfil', 'papel', 'cargo', 'funcao'], label: 'Perfil', required: true },
+  // Opcionais: planilhas antigas (sem senha/ativo) continuam sendo lidas.
+  {
+    field: 'initialPassword',
+    prefixes: ['senha inicial', 'senha'],
+    label: 'Senha inicial',
+    required: false,
+  },
+  { field: 'active', prefixes: ['ativo', 'situacao', 'status'], label: 'Ativo', required: false },
 ];
+
+/** Rótulos aceitos para "ativo". Qualquer outro texto é erro da linha. */
+const TRUE_LABELS = ['sim', 's', 'true', 'ativo', '1', 'x'];
+const FALSE_LABELS = ['nao', 'n', 'false', 'inativo', '0'];
 
 /** Rótulos de perfil aceitos, do mais específico para o mais genérico. */
 const ROLE_PREFIXES: Array<{ prefix: string; role: UserRole }> = [
@@ -107,12 +120,46 @@ export function parseUsersSheet(grid: string[][]): UserParseResult {
       });
     }
 
+    // Senha inicial: opcional na planilha (só é exigida para identidade nova, o
+    // que o servidor decide). Quando vem preenchida, o formato é validado aqui
+    // para o operador corrigir antes de simular. O VALOR nunca entra em issue.
+    const rawPassword = reader.value('initialPassword', record);
+    const initialPassword = typeof rawPassword === 'string' ? rawPassword.trim() : '';
+    if (initialPassword !== '') {
+      const check = checkInitialPassword(initialPassword, email);
+      if (!check.ok) {
+        recordIssues.push({ column: at, field: 'initialPassword', message: check.message as string });
+      }
+    }
+
+    const rawActive = labelKey(reader.value('active', record));
+    let active = true;
+    if (rawActive !== '') {
+      if (TRUE_LABELS.includes(rawActive)) active = true;
+      else if (FALSE_LABELS.includes(rawActive)) active = false;
+      else {
+        recordIssues.push({
+          column: at,
+          field: 'active',
+          message: `Valor não reconhecido em Ativo: "${collapseSpaces(reader.value('active', record))}" (aceitos: Sim, Não)`,
+        });
+      }
+    }
+
     if (recordIssues.length > 0) {
       issues.push(...recordIssues);
       return;
     }
     seen.set(email, position + 1);
-    rows.push({ index: position + 1, name, email, role: role as UserRole, region });
+    rows.push({
+      index: position + 1,
+      name,
+      email,
+      role: role as UserRole,
+      region,
+      ...(initialPassword !== '' ? { initialPassword } : {}),
+      active,
+    });
   });
 
   return { rows, issues, layout };
