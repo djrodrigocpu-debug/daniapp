@@ -4,7 +4,7 @@
  * Prova autorização, idempotência e recuperação segura. NÃO prova o GoTrue real:
  * a Auth Admin API é injetada. Dados 100% fictícios (§23).
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   AuthAdminPort,
   CallerPort,
@@ -24,23 +24,34 @@ interface FakeOptions {
   existentes?: Record<string, string>;
   falhaAoConvidar?: Record<string, string>;
   lancaAoConvidar?: string[];
-  lancaAoConsultar?: string[];
+  /** Simula falha na varredura de identidades (paginação do Auth). */
+  lancaAoIndexar?: boolean;
   hasServiceRole?: boolean;
   callers?: Record<string, { id: string; role: string | null }>;
   defaultRedirect?: string;
   allowlist?: string[];
 }
 
-function deps(options: FakeOptions = {}): HandlerDeps & { convites: string[]; destinos: string[] } {
+function deps(
+  options: FakeOptions = {},
+): HandlerDeps & { convites: string[]; destinos: string[]; lotesIndexados: string[][] } {
   const convites: string[] = [];
   const destinos: string[] = [];
+  const lotesIndexados: string[][] = [];
   const existentes = { ...(options.existentes ?? {}) };
 
   const auth: AuthAdminPort = {
-    async findUserByEmail(email) {
-      if (options.lancaAoConsultar?.includes(email)) throw new Error('lookup falhou');
-      return existentes[email] ? { id: existentes[email] } : null;
-    },
+    // Resolve o LOTE INTEIRO de uma vez — o índice real é construído por
+    // paginação em `identityIndex.ts` (coberto em identityIndex.test.ts).
+    findExistingIdentities: vi.fn(async (emails: string[]) => {
+      if (options.lancaAoIndexar) throw new Error('paginacao falhou');
+      lotesIndexados.push([...emails]);
+      const encontrados = new Map<string, string>();
+      for (const email of emails) {
+        if (existentes[email]) encontrados.set(email, existentes[email]);
+      }
+      return encontrados;
+    }),
     async inviteUserByEmail(email, redirectTo) {
       destinos.push(redirectTo);
       if (options.lancaAoConvidar?.includes(email)) throw new Error('boom');
@@ -73,6 +84,7 @@ function deps(options: FakeOptions = {}): HandlerDeps & { convites: string[]; de
     },
     convites,
     destinos,
+    lotesIndexados,
   };
 }
 
@@ -213,6 +225,138 @@ describe('admin-invite-users', () => {
 
     expect(res.counters.total).toBe(1);
     expect(d.convites).toEqual(['a@fic.example']);
+  });
+});
+
+/**
+ * Regressão do defeito de idempotência: a consulta de identidades era feita por
+ * e-mail e lia uma única página do Auth. Agora é UMA resolução em lote.
+ */
+describe('resolução de identidades em lote', () => {
+  it('11 — findExistingIdentities é chamada exatamente uma vez por requisição', async () => {
+    const d = deps({ existentes: { 'ja@fic.example': 'auth-ja' } });
+    const lote = Array.from({ length: 50 }, (_, i) => `u${i}@fic.example`).concat('ja@fic.example');
+
+    await call(lote, ADMIN_TOKEN, d);
+
+    expect(d.auth.findExistingIdentities).toHaveBeenCalledTimes(1);
+    // Recebeu o lote inteiro já normalizado e deduplicado, de uma vez só.
+    expect(d.lotesIndexados).toHaveLength(1);
+    expect(d.lotesIndexados[0]).toHaveLength(51);
+  });
+
+  it('12 — base vazia: todos os e-mails são novos e recebem convite', async () => {
+    const d = deps();
+    const res = await call(['a@fic.example', 'b@fic.example'], ADMIN_TOKEN, d);
+
+    expect(res.counters).toEqual({ total: 2, invited: 2, alreadyExisting: 0, failed: 0 });
+    expect(d.convites).toEqual(['a@fic.example', 'b@fic.example']);
+  });
+
+  it('13 — lote misto: somente os novos recebem convite', async () => {
+    const d = deps({
+      existentes: { 'ja1@fic.example': 'auth-ja1', 'ja2@fic.example': 'auth-ja2' },
+    });
+    const res = await call(
+      ['ja1@fic.example', 'novo1@fic.example', 'ja2@fic.example', 'novo2@fic.example'],
+      ADMIN_TOKEN,
+      d,
+    );
+
+    expect(res.ok).toBe(true);
+    expect(res.counters).toEqual({ total: 4, invited: 2, alreadyExisting: 2, failed: 0 });
+    expect(d.convites).toEqual(['novo1@fic.example', 'novo2@fic.example']);
+    expect(res.rows.map((r) => [r.email, r.state, r.authUserId])).toEqual([
+      ['ja1@fic.example', 'already_exists', 'auth-ja1'],
+      ['novo1@fic.example', 'invited', 'auth-novo1@fic.example'],
+      ['ja2@fic.example', 'already_exists', 'auth-ja2'],
+      ['novo2@fic.example', 'invited', 'auth-novo2@fic.example'],
+    ]);
+  });
+
+  it('14 — identidades em posições diferentes do mapa são todas reconhecidas', async () => {
+    const existentes: Record<string, string> = {};
+    for (let i = 0; i < 20; i += 1) existentes[`e${i}@fic.example`] = `auth-e${i}`;
+    const d = deps({ existentes });
+
+    const lote = ['e0@fic.example', 'e9@fic.example', 'e19@fic.example', 'novo@fic.example'];
+    const res = await call(lote, ADMIN_TOKEN, d);
+
+    expect(res.counters).toEqual({ total: 4, invited: 1, alreadyExisting: 3, failed: 0 });
+    expect(d.convites).toEqual(['novo@fic.example']);
+  });
+
+  it('15 — reexecução após falha parcial: zero convites novos, lote idempotente', async () => {
+    // 1ª rodada: c@ falha, mas a@ e b@ JÁ receberam identidade no Auth.
+    const primeira = deps({ lancaAoConvidar: ['c@fic.example'] });
+    const r1 = await call(
+      ['a@fic.example', 'b@fic.example', 'c@fic.example'],
+      ADMIN_TOKEN,
+      primeira,
+    );
+    expect(r1.ok).toBe(false);
+
+    // 2ª rodada no estado real deixado pela 1ª — era AQUI que o lote travava:
+    // a@ e b@ existiam no Auth, a consulta dizia "não existe", o convite era
+    // reenviado e o provedor recusava.
+    const segunda = deps({
+      existentes: { 'a@fic.example': 'auth-a@fic.example', 'b@fic.example': 'auth-b@fic.example' },
+    });
+    const r2 = await call(
+      ['a@fic.example', 'b@fic.example', 'c@fic.example'],
+      ADMIN_TOKEN,
+      segunda,
+    );
+
+    expect(r2.ok).toBe(true);
+    expect(r2.counters).toEqual({ total: 3, invited: 1, alreadyExisting: 2, failed: 0 });
+    expect(segunda.convites).toEqual(['c@fic.example']);
+
+    // 3ª rodada: nada mais a fazer.
+    const terceira = deps({
+      existentes: {
+        'a@fic.example': 'auth-a@fic.example',
+        'b@fic.example': 'auth-b@fic.example',
+        'c@fic.example': 'auth-c@fic.example',
+      },
+    });
+    const r3 = await call(
+      ['a@fic.example', 'b@fic.example', 'c@fic.example'],
+      ADMIN_TOKEN,
+      terceira,
+    );
+
+    expect(r3.counters).toEqual({ total: 3, invited: 0, alreadyExisting: 3, failed: 0 });
+    expect(r3.ok).toBe(true);
+    expect(terceira.convites).toEqual([]);
+    // UUIDs preservados entre execuções: o commit SQL pode confiar neles.
+    expect(r3.rows.map((r) => r.authUserId)).toEqual([
+      'auth-a@fic.example',
+      'auth-b@fic.example',
+      'auth-c@fic.example',
+    ]);
+  });
+
+  it('16 — falha ao indexar rejeita a requisição e NÃO envia convite algum', async () => {
+    const d = deps({ lancaAoIndexar: true });
+
+    await expect(call(['a@fic.example', 'b@fic.example'], ADMIN_TOKEN, d)).rejects.toThrow();
+    // Falha fechada: "não consegui consultar" nunca vira "não existe".
+    expect(d.convites).toEqual([]);
+    expect(d.destinos).toEqual([]);
+  });
+
+  it('17 — a resposta não expõe o índice completo nem e-mail fora do lote', async () => {
+    const d = deps({
+      existentes: { 'dentro@fic.example': 'auth-dentro', 'fora@fic.example': 'auth-fora' },
+    });
+    const res = await call(['dentro@fic.example'], ADMIN_TOKEN, d);
+    const serial = JSON.stringify(res);
+
+    expect(serial).not.toContain('fora@fic.example');
+    expect(serial).not.toContain('auth-fora');
+    expect(res.rows).toHaveLength(1);
+    expect(Object.keys(res)).toEqual(['ok', 'counters', 'rows']);
   });
 });
 
