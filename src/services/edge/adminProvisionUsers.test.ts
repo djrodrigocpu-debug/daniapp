@@ -293,6 +293,26 @@ describe('admin-provision-users — sigilo da senha inicial', () => {
     }
   });
 
+  it('`active` ATRAVESSA até a RPC — é a senha que fica para trás', async () => {
+    const d = deps({ pendingAuth: ['nova@sint.test'] });
+    await call([linha({ email: 'nova@sint.test', active: false })], ADMIN_TOKEN, d);
+
+    for (const chamada of d.chamadasImport) {
+      const enviado = chamada.rows as Array<Record<string, unknown>>;
+      expect(enviado[0]).toMatchObject({ email: 'nova@sint.test', active: false });
+      expect(enviado[0]).not.toHaveProperty('initialPassword');
+    }
+  });
+
+  it('`active` ausente na linha não inventa valor: quem decide o default é a RPC', async () => {
+    const d = deps({ pendingAuth: ['nova@sint.test'] });
+    const { active: _fora, ...semActive } = linha({ email: 'nova@sint.test' });
+    await call([semActive], ADMIN_TOKEN, d);
+
+    const enviado = d.chamadasImport[0].rows as Array<Record<string, unknown>>;
+    expect(enviado[0]).not.toHaveProperty('active');
+  });
+
   it('a senha NUNCA aparece na resposta', async () => {
     const d = deps({ pendingAuth: ['nova@sint.test'] });
     const res = await call([linha({ email: 'nova@sint.test' })], ADMIN_TOKEN, d);
