@@ -10,14 +10,21 @@
  * SUPABASE_SERVICE_ROLE_KEY. A service role NUNCA vai para o bundle do app.
  *
  * Contrato:
+ *   OPTIONS                    -> 204 com cabecalhos CORS (preflight)
  *   POST { emails: string[] }  + Authorization: Bearer <token do Administrador>
  *   200  { ok, counters, rows: [{ email, state, authUserId, message? }] }
- *   401/403/400/500 { error }
+ *   401/403/400/405/500 { error }
+ *
+ * TODA resposta carrega CORS. O preflight e respondido ANTES de qualquer
+ * validacao de metodo, leitura de body, checagem de JWT, verificacao de
+ * Administrador ou acesso ao Supabase — era exatamente essa ordem que fazia o
+ * OPTIONS receber 405 sem cabecalho e o navegador bloquear o POST.
  */
 // @ts-nocheck — este arquivo roda em Deno, fora do tsconfig do app.
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { AuthAdminPort, CallerPort, HandlerError, handleInviteUsers } from './handler.ts';
+import { isPreflight, jsonHeaders, preflightResponse } from './cors.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
@@ -70,11 +77,21 @@ const callerPort: CallerPort = {
 };
 
 serve(async (req: Request) => {
+  const origin = req.headers.get('Origin');
+
+  // 1) PREFLIGHT — primeira coisa do handler, sem tocar em nada mais.
+  if (isPreflight(req.method)) {
+    const { status, headers } = preflightResponse(origin);
+    return new Response(null, { status, headers });
+  }
+
+  // 2) Metodo. Agora COM cabecalhos CORS, senao o navegador esconderia o erro.
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Método não suportado.' }), {
-      status: 405, headers: { 'Content-Type': 'application/json' },
+      status: 405, headers: jsonHeaders(origin),
     });
   }
+
   try {
     const authorization = req.headers.get('Authorization') ?? '';
     const accessToken = authorization.toLowerCase().startsWith('bearer ')
@@ -92,14 +109,14 @@ serve(async (req: Request) => {
       },
     );
     return new Response(JSON.stringify(result), {
-      status: 200, headers: { 'Content-Type': 'application/json' },
+      status: 200, headers: jsonHeaders(origin),
     });
   } catch (e) {
     const status = e instanceof HandlerError ? e.status : 500;
     // Só a mensagem controlada sai; stack e detalhe de provedor ficam no servidor.
     const message = e instanceof HandlerError ? e.message : 'Falha interna.';
     return new Response(JSON.stringify({ error: message }), {
-      status, headers: { 'Content-Type': 'application/json' },
+      status, headers: jsonHeaders(origin),
     });
   }
 });
