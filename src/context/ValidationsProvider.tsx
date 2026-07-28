@@ -3,7 +3,7 @@
  * fila por escopo, decisão via ValidationsRepository (Local/Supabase). As travas
  * (autoaprovação/escopo/imutabilidade) vivem no repositório/servidor.
  */
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Evaluation, Operation, User } from '../types';
 import { useRepositories } from '../data/repositories/RepositoryProvider';
 import { scopeFromUser } from '../data/repositories/OperationsRepository';
@@ -11,6 +11,7 @@ import { ValidationDecision } from '../data/repositories/ValidationsRepository';
 import { localStore } from '../data/store/localStore';
 import { useOperationalUser } from './useOperationalUser';
 import { useOperations } from './OperationsProvider';
+import { useDirectory } from './DirectoryProvider';
 
 export type ValidateResult = { ok: true } | { ok: false; message: string };
 
@@ -29,10 +30,11 @@ const ValidationsContext = createContext<ValidationsContextValue | undefined>(un
 export function ValidationsProvider({ children }: { children: React.ReactNode }) {
   const { validations: repo, source } = useRepositories();
   const user = useOperationalUser();
-  const data = useSyncExternalStore(localStore.subscribe, localStore.getSnapshot);
   // Mesma correção do bug "Parceiro não existente": a operação vem da lista
   // REAL já carregada, não do store local de demonstração.
   const { operations } = useOperations();
+  // Avaliador é usuário real: vem do diretório compartilhado, não do seed.
+  const { getUser } = useDirectory();
   const [pending, setPending] = useState<Evaluation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -75,7 +77,6 @@ export function ValidationsProvider({ children }: { children: React.ReactNode })
   );
 
   const getOperation = useCallback((id: string) => operations.find((o) => o.id === id), [operations]);
-  const getUser = useCallback((id: string) => data.users.find((u) => u.id === id), [data.users]);
 
   const value = useMemo<ValidationsContextValue>(
     () => ({ pending, loading, error, refresh: () => void load(), validate, getOperation, getUser }),

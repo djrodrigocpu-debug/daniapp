@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { AuthProvider } from './src/context/AuthProvider';
 import { RepositoryProvider } from './src/data/repositories/RepositoryProvider';
 import { OperationsProvider } from './src/context/OperationsProvider';
+import { DirectoryProvider } from './src/context/DirectoryProvider';
 import { EvaluationsProvider } from './src/context/EvaluationsProvider';
 import { ActionsProvider } from './src/context/ActionsProvider';
 import { ValidationsProvider } from './src/context/ValidationsProvider';
@@ -26,15 +27,19 @@ export default function App() {
             <RepositoryProvider>
               <SyncProvider>
                 <OperationsProvider>
-                  <EvaluationsProvider>
-                    <ActionsProvider>
-                      <ValidationsProvider>
-                        <AdminProvider>
-                          <AppNavigator />
-                        </AdminProvider>
-                      </ValidationsProvider>
-                    </ActionsProvider>
-                  </EvaluationsProvider>
+                  {/* DirectoryProvider ANTES de Evaluations/Validations: os
+                      dois resolvem usuário real por UUID a partir dele. */}
+                  <DirectoryProvider>
+                    <EvaluationsProvider>
+                      <ActionsProvider>
+                        <ValidationsProvider>
+                          <AdminProvider>
+                            <AppNavigator />
+                          </AdminProvider>
+                        </ValidationsProvider>
+                      </ActionsProvider>
+                    </EvaluationsProvider>
+                  </DirectoryProvider>
                 </OperationsProvider>
               </SyncProvider>
             </RepositoryProvider>
