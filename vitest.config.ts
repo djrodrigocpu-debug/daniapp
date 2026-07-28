@@ -21,7 +21,11 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    // `scripts/` entra porque o preflight de build é JS puro de Node, executado
+    // antes do `expo export` — fora de `src/`, mas com lógica que precisa de
+    // teste: é ele que impede um build sem configuração virar deploy silencioso
+    // em modo demonstração.
+    include: ['src/**/*.test.ts', 'scripts/**/*.test.mjs'],
     exclude: ['node_modules/**', 'dist/**', '.expo/**'],
     globals: false,
     reporters: ['default'],
