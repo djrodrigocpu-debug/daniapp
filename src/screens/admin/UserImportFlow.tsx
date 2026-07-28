@@ -14,7 +14,9 @@ import { useAdmin } from '../../context/AdminProvider';
 import { colors, radius, spacing } from '../../theme';
 import { parseWorkbookGrid, XlsxParseError } from '../../domain/partners/xlsx';
 import { parseUsersSheet } from '../../domain/users/parseUsersSheet';
-import { UserImportReport, UserImportReportRow, UserImportRow, UserIssue } from '../../domain/users/types';
+import {
+  UserImportReport, UserImportReportRow, UserImportRow, UserImportRowStatus, UserIssue,
+} from '../../domain/users/types';
 import { readDocumentBytes } from '../../utils/readDocumentBytes';
 import { roleLabel } from '../../utils/format';
 
@@ -64,7 +66,9 @@ export function UserImportFlow({ visible, onClose }: Props) {
     setFileName(asset.name);
     try {
       const bytes = await readDocumentBytes(asset);
-      const parsed = parseUsersSheet(parseWorkbookGrid(bytes));
+      // A planilha da carga tem quatro abas e a de instruções vem primeiro:
+      // sem nomear a aba, o leitor traria a LEIA-ME e nada seria reconhecido.
+      const parsed = parseUsersSheet(parseWorkbookGrid(bytes, 'Usuarios_Importacao'));
       setRows(parsed.rows);
       setIssues(parsed.issues);
       setUnit(parsed.layout === 'tabular' ? 'linha' : 'coluna');
@@ -219,10 +223,10 @@ function ReportView({ report }: { report: UserImportReport }) {
         <Counter label="Erros" value={counters.errors} color={colors.danger} />
       </View>
 
-      {coordinationsWithoutCoordinator.length > 0 && (
+      {(coordinationsWithoutCoordinator ?? []).length > 0 && (
         <View style={styles.warnBox}>
           <Text style={styles.warnTitle}>Áreas sem coordenador ativo</Text>
-          {coordinationsWithoutCoordinator.map((c) => (
+          {(coordinationsWithoutCoordinator ?? []).map((c) => (
             <Text key={c} style={styles.warnItem}>{c}</Text>
           ))}
           <Text style={styles.warnItem}>
@@ -249,10 +253,22 @@ const ROW_STYLE = {
   ok: { border: '#A9D8B8', bg: colors.successSoft, label: 'Novo' },
   duplicate: { border: '#EBD3A8', bg: colors.warningSoft, label: 'Já existe · atualiza' },
   error: { border: '#F1B6B6', bg: colors.dangerSoft, label: 'Erro · não importa' },
-} as const;
+  // Estado do caminho remoto: e-mail ainda sem identidade no Auth. É o estado
+  // NORMAL de toda linha de uma carga inicial — a identidade nasce na
+  // confirmação, que delega ao provisionamento. Sem esta entrada, a tela
+  // quebrava inteira ao simular a primeira carga.
+  pending_auth: { border: '#BFD4EE', bg: colors.infoSoft, label: 'Novo · cria acesso' },
+  // `satisfies` obriga o mapa a cobrir TODOS os status: se o contrato ganhar um
+  // estado novo, o typecheck acusa aqui em vez de a tela quebrar no operador.
+} as const satisfies Record<UserImportRowStatus, { border: string; bg: string; label: string }>;
+
+/** Estilo neutro para status que o servidor venha a introduzir. */
+const ROW_STYLE_DESCONHECIDO = { border: colors.border, bg: colors.surface, label: 'Verificar' };
 
 function ReportRow({ row }: { row: UserImportReportRow }) {
-  const s = ROW_STYLE[row.status];
+  // Nunca indexar direto: um status novo no servidor derrubaria o relatório
+  // inteiro em vez de apenas exibir um rótulo genérico.
+  const s = ROW_STYLE[row.status] ?? ROW_STYLE_DESCONHECIDO;
   return (
     <View style={[styles.reportRow, { borderColor: s.border, backgroundColor: s.bg }]}>
       <View style={styles.reportRowHeader}>
@@ -260,8 +276,8 @@ function ReportRow({ row }: { row: UserImportReportRow }) {
         <Text style={styles.reportRowStatus}>{s.label}</Text>
       </View>
       <Text style={styles.reportRowMeta}>{row.email} · {roleLabel[row.role]}</Text>
-      {row.messages.map((m, i) => <Text key={i} style={styles.reportRowError}>{m}</Text>)}
-      {row.warnings.map((w, i) => <Text key={`w${i}`} style={styles.reportRowWarn}>{w}</Text>)}
+      {(row.messages ?? []).map((m, i) => <Text key={i} style={styles.reportRowError}>{m}</Text>)}
+      {(row.warnings ?? []).map((w, i) => <Text key={`w${i}`} style={styles.reportRowWarn}>{w}</Text>)}
     </View>
   );
 }

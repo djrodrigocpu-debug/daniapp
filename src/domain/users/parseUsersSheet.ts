@@ -6,10 +6,13 @@
  * de Parceiros AACE (src/domain/sheets/reader.ts), incluindo a recusa estrita
  * de planilha com rótulo desconhecido (E9).
  *
- * O "Perfil" da planilha é texto humano ("Gerência Regional", "Coordenação",
- * "Gerente de Canal", "Administrador") e é traduzido para UserRole por lista
- * fechada: perfil não reconhecido vira erro da linha, nunca um papel default —
- * atribuir papel errado é falha de autorização, não de digitação.
+ * O "Perfil" é traduzido para UserRole por lista fechada: perfil não
+ * reconhecido vira erro da linha, nunca um papel default — atribuir papel
+ * errado é falha de autorização, não de digitação. A lista aceita tanto o texto
+ * humano das planilhas antigas ("Gerência Regional", "Coordenação", "Gerente de
+ * Canal", "Administrador") quanto os códigos canônicos da coluna "Perfil
+ * Sistema" da planilha definitiva (`admin`, `regional`, `coordinator`,
+ * `channel_manager`) — é essa coluna que vale quando as duas existem.
  */
 import { UserRole } from '../../types';
 import { collapseSpaces, isValidEmail, labelKey, normalizeEmail } from '../partners/normalize';
@@ -44,8 +47,26 @@ const FIELDS: SheetFieldSpec<Field>[] = [
 const TRUE_LABELS = ['sim', 's', 'true', 'ativo', '1', 'x'];
 const FALSE_LABELS = ['nao', 'n', 'false', 'inativo', '0'];
 
+/**
+ * Colunas conhecidas que NÃO são lidas.
+ *
+ * A planilha definitiva do canal traz o perfil DUAS vezes: "Perfil Original"
+ * (texto humano) e "Perfil Sistema" (código canônico). É a Sistema que vale —
+ * ler a Original obrigaria a traduzir texto livre de novo, com risco de
+ * atribuir papel errado. Como ambas começam por "perfil", sem esta lista as
+ * duas disputariam o mesmo campo e a planilha seria recusada por rótulo
+ * duplicado. "Troca Obrigatória" e "Linha Fonte" são marcações de controle da
+ * própria planilha: conhecidas e irrelevantes para a importação.
+ */
+const IGNORED_LABEL_PREFIXES = ['perfil original', 'troca obrigatoria', 'linha fonte'];
+
 /** Rótulos de perfil aceitos, do mais específico para o mais genérico. */
 const ROLE_PREFIXES: Array<{ prefix: string; role: UserRole }> = [
+  // Códigos canônicos da coluna "Perfil Sistema". `labelKey` remove o
+  // underscore sem criar separador, então 'channel_manager' vira
+  // 'channelmanager'.
+  { prefix: 'channelmanager', role: 'channel_manager' },
+  { prefix: 'coordinator', role: 'coordinator' },
   { prefix: 'administrador', role: 'admin' },
   { prefix: 'admin', role: 'admin' },
   { prefix: 'gerencia regional', role: 'regional' },
@@ -72,6 +93,7 @@ export function parseUsersSheet(grid: string[][]): UserParseResult {
   const { layout, reader, issues: readIssues } = readSheet(grid, FIELDS, {
     maxRecords: MAX_USER_IMPORT_ROWS,
     unknownLabelHint: 'A planilha de Usuários não está no formato esperado:',
+    ignoredPrefixes: IGNORED_LABEL_PREFIXES,
   });
   if (reader === null) return { rows: [], issues: readIssues, layout };
 

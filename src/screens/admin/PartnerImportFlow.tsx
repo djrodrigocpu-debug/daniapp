@@ -67,7 +67,8 @@ export function PartnerImportFlow({ visible, onClose }: Props) {
     setFileName(asset.name);
     try {
       const bytes = await readDocumentBytes(asset);
-      const parsed = parsePartnersSheet(parseWorkbookGrid(bytes));
+      // Mesma razão do importador de usuários: a aba de dados não é a primeira.
+      const parsed = parsePartnersSheet(parseWorkbookGrid(bytes, 'Parceiros_Importacao'));
       setRows(parsed.rows);
       setIssues(parsed.issues);
       setWarnings(parsed.warnings);

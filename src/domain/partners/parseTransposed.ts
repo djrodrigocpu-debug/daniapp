@@ -78,7 +78,28 @@ const FIELDS: FieldSpec[] = [
     kind: 'email',
     required: true,
   },
+  // Origem do parceiro (0016). O servidor normaliza o DDD e recusa o que não
+  // tiver dois dígitos; aqui só transportamos o texto da planilha.
+  {
+    field: 'sourceCode',
+    prefixes: ['codigo fonte', 'codigo de origem', 'codigo do parceiro'],
+    label: 'Código Fonte',
+    kind: 'text',
+    required: false,
+  },
+  { field: 'ddd', prefixes: ['ddd'], label: 'DDD', kind: 'text', required: false },
 ];
+
+/**
+ * Colunas conhecidas que NÃO são lidas.
+ *
+ * "Ativo" não existe no contrato de importação: `import_partners_core` grava
+ * `active = true` na inserção e a desativação é ato administrativo posterior.
+ * "E-mail Gerente Regional" é contato adicional — o vínculo do parceiro é com
+ * Coordenador e GC, e um prefixo mais curto aqui engoliria "E-mail Gerente de
+ * Canal", que é obrigatório. "Linha Fonte" é controle da própria planilha.
+ */
+const IGNORED_LABEL_PREFIXES = ['ativo', 'email gerente regional', 'linha fonte'];
 
 /** Campos textuais que precisam de valor em cada registro. */
 const TEXT_REQUIRED: Field[] = ['unitName', 'coordinationName', 'partnerName', 'officeName', 'city'];
@@ -100,6 +121,7 @@ export function parsePartnersSheet(grid: string[][]): ParseResult {
   const { layout, reader, issues: readIssues } = readSheet(grid, FIELDS, {
     maxRecords: MAX_IMPORT_ROWS,
     unknownLabelHint: 'A planilha de Parceiros AACE não está no formato esperado:',
+    ignoredPrefixes: IGNORED_LABEL_PREFIXES,
   });
   if (reader === null) return { rows: [], issues: readIssues, warnings: [], layout };
 

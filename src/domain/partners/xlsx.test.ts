@@ -116,3 +116,67 @@ describe('parseWorkbookGrid', () => {
     expect(() => parseWorkbookGrid(buildXlsx(sheet))).toThrow(/vazia/);
   });
 });
+
+/**
+ * Seleção de aba por nome.
+ *
+ * A planilha definitiva da carga tem quatro abas com a de instruções PRIMEIRO.
+ * Lendo cegamente a primeira, o importador carregava a LEIA-ME e concluía que o
+ * arquivo não tinha rótulo conhecido algum — dados corretos, mas inalcançáveis.
+ */
+describe('parseWorkbookGrid — escolha da aba pelo nome', () => {
+  const WB_MULTI = `<?xml version="1.0" encoding="UTF-8"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets>
+    <sheet name="LEIA-ME" sheetId="1" r:id="rId1"/>
+    <sheet name="Usuarios_Importacao" sheetId="2" r:id="rId2"/>
+    <sheet name="Parceiros_Importacao" sheetId="3" r:id="rId3"/>
+  </sheets>
+</workbook>`;
+
+  const RELS_MULTI = `<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="w" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="w" Target="worksheets/sheet2.xml"/>
+  <Relationship Id="rId3" Type="w" Target="worksheets/sheet3.xml"/>
+</Relationships>`;
+
+  const aba = (texto: string) => `<?xml version="1.0" encoding="UTF-8"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>${texto}</t></is></c></row></sheetData>
+</worksheet>`;
+
+  const multi = (): Uint8Array => zipSync({
+    'xl/workbook.xml': strToU8(WB_MULTI),
+    'xl/_rels/workbook.xml.rels': strToU8(RELS_MULTI),
+    'xl/worksheets/sheet1.xml': strToU8(aba('INSTRUCOES')),
+    'xl/worksheets/sheet2.xml': strToU8(aba('USUARIOS')),
+    'xl/worksheets/sheet3.xml': strToU8(aba('PARCEIROS')),
+  });
+
+  it('sem nome, lê a primeira aba — comportamento histórico preservado', () => {
+    expect(parseWorkbookGrid(multi())[0][0]).toBe('INSTRUCOES');
+  });
+
+  it('com nome, pula a aba de instruções e lê a de dados', () => {
+    expect(parseWorkbookGrid(multi(), 'Usuarios_Importacao')[0][0]).toBe('USUARIOS');
+    expect(parseWorkbookGrid(multi(), 'Parceiros_Importacao')[0][0]).toBe('PARCEIROS');
+  });
+
+  it('a comparação ignora caixa, acento e separador', () => {
+    expect(parseWorkbookGrid(multi(), 'usuários importação')[0][0]).toBe('USUARIOS');
+    expect(parseWorkbookGrid(multi(), 'USUARIOS-IMPORTACAO')[0][0]).toBe('USUARIOS');
+  });
+
+  it('nome inexistente cai na primeira aba em vez de falhar', () => {
+    expect(parseWorkbookGrid(multi(), 'Aba_Que_Nao_Existe')[0][0]).toBe('INSTRUCOES');
+  });
+
+  it('workbook de aba única segue funcionando com nome pedido', () => {
+    const sheet = `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+      <sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>UNICA</t></is></c></row></sheetData>
+    </worksheet>`;
+    expect(parseWorkbookGrid(buildXlsx(sheet), 'Usuarios_Importacao')[0][0]).toBe('UNICA');
+  });
+});

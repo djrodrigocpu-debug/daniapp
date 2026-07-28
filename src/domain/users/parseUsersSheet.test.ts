@@ -19,6 +19,90 @@ const BASE_ROWS = [
 /** Cópia profunda: os testes mutam a grade, e HEADER/BASE_ROWS são compartilhados. */
 const tabular = (rows = BASE_ROWS) => [[...HEADER], ...rows.map((r) => [...r])];
 
+/**
+ * Topologia REAL da planilha definitiva: nove colunas, com o perfil DUAS vezes
+ * (texto humano + código canônico) e duas colunas de controle. Valores 100%
+ * sintéticos — só a forma é copiada.
+ */
+const HEADER_DEFINITIVA = [
+  'Nome', 'E-mail', 'Área de Atuação', 'Perfil Original', 'Perfil Sistema',
+  'Senha Temporária', 'Ativo', 'Troca Obrigatória', 'Linha Fonte',
+];
+
+const ROWS_DEFINITIVA = [
+  ['Ana Sintetica',   'Ana.Sintetica@sint.example',   'RPS',         'Gerência Regional', 'regional',        'SenhaSint123', 'Sim', 'Sim', '2'],
+  ['Bruno Sintetico', 'bruno.sintetico@sint.example', 'RPS',         'Administrador',     'admin',           'SenhaSint456', 'Sim', 'Sim', '3'],
+  ['Carla Sintetica', 'carla.sintetica@sint.example', 'COORD NORTE', 'Coordenação',       'coordinator',     'SenhaSint789', 'Sim', 'Sim', '4'],
+  ['Diego Sintetico', 'diego.sintetico@sint.example', 'COORD NORTE', 'Gerente de Canal',  'channel_manager', 'SenhaSint321', 'Sim', 'Sim', '5'],
+];
+
+describe('parseUsersSheet — planilha definitiva do canal (nove colunas)', () => {
+  const grade = () => [[...HEADER_DEFINITIVA], ...ROWS_DEFINITIVA.map((r) => [...r])];
+
+  it('lê as 4 linhas sem recusar as colunas de controle', () => {
+    const { rows, issues } = parseUsersSheet(grade());
+    expect(issues).toEqual([]);
+    expect(rows).toHaveLength(4);
+  });
+
+  it('usa "Perfil Sistema" (código canônico), não "Perfil Original"', () => {
+    const { rows } = parseUsersSheet(grade());
+    expect(rows.map((r) => r.role)).toEqual(['regional', 'admin', 'coordinator', 'channel_manager']);
+  });
+
+  it('"Perfil Original" divergente NÃO altera o papel — quem manda é a coluna Sistema', () => {
+    const g = grade();
+    g[1][3] = 'Administrador';  // texto humano contradiz o código
+    g[1][4] = 'channel_manager';
+    const { rows, issues } = parseUsersSheet(g);
+    expect(issues).toEqual([]);
+    expect(rows[0].role).toBe('channel_manager');
+  });
+
+  it('lê senha temporária e ativo das colunas da planilha definitiva', () => {
+    const { rows } = parseUsersSheet(grade());
+    expect(rows[0].initialPassword).toBe('SenhaSint123');
+    expect(rows.every((r) => r.active === true)).toBe(true);
+  });
+
+  it('uma coluna realmente desconhecida continua sendo recusada', () => {
+    const g = grade();
+    g[0][8] = 'Coluna Que Ninguem Conhece';
+    const { rows, issues } = parseUsersSheet(g);
+    expect(rows).toHaveLength(0);
+    expect(issues.some((i) => /Rótulo desconhecido/.test(i.message))).toBe(true);
+  });
+
+  it('aceita a mesma planilha definitiva transposta', () => {
+    const g = HEADER_DEFINITIVA.map((label, i) => [label, ...ROWS_DEFINITIVA.map((r) => r[i] ?? '')]);
+    const { rows, issues, layout } = parseUsersSheet(g);
+    expect(issues).toEqual([]);
+    expect(layout).toBe('transposed');
+    expect(rows.map((r) => r.role)).toEqual(['regional', 'admin', 'coordinator', 'channel_manager']);
+  });
+});
+
+describe('parseUserRole — códigos canônicos além do texto humano', () => {
+  it('traduz os quatro códigos da coluna Perfil Sistema', () => {
+    expect(parseUserRole('admin')).toBe('admin');
+    expect(parseUserRole('regional')).toBe('regional');
+    expect(parseUserRole('coordinator')).toBe('coordinator');
+    expect(parseUserRole('channel_manager')).toBe('channel_manager');
+  });
+
+  it('mantém o texto humano das planilhas antigas', () => {
+    expect(parseUserRole('Administrador')).toBe('admin');
+    expect(parseUserRole('Gerência Regional')).toBe('regional');
+    expect(parseUserRole('Coordenação')).toBe('coordinator');
+    expect(parseUserRole('Gerente de Canal')).toBe('channel_manager');
+  });
+
+  it('continua recusando perfil desconhecido em vez de assumir default', () => {
+    expect(parseUserRole('Diretor')).toBeNull();
+    expect(parseUserRole('')).toBeNull();
+  });
+});
+
 describe('parseUsersSheet — formato tabular do canal', () => {
   it('lê os registros e normaliza nome, e-mail e perfil', () => {
     const { rows, issues, layout } = parseUsersSheet(tabular());

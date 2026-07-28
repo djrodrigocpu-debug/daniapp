@@ -7,6 +7,58 @@ import { describe, it, expect } from 'vitest';
 import { parsePartnersSheet } from './parseTransposed';
 import { MAX_IMPORT_ROWS } from './types';
 
+/**
+ * Topologia REAL da planilha definitiva (aba tabular, dezesseis colunas):
+ * origem do parceiro (Código Fonte, DDD) ao lado de colunas de controle que o
+ * importador não consome. Valores sintéticos — só a forma é copiada.
+ */
+const CABECALHO_DEFINITIVA = [
+  'Organização', 'Região', 'Unidade', 'Coordenação', 'Nome do parceiro',
+  'CNPJ', 'Nome do escritório', 'Cidade', 'Estado', 'E-mail do Coordenador',
+  'E-mail do GC', 'Ativo', 'Código Fonte', 'DDD', 'E-mail Gerente Regional', 'Linha Fonte',
+];
+
+const LINHA_DEFINITIVA = [
+  'ORG SINTETICA', 'REGIAO SINTETICA', 'UNIDADE SINTETICA', 'PR CAPITAL', 'ALFA SINTETICA LTDA',
+  '', 'PS - ALFA - 0001', '0', 'PR', 'coord.sint@sint.example',
+  'gc.sint@sint.example', '1', 'FONTE0001', '41', 'regional.sint@sint.example', '2',
+];
+
+describe('parsePartnersSheet — planilha definitiva (dezesseis colunas)', () => {
+  const grade = () => [[...CABECALHO_DEFINITIVA], [...LINHA_DEFINITIVA]];
+
+  it('lê o registro sem recusar as colunas de controle', () => {
+    const { rows, issues } = parsePartnersSheet(grade());
+    expect(issues).toEqual([]);
+    expect(rows).toHaveLength(1);
+  });
+
+  it('transporta Código Fonte e DDD — a origem do parceiro não se perde', () => {
+    const { rows } = parsePartnersSheet(grade());
+    expect(rows[0].sourceCode).toBe('FONTE0001');
+    expect(rows[0].ddd).toBe('41');
+  });
+
+  it('CNPJ vazio continua ausente, nunca preenchido com valor artificial', () => {
+    const { rows } = parsePartnersSheet(grade());
+    expect(rows[0].cnpj).toBeUndefined();
+  });
+
+  it('"E-mail Gerente Regional" é ignorado sem engolir o E-mail do GC', () => {
+    const { rows } = parsePartnersSheet(grade());
+    expect(rows[0].managerEmail).toBe('gc.sint@sint.example');
+    expect(rows[0].coordinatorEmail).toBe('coord.sint@sint.example');
+  });
+
+  it('coluna realmente desconhecida continua sendo recusada', () => {
+    const g = grade();
+    g[0][15] = 'Coluna Que Ninguem Conhece';
+    const { rows, issues } = parsePartnersSheet(g);
+    expect(rows).toHaveLength(0);
+    expect(issues.some((i) => /Rótulo desconhecido/.test(i.message))).toBe(true);
+  });
+});
+
 const LABELS = [
   'Organização:',
   'Região:',

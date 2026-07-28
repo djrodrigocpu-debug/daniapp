@@ -63,6 +63,14 @@ function specForLabel<F extends string>(specs: SheetFieldSpec<F>[], label: strin
   return specs.find((spec) => spec.prefixes.some((prefix) => key.startsWith(prefix)));
 }
 
+/** Rótulo casa algum prefixo já normalizado com labelKey. */
+function matchesPrefix(prefixes: string[] | undefined, label: string): boolean {
+  if (!prefixes || prefixes.length === 0) return false;
+  const key = labelKey(label);
+  if (key === '') return false;
+  return prefixes.some((prefix) => key.startsWith(prefix));
+}
+
 function countLabels<F extends string>(specs: SheetFieldSpec<F>[], cells: string[]): number {
   const seen = new Set<F>();
   for (const cell of cells) {
@@ -86,7 +94,7 @@ export function detectSheetLayout<F extends string>(grid: string[][], specs: She
 export function readSheet<F extends string>(
   grid: string[][],
   specs: SheetFieldSpec<F>[],
-  options: { maxRecords: number; unknownLabelHint: string },
+  options: { maxRecords: number; unknownLabelHint: string; ignoredPrefixes?: string[] },
 ): ReadSheetResult<F> {
   const layout = detectSheetLayout(grid, specs);
   if (layout === null) {
@@ -122,6 +130,14 @@ export function readSheet<F extends string>(
       if (collapseSpaces(cellAt(i, r) ?? '') !== '') hasData = true;
     }
     if (collapseSpaces(label) === '' && !hasData) continue;
+
+    // Coluna RECONHECIDA mas deliberadamente não lida. A recusa estrita (E9)
+    // existe para não adivinhar planilha estranha, mas a planilha real do canal
+    // traz colunas auxiliares — perfil em texto humano ao lado do código
+    // canônico, marcações de controle — que não são desconhecidas: são
+    // conhecidas e irrelevantes. Sem esta lista, ou a importação inteira é
+    // recusada, ou duas colunas disputam o mesmo campo.
+    if (matchesPrefix(options.ignoredPrefixes, label)) continue;
 
     const spec = specForLabel(specs, label);
     if (!spec) {

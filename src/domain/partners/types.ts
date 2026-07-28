@@ -42,6 +42,15 @@ export interface ImportRow {
   officeName: string;
   city: string;
   state: 'PR' | 'SC';
+  /**
+   * Código de origem do parceiro na planilha do canal e DDD do escritório.
+   * `import_partners_core` (0016) já grava os dois em `operations.source_code`
+   * e `operations.ddd`, normalizando o DDD e recusando o que não tiver dois
+   * dígitos — o cliente só precisa transportá-los. Opcionais: planilha antiga,
+   * sem essas colunas, continua válida.
+   */
+  sourceCode?: string;
+  ddd?: string;
   /** Ausente ⇒ o repositório resolve o coordenador pela coordenação. */
   coordinatorEmail?: string;
   managerEmail: string;

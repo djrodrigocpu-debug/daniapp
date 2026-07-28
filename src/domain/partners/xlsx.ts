@@ -73,34 +73,80 @@ function parseSharedStrings(xml: string | undefined): string[] {
   return out;
 }
 
-function firstSheetPath(files: Record<string, Uint8Array>): string {
+/** Resolve `<sheet>` → r:id → rels → caminho real da worksheet no pacote. */
+function sheetPathFromTag(files: Record<string, Uint8Array>, sheetTag: string): string | undefined {
+  const rid = /r:id="([^"]+)"/.exec(sheetTag)?.[1];
+  const relsFile = files['xl/_rels/workbook.xml.rels'];
+  if (!rid || !relsFile) return undefined;
+  const relsXml = decoder.decode(relsFile);
+  const rel = new RegExp(`<Relationship\\b[^>]*Id="${rid}"[^>]*>`).exec(relsXml)?.[0];
+  const target = rel ? /Target="([^"]+)"/.exec(rel)?.[1] : undefined;
+  if (!target) return undefined;
+  const path = target.startsWith('/') ? target.slice(1) : `xl/${target.replace(/^\.\//, '')}`;
+  return files[path] ? path : undefined;
+}
+
+/**
+ * Caminho da worksheet a ler.
+ *
+ * POR QUE ACEITAR UM NOME: a planilha definitiva da carga tem QUATRO abas
+ * (LEIA-ME, Usuarios_Importacao, Parceiros_Importacao, Pendencias) e a de
+ * instruções vem PRIMEIRO. Lendo cegamente a primeira aba, o importador
+ * carregava a LEIA-ME e concluía que o arquivo não tinha rótulo conhecido
+ * algum — os dados estavam certos e intactos, mas inalcançáveis. Quem sabe qual
+ * aba quer é a tela que chama, então o nome vem de fora.
+ *
+ * O nome é comparado sem diferenciar caixa, acento ou espaço/underscore, para
+ * que "Usuarios_Importacao" case com "Usuários Importação" — variação comum
+ * entre versões da planilha. Sem correspondência, o comportamento anterior é
+ * preservado: primeira aba.
+ */
+function normalizeSheetName(value: string): string {
+  return value
+    .normalize('NFD')
+    // Marcas de combinação (acentos). A classe é montada a partir de uma string
+    // com escapes \u para não depender da codificação deste arquivo.
+    .replace(new RegExp('[\\u0300-\\u036f]', 'g'), '')
+    .replace(/[\s_-]+/g, '')
+    .toLowerCase();
+}
+
+function worksheetPath(files: Record<string, Uint8Array>, preferredName?: string): string {
   const workbook = files['xl/workbook.xml'];
   if (!workbook) throw new XlsxParseError('Arquivo não é um .xlsx válido: workbook ausente');
   const wbXml = decoder.decode(workbook);
-  const sheet = new RegExp(`<${NS}sheet\\b[^>]*>`).exec(wbXml)?.[0];
-  if (!sheet) throw new XlsxParseError('Workbook não contém nenhuma aba');
+  const sheetTags = wbXml.match(new RegExp(`<${NS}sheet\\b[^>]*>`, 'g')) ?? [];
+  const primeiraAba = sheetTags[0];
+  if (!primeiraAba) throw new XlsxParseError('Workbook não contém nenhuma aba');
 
-  const rid = /r:id="([^"]+)"/.exec(sheet)?.[1];
-  const relsFile = files['xl/_rels/workbook.xml.rels'];
-  if (rid && relsFile) {
-    const relsXml = decoder.decode(relsFile);
-    const rel = new RegExp(`<Relationship\\b[^>]*Id="${rid}"[^>]*>`).exec(relsXml)?.[0];
-    const target = rel ? /Target="([^"]+)"/.exec(rel)?.[1] : undefined;
-    if (target) {
-      const path = target.startsWith('/') ? target.slice(1) : `xl/${target.replace(/^\.\//, '')}`;
-      if (files[path]) return path;
+  if (preferredName) {
+    const alvo = normalizeSheetName(preferredName);
+    const encontrada = sheetTags.find((tag) => {
+      const nome = /name="([^"]+)"/.exec(tag)?.[1];
+      return nome !== undefined && normalizeSheetName(decodeXmlEntities(nome)) === alvo;
+    });
+    if (encontrada) {
+      const path = sheetPathFromTag(files, encontrada);
+      if (path) return path;
     }
   }
+
+  const path = sheetPathFromTag(files, primeiraAba);
+  if (path) return path;
   if (files['xl/worksheets/sheet1.xml']) return 'xl/worksheets/sheet1.xml';
   throw new XlsxParseError('Planilha da primeira aba não encontrada no arquivo');
 }
 
 /**
- * Extrai a primeira aba como grade de strings (grid[linha][coluna], 0-based).
+ * Extrai uma aba como grade de strings (grid[linha][coluna], 0-based).
  * Células vazias/ausentes viram ''. Lança XlsxParseError para qualquer
  * estrutura incompatível com um .xlsx real.
+ *
+ * `sheetName` escolhe a aba pelo nome (sem diferenciar caixa, acento ou
+ * separador); ausente ou sem correspondência, lê a primeira — o comportamento
+ * histórico, preservado para qualquer chamador que não precise escolher.
  */
-export function parseWorkbookGrid(bytes: Uint8Array): string[][] {
+export function parseWorkbookGrid(bytes: Uint8Array, sheetName?: string): string[][] {
   if (!bytes || bytes.length === 0) {
     throw new XlsxParseError('Arquivo vazio');
   }
@@ -111,7 +157,7 @@ export function parseWorkbookGrid(bytes: Uint8Array): string[][] {
     throw new XlsxParseError('Arquivo não é um .xlsx válido (zip corrompido ou formato desconhecido)');
   }
 
-  const sheetXml = decoder.decode(files[firstSheetPath(files)]);
+  const sheetXml = decoder.decode(files[worksheetPath(files, sheetName)]);
   const shared = parseSharedStrings(
     files['xl/sharedStrings.xml'] ? decoder.decode(files['xl/sharedStrings.xml']) : undefined,
   );
@@ -148,7 +194,9 @@ export function parseWorkbookGrid(bytes: Uint8Array): string[][] {
   }
 
   if (grid.length === 0 || maxCols === 0) {
-    throw new XlsxParseError('A primeira aba da planilha está vazia');
+    throw new XlsxParseError(
+      sheetName ? `A aba "${sheetName}" da planilha está vazia` : 'A primeira aba da planilha está vazia',
+    );
   }
 
   // Grade retangular: preenche buracos com ''.
