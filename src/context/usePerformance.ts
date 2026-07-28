@@ -10,6 +10,7 @@ import { VisitReportInput } from '../data/repositories/PerformanceRepository';
 import { ActionPlanInput } from '../data/repositories/EvaluationsRepository';
 import { localStore } from '../data/store/localStore';
 import { useOperationalUser } from './useOperationalUser';
+import { useOperations } from './OperationsProvider';
 
 export interface PerformanceApi {
   getOperation: (id: string) => Operation | undefined;
@@ -26,9 +27,14 @@ export function usePerformance(): PerformanceApi {
   const { performance: perfRepo, evaluations: evalRepo } = useRepositories();
   const user = useOperationalUser();
   const data = useSyncExternalStore(localStore.subscribe, localStore.getSnapshot);
+  // Mesma correção do bug "Parceiro não existente": a operação vem da lista
+  // REAL já carregada, não do store local de demonstração — era por isto que
+  // "Abrir Gestão Assistida" mostrava "Parceiro AACE não encontrado" para
+  // qualquer parceiro real.
+  const { operations } = useOperations();
 
   return {
-    getOperation: (id) => data.operations.find((o) => o.id === id),
+    getOperation: (id) => operations.find((o) => o.id === id),
     indicatorResults: (operationId) => data.indicatorResults.filter((r) => r.operationId === operationId),
     indicatorDefinitions: data.indicatorDefinitions,
     actionPlans: (operationId) => data.actionPlans.filter((p) => p.operationId === operationId),

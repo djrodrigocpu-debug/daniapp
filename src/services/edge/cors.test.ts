@@ -17,7 +17,7 @@ import {
   isPreflight,
   jsonHeaders,
   preflightResponse,
-} from '../../../supabase/functions/admin-invite-users/cors';
+} from '../../../supabase/functions/_shared/cors';
 
 const ORIGIN = 'http://localhost:8081';
 

@@ -33,10 +33,23 @@ function decodeXmlEntities(value: string): string {
     .replace(/&amp;/g, '&');
 }
 
+/**
+ * Prefixo de namespace opcional ("x:", "ns0:", ...) antes do nome da tag.
+ *
+ * Algumas ferramentas exportam OOXML com TODO elemento prefixado por um
+ * namespace explícito (`<x:worksheet>`, `<x:c>`, `<x:v>`...) em vez do
+ * namespace padrão sem prefixo que os exemplos da especificação usam. Um
+ * `.xlsx` assim é válido — só o rótulo do elemento muda — mas cada regex
+ * abaixo procurava a tag exata sem prefixo, então via zero abas e zero
+ * células nesses arquivos. `\b` depois do nome continua garantindo que
+ * "col", "cols" etc. não sejam confundidos com "c".
+ */
+const NS = '(?:[A-Za-z0-9.]+:)?';
+
 /** Concatena todos os <t>…</t> de um trecho (cobre rich runs <r><t>). */
 function extractText(xml: string): string {
   let out = '';
-  const re = /<t(?:\s[^>]*)?>([\s\S]*?)<\/t>|<t(?:\s[^>]*)?\/>/g;
+  const re = new RegExp(`<${NS}t(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${NS}t>|<${NS}t(?:\\s[^>]*)?\\/>`, 'g');
   let m: RegExpExecArray | null;
   while ((m = re.exec(xml)) !== null) {
     out += m[1] !== undefined ? decodeXmlEntities(m[1]) : '';
@@ -54,7 +67,7 @@ function columnIndex(letters: string): number {
 function parseSharedStrings(xml: string | undefined): string[] {
   if (!xml) return [];
   const out: string[] = [];
-  const re = /<si>([\s\S]*?)<\/si>/g;
+  const re = new RegExp(`<${NS}si>([\\s\\S]*?)<\\/${NS}si>`, 'g');
   let m: RegExpExecArray | null;
   while ((m = re.exec(xml)) !== null) out.push(extractText(m[1]));
   return out;
@@ -64,7 +77,7 @@ function firstSheetPath(files: Record<string, Uint8Array>): string {
   const workbook = files['xl/workbook.xml'];
   if (!workbook) throw new XlsxParseError('Arquivo não é um .xlsx válido: workbook ausente');
   const wbXml = decoder.decode(workbook);
-  const sheet = /<sheet\b[^>]*>/.exec(wbXml)?.[0];
+  const sheet = new RegExp(`<${NS}sheet\\b[^>]*>`).exec(wbXml)?.[0];
   if (!sheet) throw new XlsxParseError('Workbook não contém nenhuma aba');
 
   const rid = /r:id="([^"]+)"/.exec(sheet)?.[1];
@@ -105,7 +118,8 @@ export function parseWorkbookGrid(bytes: Uint8Array): string[][] {
 
   const grid: string[][] = [];
   let maxCols = 0;
-  const cellRe = /<c\b([^>]*?)\/>|<c\b([^>]*)>([\s\S]*?)<\/c>/g;
+  const cellRe = new RegExp(`<${NS}c\\b([^>]*?)\\/>|<${NS}c\\b([^>]*)>([\\s\\S]*?)<\\/${NS}c>`, 'g');
+  const valueRe = new RegExp(`<${NS}v[^>]*>([\\s\\S]*?)<\\/${NS}v>`);
   let m: RegExpExecArray | null;
   while ((m = cellRe.exec(sheetXml)) !== null) {
     const attrs = m[1] ?? m[2] ?? '';
@@ -120,7 +134,7 @@ export function parseWorkbookGrid(bytes: Uint8Array): string[][] {
     if (type === 'inlineStr') {
       value = extractText(inner);
     } else {
-      const raw = /<v[^>]*>([\s\S]*?)<\/v>/.exec(inner)?.[1];
+      const raw = valueRe.exec(inner)?.[1];
       if (raw !== undefined) {
         value = type === 's'
           ? shared[parseInt(decodeXmlEntities(raw), 10)] ?? ''

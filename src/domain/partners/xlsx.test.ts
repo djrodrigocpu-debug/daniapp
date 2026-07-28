@@ -17,10 +17,14 @@ const RELS = `<?xml version="1.0" encoding="UTF-8"?>
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
 </Relationships>`;
 
-function buildXlsx(sheetXml: string, sharedXml?: string): Uint8Array {
+function buildXlsx(
+  sheetXml: string,
+  sharedXml?: string,
+  overrides?: { workbook?: string; rels?: string },
+): Uint8Array {
   const files: Record<string, Uint8Array> = {
-    'xl/workbook.xml': strToU8(WORKBOOK),
-    'xl/_rels/workbook.xml.rels': strToU8(RELS),
+    'xl/workbook.xml': strToU8(overrides?.workbook ?? WORKBOOK),
+    'xl/_rels/workbook.xml.rels': strToU8(overrides?.rels ?? RELS),
     'xl/worksheets/sheet1.xml': strToU8(sheetXml),
   };
   if (sharedXml) files['xl/sharedStrings.xml'] = strToU8(sharedXml);
@@ -58,6 +62,36 @@ describe('parseWorkbookGrid', () => {
     expect(grid[1][0]).toBe('Cidade:');
     expect(grid[1][1]).toBe('42');
     expect(grid[1][2]).toBe('PS - ALIANÇA SINTÉTICA'); // rich runs concatenados
+  });
+
+  it('lê workbook com TODO elemento sob namespace prefixado (ex.: <x:c>, <x:v>)', () => {
+    // Algumas ferramentas exportam OOXML válido prefixando cada elemento com um
+    // namespace explícito em vez do padrão sem prefixo — a carga real de 2026-07
+    // veio assim e o leitor via zero abas: `<sheet>` nunca casava `<x:sheet>`.
+    const workbook = `<?xml version="1.0" encoding="utf-8"?>
+<x:workbook xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <x:sheets><x:sheet name="Plan1" sheetId="1" r:id="R1" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" /></x:sheets>
+</x:workbook>`;
+    const rels = `<?xml version="1.0" encoding="utf-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="R1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml" />
+</Relationships>`;
+    // t="str" com valor literal em <x:v> (não é shared string nem inlineStr) —
+    // exatamente como a ferramenta que gerou a carga real grava texto simples.
+    const sheet = `<?xml version="1.0" encoding="utf-8"?>
+<x:worksheet xmlns:x="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <x:sheetData>
+    <x:row r="1">
+      <x:c r="A1" s="20" t="str"><x:v>Nome Ficticio</x:v></x:c>
+      <x:c r="B1" s="20" t="str"><x:v>email.ficticio@sint.example</x:v></x:c>
+      <x:c r="C1" s="26" />
+    </x:row>
+  </x:sheetData>
+</x:worksheet>`;
+    const grid = parseWorkbookGrid(buildXlsx(sheet, undefined, { workbook, rels }));
+    expect(grid[0][0]).toBe('Nome Ficticio');
+    expect(grid[0][1]).toBe('email.ficticio@sint.example');
+    expect(grid[0][2]).toBe(''); // célula self-closing sob namespace, sem valor
   });
 
   it('rejeita bytes que não são um zip/.xlsx', () => {

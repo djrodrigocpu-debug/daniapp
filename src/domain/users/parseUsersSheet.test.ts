@@ -25,9 +25,13 @@ describe('parseUsersSheet — formato tabular do canal', () => {
     expect(issues).toEqual([]);
     expect(layout).toBe('tabular');
     expect(rows).toHaveLength(4);
+    // Planilha antiga (sem as colunas Senha inicial/Ativo) continua válida:
+    // `active` assume true e `initialPassword` fica ausente.
     expect(rows[0]).toEqual({
       index: 1, name: 'Ana Sintetica', email: 'ana.sintetica@sint.example', role: 'regional', region: 'RPS',
+      active: true,
     });
+    expect(rows[0].initialPassword).toBeUndefined();
     expect(rows.map((r) => r.role)).toEqual(['regional', 'admin', 'coordinator', 'channel_manager']);
   });
 
@@ -114,5 +118,76 @@ describe('parseUserRole', () => {
   it('devolve null para perfil desconhecido ou vazio', () => {
     expect(parseUserRole('Diretor')).toBeNull();
     expect(parseUserRole('   ')).toBeNull();
+  });
+});
+
+/**
+ * Formato novo do provisionamento por senha:
+ *   Nome | email | Senha inicial | Perfil | Area de Atuação | Ativo
+ */
+describe('parseUsersSheet — planilha com senha inicial e ativo', () => {
+  const HEADER_NOVO = ['Nome', 'email', 'Senha inicial', 'Perfil', 'Area de Atuação', 'Ativo'];
+  const LINHA_OK = ['Ana Sintetica', 'Ana.Sintetica@sint.example', 'Aacex2026Prov', 'Gerencia Regional', 'RPS', 'Sim'];
+  const novo = (linhas = [LINHA_OK]) => [[...HEADER_NOVO], ...linhas.map((l) => [...l])];
+
+  it('lê as seis colunas e devolve a senha inicial na linha', () => {
+    const { rows, issues } = parseUsersSheet(novo());
+    expect(issues).toEqual([]);
+    expect(rows[0]).toEqual({
+      index: 1,
+      name: 'Ana Sintetica',
+      email: 'ana.sintetica@sint.example',
+      role: 'regional',
+      region: 'RPS',
+      initialPassword: 'Aacex2026Prov',
+      active: true,
+    });
+  });
+
+  it('interpreta os rótulos de Ativo', () => {
+    const linhas = [
+      [...LINHA_OK.slice(0, 5), 'Sim'],
+      ['B Sintetico', 'b@sint.example', 'Aacex2026Prov', 'Administrador', 'RPS', 'Não'],
+      ['C Sintetico', 'c@sint.example', 'Aacex2026Prov', 'Administrador', 'RPS', ''],
+    ];
+    const { rows, issues } = parseUsersSheet(novo(linhas));
+    expect(issues).toEqual([]);
+    expect(rows.map((r) => r.active)).toEqual([true, false, true]);
+  });
+
+  it('rótulo desconhecido em Ativo é erro da linha', () => {
+    const { rows, issues } = parseUsersSheet(novo([[...LINHA_OK.slice(0, 5), 'talvez']]));
+    expect(rows).toHaveLength(0);
+    expect(issues[0].field).toBe('active');
+  });
+
+  it('senha inicial fraca é erro da linha, e a senha NÃO aparece na mensagem', () => {
+    const fracas = ['curta1', '1234567890', 'SomenteLetras', 'ana.sintetica@sint.example'];
+    for (const senha of fracas) {
+      const linha = [...LINHA_OK];
+      linha[2] = senha;
+      const { rows, issues } = parseUsersSheet(novo([linha]));
+      expect(rows).toHaveLength(0);
+      expect(issues[0].field).toBe('initialPassword');
+      expect(issues[0].message).not.toContain(senha);
+    }
+  });
+
+  it('senha inicial em branco é aceita no parse — quem exige é o servidor', () => {
+    const linha = [...LINHA_OK];
+    linha[2] = '';
+    const { rows, issues } = parseUsersSheet(novo([linha]));
+    expect(issues).toEqual([]);
+    expect(rows[0].initialPassword).toBeUndefined();
+  });
+
+  it('a senha inicial nunca é ecoada em nenhuma issue do lote', () => {
+    const linhas = [
+      [...LINHA_OK],
+      ['B Sintetico', 'email-invalido', 'Aacex2026Prov', 'Administrador', 'RPS', 'Sim'],
+    ];
+    const { issues } = parseUsersSheet(novo(linhas));
+    expect(issues.length).toBeGreaterThan(0);
+    expect(JSON.stringify(issues)).not.toContain('Aacex2026Prov');
   });
 });

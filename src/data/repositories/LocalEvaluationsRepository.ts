@@ -32,6 +32,10 @@ export class LocalEvaluationsRepository implements EvaluationsRepository {
     private readonly evidence: EvidenceRepository = new LocalEvidenceRepository(store),
   ) {}
 
+  async listVisible(): Promise<Result<Evaluation[]>> {
+    return ok(this.store.getSnapshot().evaluations);
+  }
+
   async getById(id: string): Promise<Result<Evaluation | null>> {
     return ok(this.store.getSnapshot().evaluations.find((item) => item.id === id) ?? null);
   }

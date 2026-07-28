@@ -24,8 +24,8 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { AuthAdminPort, CallerPort, HandlerError, handleInviteUsers } from './handler.ts';
-import { isPreflight, jsonHeaders, preflightResponse } from './cors.ts';
-import { buildIdentityIndex } from './identityIndex.ts';
+import { isPreflight, jsonHeaders, preflightResponse } from '../_shared/cors.ts';
+import { buildIdentityIndex } from '../_shared/identityIndex.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';

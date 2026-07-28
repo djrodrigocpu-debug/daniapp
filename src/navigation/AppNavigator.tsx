@@ -6,10 +6,12 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthProvider';
 import { useOperationalUser } from '../context/useOperationalUser';
+import { decideSurface } from '../domain/auth/appSurface';
 import { localStore } from '../data/store/localStore';
 import { AppButton } from '../components/AppButton';
 import { LoginScreen } from '../screens/LoginScreen';
 import { SetPasswordScreen } from '../screens/SetPasswordScreen';
+import { InitialPasswordScreen } from '../screens/InitialPasswordScreen';
 import { DashboardScreen } from '../screens/DashboardScreen';
 import { OperationsScreen } from '../screens/OperationsScreen';
 import { ActionsScreen } from '../screens/ActionsScreen';
@@ -115,12 +117,21 @@ function NoScopeScreen() {
 }
 
 export function AppNavigator() {
-  const { state, onboarding, finishOnboarding, cancelOnboarding, dismissOnboardingError, updatePassword, activateSelf } = useAuth();
+  const { state, onboarding, finishOnboarding, cancelOnboarding, dismissOnboardingError, updatePassword, activateSelf, changeInitialPassword, signOut } = useAuth();
   const ready = useSyncExternalStore(localStore.subscribe, localStore.isReady);
   const currentUser = useOperationalUser();
 
+  // A ORDEM das telas é regra de segurança, não de layout — por isso mora num
+  // módulo puro, exercitado em todas as combinações (src/domain/auth/appSurface).
+  const surface = decideSurface({
+    authStatus: state.status,
+    localReady: ready,
+    onboardingPhase: onboarding.phase,
+    hasOperationalUser: currentUser !== null && currentUser !== undefined,
+  });
+
   // Sessão sendo restaurada ou dados locais ainda hidratando.
-  if (state.status === 'initializing' || !ready) {
+  if (surface === 'loading') {
     return (
       <View style={styles.loading}>
         <View style={styles.loadingLogo}><Text style={styles.loadingLogoText}>A</Text></View>
@@ -130,9 +141,24 @@ export function AppNavigator() {
     );
   }
 
-  // Fluxo de link (convite/recuperação) tem precedência sobre tudo: quem chegou
-  // por convite ainda NÃO tem acesso operacional, mesmo com sessão no Auth.
-  if (onboarding.phase === 'password_setup') {
+  // GATE de primeiro acesso: precede TUDO, inclusive os fluxos de link.
+  // `required = true` significa que a sessão corporativa nunca foi montada — não
+  // há papel para navegar nem tela operacional a renderizar. Por vir de `state`,
+  // e não de um estado de tela, recarregar a página ou reabrir o app cai
+  // exatamente aqui de novo.
+  if (surface === 'password_change') {
+    return (
+      <InitialPasswordScreen
+        accountLabel={state.gateEmail}
+        changePassword={changeInitialPassword}
+        onSignOut={() => { void signOut(); }}
+      />
+    );
+  }
+
+  // Fluxo de link (convite/recuperação): quem chegou por convite ainda NÃO tem
+  // acesso operacional, mesmo com sessão no Auth.
+  if (surface === 'password_setup') {
     return (
       <SetPasswordScreen
         needsActivation={onboarding.needsActivation}
@@ -145,15 +171,15 @@ export function AppNavigator() {
     );
   }
 
-  if (onboarding.phase === 'callback_error' || onboarding.phase === 'blocked' || onboarding.phase === 'no_profile') {
+  if (surface === 'callback_error') {
     return <CallbackErrorScreen message={onboarding.message} onBack={dismissOnboardingError} />;
   }
 
   // Bloqueio de navegação sem sessão corporativa (§7).
-  if (state.status !== 'authenticated') return <LoginScreen />;
+  if (surface === 'login') return <LoginScreen />;
 
   // Sessão válida, mas sem identidade operacional vinculada.
-  if (!currentUser) return <NoScopeScreen />;
+  if (surface === 'no_scope') return <NoScopeScreen />;
 
   return (
     <NavigationContainer theme={navTheme}>

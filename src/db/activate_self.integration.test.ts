@@ -118,7 +118,7 @@ describe('activate_self — auto-ativação do convidado (0012)', () => {
     const rel = await db.asUser(ID.uAdmin, (tx) => tx.query<{ r: { counters: { errors: number; inserted: number } } }>(
       `select public.admin_import_partners($1::jsonb, true) as r`,
       [JSON.stringify([{
-        index: 1, organizationName: 'Org Fictícia', regionName: 'Região Fictícia',
+        index: 1, organizationName: 'Org Fictícia', cnpj: '60000002000102', regionName: 'Região Fictícia',
         unitName: 'Unidade Fictícia', coordinationName: 'Coord 1',
         partnerName: 'Parceiro Convite Fic', officeName: 'Loja Convite Fic',
         city: 'Curitiba', state: 'PR',
@@ -131,7 +131,7 @@ describe('activate_self — auto-ativação do convidado (0012)', () => {
     const rel = await db.asUser(ID.uAdmin, (tx) => tx.query<{ r: { counters: { errors: number }; rows: Array<{ messages: string[] }> } }>(
       `select public.admin_import_partners($1::jsonb, true) as r`,
       [JSON.stringify([{
-        index: 1, organizationName: 'Org Fictícia', regionName: 'Região Fictícia',
+        index: 1, organizationName: 'Org Fictícia', cnpj: '60000003000157', regionName: 'Região Fictícia',
         unitName: 'Unidade Fictícia', coordinationName: 'Coord 1',
         partnerName: 'Parceiro Convite Fic', officeName: 'Loja Convite Fic',
         city: 'Curitiba', state: 'PR',

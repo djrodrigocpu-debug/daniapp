@@ -223,3 +223,78 @@ describe('parsePartnersSheet — formato tabular do canal', () => {
     expect(issues[0].message).toMatch(/não está no formato esperado/);
   });
 });
+
+/**
+ * Coluna CNPJ (migration 0014/0015). CNPJs SINTÉTICOS: nenhum documento real.
+ */
+describe('parseTransposed — coluna CNPJ', () => {
+  function cnpjFixture(base12: string): string {
+    const dv = (digits: string, pesos: number[]) => {
+      let soma = 0;
+      for (let i = 0; i < pesos.length; i += 1) soma += Number(digits[i]) * pesos[i];
+      const resto = soma % 11;
+      return resto < 2 ? 0 : 11 - resto;
+    };
+    const d1 = dv(base12, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+    const d2 = dv(`${base12}${d1}`, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+    return `${base12}${d1}${d2}`;
+  }
+  const CNPJ = cnpjFixture('770000010001');
+  const FORMATADO = `${CNPJ.slice(0, 2)}.${CNPJ.slice(2, 5)}.${CNPJ.slice(5, 8)}/${CNPJ.slice(8, 12)}-${CNPJ.slice(12)}`;
+
+  const HEADER = ['Unidade', 'Coordenação', 'Empresa Parceira', 'CNPJ', 'Escritório', 'Cidade', 'Estado', 'E-mail do GC'];
+  const LINHA = ['UN 1', 'COORD 1', 'Empresa Sintetica', CNPJ, 'ESC 1', 'Curitiba', 'PR', 'gc@sint.example'];
+  const grade = (linhas: string[][]) => [[...HEADER], ...linhas.map((l) => [...l])];
+
+  it('aceita CNPJ somente com dígitos', () => {
+    const { rows, issues } = parsePartnersSheet(grade([LINHA]));
+    expect(issues).toEqual([]);
+    expect(rows[0].cnpj).toBe(CNPJ);
+  });
+
+  it('aceita CNPJ formatado e normaliza para 14 dígitos', () => {
+    const linha = [...LINHA];
+    linha[3] = FORMATADO;
+    const { rows, issues } = parsePartnersSheet(grade([linha]));
+    expect(issues).toEqual([]);
+    expect(rows[0].cnpj).toBe(CNPJ);
+    expect(rows[0].cnpj).toHaveLength(14);
+  });
+
+  it('recusa dígitos verificadores inválidos sem ecoar o valor', () => {
+    const ruim = '12345678000100';
+    const linha = [...LINHA];
+    linha[3] = ruim;
+    const { rows, issues } = parsePartnersSheet(grade([linha]));
+    expect(rows).toHaveLength(0);
+    expect(issues[0].field).toBe('cnpj');
+    expect(issues[0].message).toBe('CNPJ inválido');
+    expect(JSON.stringify(issues)).not.toContain(ruim);
+  });
+
+  it('recusa sequência repetida', () => {
+    const linha = [...LINHA];
+    linha[3] = '11111111111111';
+    const { rows, issues } = parsePartnersSheet(grade([linha]));
+    expect(rows).toHaveLength(0);
+    expect(issues[0].field).toBe('cnpj');
+  });
+
+  it('célula de CNPJ vazia NÃO bloqueia a linha — quem decide é o servidor', () => {
+    const linha = [...LINHA];
+    linha[3] = '';
+    const { rows, issues } = parsePartnersSheet(grade([linha]));
+    expect(issues).toEqual([]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].cnpj).toBeUndefined();
+  });
+
+  it('planilha ANTIGA sem a coluna CNPJ continua parseável', () => {
+    const semCnpj = HEADER.filter((h) => h !== 'CNPJ');
+    const linhaSem = LINHA.filter((_, i) => i !== 3);
+    const { rows, issues } = parsePartnersSheet([semCnpj, linhaSem]);
+    expect(issues).toEqual([]);
+    expect(rows[0].cnpj).toBeUndefined();
+    expect(rows[0].officeName).toBe('ESC 1');
+  });
+});

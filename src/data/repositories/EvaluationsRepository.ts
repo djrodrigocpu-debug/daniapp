@@ -15,6 +15,16 @@ export type EvidenceInput = Omit<Evidence, 'id' | 'themeId' | 'createdAt'>;
 export type ActionPlanInput = Omit<ActionPlan, 'id' | 'createdAt' | 'updatedAt'> & { id?: string };
 
 export interface EvaluationsRepository {
+  /**
+   * Avaliações visíveis ao solicitante — UMA consulta, não uma por tela.
+   *
+   * Existe porque os lookups síncronos do provider (`getEvaluation`,
+   * `listByOperation`, `getCurrentDraft`) liam do `localStore` de demonstração
+   * mesmo em modo corporativo: avaliação criada no servidor voltava como
+   * "não encontrada" e o histórico vinha sempre vazio. Carregar a lista uma
+   * vez mantém a API síncrona das telas sem N+1.
+   */
+  listVisible(): Promise<Result<Evaluation[]>>;
   getById(id: string): Promise<Result<Evaluation | null>>;
   listByOperation(operationId: string): Promise<Result<Evaluation[]>>;
   /** Rascunho/devolvida em aberto para a operação (idempotência de ciclo). */

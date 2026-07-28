@@ -14,6 +14,7 @@ import { AppButton } from '../../components/AppButton';
 import { useAdmin } from '../../context/AdminProvider';
 import { colors, radius, spacing } from '../../theme';
 import { parseWorkbookGrid, XlsxParseError } from '../../domain/partners/xlsx';
+import { displayCnpj } from '../../domain/partners/cnpj';
 import { parsePartnersSheet } from '../../domain/partners/parseTransposed';
 import { ImportReport, ImportReportRow, ImportRow, RowIssue } from '../../domain/partners/types';
 import { readDocumentBytes } from '../../utils/readDocumentBytes';
@@ -165,6 +166,20 @@ export function PartnerImportFlow({ visible, onClose }: Props) {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>2 · Simulação</Text>
               <Text style={styles.meta}>{rows.length} registro(s) reconhecido(s) na planilha.</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator style={styles.previewScroll}>
+                <View>
+                  {rows.map((row) => (
+                    <View key={row.index} style={styles.previewRow}>
+                      <Text style={styles.previewOffice}>#{row.index} · {row.officeName}</Text>
+                      <Text style={styles.previewMeta}>{row.partnerName}</Text>
+                      {/* Linha sem CNPJ NÃO é marcada como erro aqui: ela pode
+                          estar atualizando um cadastro legado. Quem decide é a
+                          simulação no servidor. */}
+                      <Text style={styles.previewMeta}>CNPJ: {displayCnpj(row.cnpj)}</Text>
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
               <AppButton
                 title="Simular importação (não grava)"
                 onPress={() => void simulate()}
@@ -269,6 +284,7 @@ function ReportRow({ row }: { row: ImportReportRow }) {
         <Text style={styles.reportRowStatus}>{s.label}</Text>
       </View>
       {row.partnerName ? <Text style={styles.reportRowMeta}>{row.partnerName}</Text> : null}
+      <Text style={styles.reportRowMeta}>CNPJ: {displayCnpj(row.cnpj)}</Text>
       {row.messages.map((m, i) => <Text key={i} style={styles.reportRowError}>{m}</Text>)}
       {row.warnings.map((w, i) => <Text key={`w${i}`} style={styles.reportRowWarn}>{w}</Text>)}
     </View>
@@ -276,6 +292,10 @@ function ReportRow({ row }: { row: ImportReportRow }) {
 }
 
 const styles = StyleSheet.create({
+  previewScroll: { marginTop: spacing.sm, marginBottom: spacing.sm },
+  previewRow: { borderTopWidth: 1, borderTopColor: colors.border, paddingVertical: spacing.xs, minWidth: 240 },
+  previewOffice: { color: colors.ink, fontSize: 12, fontWeight: '800' },
+  previewMeta: { color: colors.inkMuted, fontSize: 11, marginTop: 2 },
   safe: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

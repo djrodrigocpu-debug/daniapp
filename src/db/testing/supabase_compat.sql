@@ -43,6 +43,12 @@ create table if not exists auth.users (
   created_at         timestamptz not null default now()
 );
 
+-- `encrypted_password` existe no `auth.users` real do Supabase; o shim o mantém
+-- por fidelidade. NENHUMA migration o lê: a 0016 chegou a compará-lo como prova
+-- de troca de senha, e a 0017 removeu isso — bcrypt usa salt aleatório, então a
+-- mesma senha gera hash diferente e a comparação não provava nada.
+alter table auth.users add column if not exists encrypted_password text;
+
 create or replace function auth.uid() returns uuid
   language sql stable as $$
   select coalesce(

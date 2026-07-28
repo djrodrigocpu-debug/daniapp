@@ -31,6 +31,15 @@ function toResult<T>(data: T | null, error: unknown, message: string): Result<T>
 export class SupabaseEvaluationsRepository implements EvaluationsRepository {
   constructor(private readonly client: SupabaseClient) {}
 
+  /** A RLS restringe as linhas ao escopo do usuário autenticado. */
+  async listVisible(): Promise<Result<Evaluation[]>> {
+    const { data, error } = await this.client
+      .from('ui_evaluations')
+      .select('*')
+      .order('createdAt', { ascending: false });
+    return toResult((data as Evaluation[]) ?? [], error, 'Falha ao carregar as avaliações.');
+  }
+
   async getById(id: string): Promise<Result<Evaluation | null>> {
     const { data, error } = await this.client.from('ui_evaluations').select('*').eq('id', id).maybeSingle();
     return toResult((data as Evaluation) ?? null, error, 'Falha ao carregar a avaliação.');

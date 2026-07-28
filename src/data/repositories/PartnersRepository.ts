@@ -46,6 +46,14 @@ export interface AdminPartner {
   managerEmail: string | null;
   managerMissing: boolean;
   coordinatorMissing: boolean;
+  /**
+   * CNPJ da empresa parceira: SOMENTE 14 dígitos, como o banco guarda.
+   * `null` em registro legado, anterior à migration 0014. A formatação para
+   * exibição é do cliente (`formatCnpj`) — nunca do banco.
+   *
+   * Dado CADASTRAL: não é credencial, não vira login e não cria usuário.
+   */
+  cnpj: string | null;
 }
 
 export interface PartnerInput {
@@ -59,8 +67,18 @@ export interface PartnerInput {
   coordinationId?: string;
   managerEmail?: string;
   active?: boolean;
+  /**
+   * Obrigatório ao CRIAR (a RPC recusa novo parceiro sem CNPJ). Pode ir
+   * formatado: o servidor normaliza e valida os dígitos verificadores.
+   */
+  cnpj?: string;
 }
 
+/**
+ * No PATCH a chave `cnpj` só deve ser enviada quando o operador realmente mexeu
+ * no campo: ausente preserva o valor atual, e string vazia é RECUSADA pelo
+ * servidor quando já existe CNPJ gravado — apagar exige ação deliberada.
+ */
 export type PartnerPatch = Partial<PartnerInput>;
 
 export interface CreatePartnerResult {
@@ -114,6 +132,9 @@ function toAdminPartner(op: Operation, users: User[]): AdminPartner {
     managerEmail: manager?.email ?? null,
     managerMissing: !manager,
     coordinatorMissing: !coordinator,
+    // O modo demonstração não modela CNPJ: a tela mostra "não informado", igual
+    // ao que acontece com um registro legado do backend real.
+    cnpj: null,
   };
 }
 

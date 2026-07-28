@@ -44,6 +44,7 @@ describe('Parceiros AACE — RPCs administrativas (banco real)', () => {
         `select public.admin_create_operation($1::jsonb) as dto`,
         [JSON.stringify({
           partnerName: '  Empresa   Sintetica LTDA  ',
+          cnpj: '10000001000190',
           officeName: 'PS - ESCRITORIO SINTETICO - 0001',
           city: 'Curitiba',
           state: 'pr',
@@ -71,6 +72,7 @@ describe('Parceiros AACE — RPCs administrativas (banco real)', () => {
         `select public.admin_create_operation($1::jsonb) as dto`,
         [JSON.stringify({
           partnerName: 'Empresa Edicao LTDA',
+          cnpj: '10000002000134',
           officeName: 'PS - ESCRITORIO SINTETICO - 0002',
           city: 'Londrina',
           state: 'PR',
@@ -126,6 +128,7 @@ describe('Parceiros AACE — RPCs administrativas (banco real)', () => {
         `select public.admin_create_operation($1::jsonb) as dto`,
         [JSON.stringify({
           partnerName: 'Empresa Sem GC LTDA',
+          cnpj: '10000003000189',
           officeName: 'PS - ESCRITORIO SINTETICO - 0003',
           city: 'Cascavel',
           state: 'PR',
@@ -234,6 +237,7 @@ describe('Parceiros AACE — RPCs administrativas (banco real)', () => {
       tx.expectError(
         `select public.admin_create_operation('${JSON.stringify({
           partnerName: 'Dup Ltda',
+          cnpj: '10000004000123',
           officeName: 'LOJA  Á',
           city: 'Curitiba',
           state: 'PR',
@@ -250,6 +254,7 @@ describe('Parceiros AACE — RPCs administrativas (banco real)', () => {
       tx.expectError(
         `select public.admin_create_operation('${JSON.stringify({
           partnerName: 'Cross Ltda',
+          cnpj: '10000005000178',
           officeName: 'PS - CROSS - 0001',
           city: 'Curitiba',
           state: 'PR',
@@ -273,6 +278,7 @@ describe('Parceiros AACE — RPCs administrativas (banco real)', () => {
       tx.expectError(
         `select public.admin_create_operation('${JSON.stringify({
           partnerName: 'Papel Errado Ltda',
+          cnpj: '10000006000112',
           officeName: 'PS - PAPEL - 0001',
           city: 'Curitiba',
           state: 'PR',
@@ -286,6 +292,7 @@ describe('Parceiros AACE — RPCs administrativas (banco real)', () => {
       tx.expectError(
         `select public.admin_create_operation('${JSON.stringify({
           partnerName: 'Desconhecido Ltda',
+          cnpj: '10000007000167',
           officeName: 'PS - DESC - 0001',
           city: 'Curitiba',
           state: 'PR',

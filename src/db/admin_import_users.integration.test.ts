@@ -66,7 +66,7 @@ describe('admin_import_users — onboarding transacional (0010)', () => {
       `select public.admin_import_partners($1::jsonb, true) as r`,
       [JSON.stringify([{
         index: 1,
-        organizationName: 'Org Fictícia',
+        organizationName: 'Org Fictícia', cnpj: '60000001000168',
         regionName: 'Região Fictícia',
         unitName: 'Unidade Fictícia',
         coordinationName: 'Coord 1',

@@ -8,6 +8,7 @@ import { useRepositories } from '../data/repositories/RepositoryProvider';
 import { scopeFromUser } from '../data/repositories/OperationsRepository';
 import { localStore } from '../data/store/localStore';
 import { useOperationalUser } from './useOperationalUser';
+import { useOperations } from './OperationsProvider';
 
 interface ActionsContextValue {
   plans: ActionPlan[];
@@ -24,6 +25,9 @@ export function ActionsProvider({ children }: { children: React.ReactNode }) {
   const { actions: repo, source } = useRepositories();
   const user = useOperationalUser();
   const data = useSyncExternalStore(localStore.subscribe, localStore.getSnapshot);
+  // Mesma correção do bug "Parceiro não existente": a operação vem da lista
+  // REAL já carregada, não do store local de demonstração.
+  const { operations } = useOperations();
   const [plans, setPlans] = useState<ActionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +66,7 @@ export function ActionsProvider({ children }: { children: React.ReactNode }) {
     },
     [repo],
   );
-  const getOperation = useCallback((id: string) => data.operations.find((o) => o.id === id), [data.operations]);
+  const getOperation = useCallback((id: string) => operations.find((o) => o.id === id), [operations]);
 
   const value = useMemo<ActionsContextValue>(
     () => ({ plans, loading, error, refresh: () => void load(), updateStatus, getOperation }),

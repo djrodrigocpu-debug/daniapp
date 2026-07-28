@@ -6,12 +6,14 @@
  * `EvaluationsRepository` selecionado (Local ou Supabase). Assim OperationDetail e
  * Evaluation operam sobre persistência real, com a mesma interface em ambos os modos.
  */
-import React, { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { ActionPlan, AssessmentAnswer, Evaluation, Evidence, Frequency, Operation, User } from '../types';
 import { useRepositories } from '../data/repositories/RepositoryProvider';
 import { EvidenceInput, ActionPlanInput } from '../data/repositories/EvaluationsRepository';
 import { localStore } from '../data/store/localStore';
 import { useOperationalUser } from './useOperationalUser';
+import { useOperations } from './OperationsProvider';
+import { useDirectory } from './DirectoryProvider';
 
 export type SubmitResult = { ok: true } | { ok: false; message: string };
 
@@ -34,24 +36,57 @@ interface EvaluationsContextValue {
 const EvaluationsContext = createContext<EvaluationsContextValue | undefined>(undefined);
 
 export function EvaluationsProvider({ children }: { children: React.ReactNode }) {
-  const { evaluations: repo } = useRepositories();
+  const { evaluations: repo, source } = useRepositories();
   const user = useOperationalUser();
   const data = useSyncExternalStore(localStore.subscribe, localStore.getSnapshot);
+  // Operação é entidade REAL, já buscada pela mesma fonte que preenche a
+  // lista (§ correção do bug "Parceiro não existente"). `data.operations` é
+  // o store local de demonstração — nunca populado pelos dados corporativos.
+  const { operations } = useOperations();
+  // Usuário real vem do diretório compartilhado, não do seed local.
+  const { getUser } = useDirectory();
 
-  const getEvaluation = useCallback((id: string) => data.evaluations.find((e) => e.id === id), [data.evaluations]);
-  const getOperation = useCallback((id: string) => data.operations.find((o) => o.id === id), [data.operations]);
-  const getUser = useCallback((id: string) => data.users.find((u) => u.id === id), [data.users]);
+  /**
+   * Avaliações visíveis, carregadas UMA vez pelo repositório do modo vigente.
+   * Antes os lookups liam `data.evaluations` (localStore de demonstração):
+   * em modo corporativo o histórico vinha sempre vazio, uma avaliação criada
+   * no servidor voltava como "não encontrada" e `getCurrentDraft` nunca
+   * achava o rascunho aberto — o guard de ciclo em andamento não disparava.
+   */
+  const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
+
+  const load = useCallback(async () => {
+    if (!user) {
+      setEvaluations([]);
+      return;
+    }
+    const res = await repo.listVisible();
+    setEvaluations(res.ok ? res.value : []);
+  }, [repo, user]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  // Reatividade do modo demonstração; em corporativo o refetch é explícito.
+  useEffect(() => {
+    if (source !== 'local') return undefined;
+    return localStore.subscribe(() => void load());
+  }, [source, load]);
+
+  const getEvaluation = useCallback((id: string) => evaluations.find((e) => e.id === id), [evaluations]);
+  const getOperation = useCallback((id: string) => operations.find((o) => o.id === id), [operations]);
   const listByOperation = useCallback(
     (operationId: string) =>
-      data.evaluations
+      evaluations
         .filter((e) => e.operationId === operationId)
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    [data.evaluations],
+    [evaluations],
   );
   const getCurrentDraft = useCallback(
     (operationId: string) =>
-      data.evaluations.find((e) => e.operationId === operationId && ['draft', 'returned'].includes(e.status)),
-    [data.evaluations],
+      evaluations.find((e) => e.operationId === operationId && ['draft', 'returned'].includes(e.status)),
+    [evaluations],
   );
   const getActionPlan = useCallback(
     (evaluationId: string, themeId: string) =>
@@ -66,15 +101,18 @@ export function EvaluationsProvider({ children }: { children: React.ReactNode })
   const startEvaluation = useCallback(
     async (operationId: string, frequency: Frequency) => {
       const res = await repo.startEvaluation(operationId, frequency, user?.id ?? '');
+      // Recarrega ANTES de devolver o id: a tela navega em seguida e precisa
+      // encontrar a avaliação recém-criada no servidor.
+      await load();
       return res.ok ? res.value.id : null;
     },
-    [repo, user?.id],
+    [repo, user?.id, load],
   );
   const saveAnswer = useCallback(
     (evaluationId: string, themeId: string, patch: Partial<AssessmentAnswer>) => {
-      void repo.saveAnswer(evaluationId, themeId, patch);
+      void repo.saveAnswer(evaluationId, themeId, patch).then(() => load());
     },
-    [repo],
+    [repo, load],
   );
   const addEvidence = useCallback(
     (evaluationId: string, themeId: string, input: EvidenceInput) => {
@@ -97,9 +135,12 @@ export function EvaluationsProvider({ children }: { children: React.ReactNode })
   const submit = useCallback(
     async (evaluationId: string): Promise<SubmitResult> => {
       const res = await repo.submit(evaluationId);
+      // O status muda no servidor; sem recarregar, a tela seguiria mostrando
+      // a avaliação como rascunho.
+      await load();
       return res.ok ? { ok: true } : { ok: false, message: res.error.message };
     },
-    [repo],
+    [repo, load],
   );
 
   const value = useMemo<EvaluationsContextValue>(

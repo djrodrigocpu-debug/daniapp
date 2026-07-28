@@ -36,10 +36,17 @@ import {
 } from './PartnersRepository';
 import { PerformanceRepository, LocalPerformanceRepository, SupabasePerformanceRepository } from './PerformanceRepository';
 import { EvidenceRepository, LocalEvidenceRepository, SupabaseEvidenceRepository } from './EvidenceRepository';
+import {
+  DirectoryRepository,
+  LocalDirectoryRepository,
+  SupabaseDirectoryRepository,
+} from './DirectoryRepository';
 
 export interface Repositories {
   operations: OperationsRepository;
   evaluations: EvaluationsRepository;
+  /** Diretório de usuários — resolve nome/papel por UUID fora do Admin. */
+  directory: DirectoryRepository;
   actions: ActionsRepository;
   validations: ValidationsRepository;
   adminUsers: AdminUsersRepository;
@@ -57,6 +64,7 @@ function buildRepositories(): Repositories {
     return {
       operations: new SupabaseOperationsRepository(client),
       evaluations: new SupabaseEvaluationsRepository(client),
+      directory: new SupabaseDirectoryRepository(client),
       actions: new SupabaseActionsRepository(client),
       validations: new SupabaseValidationsRepository(client),
       adminUsers: new SupabaseAdminUsersRepository(client),
@@ -71,6 +79,7 @@ function buildRepositories(): Repositories {
   return {
     operations: new LocalOperationsRepository(localStore),
     evaluations: new LocalEvaluationsRepository(localStore, evidence),
+    directory: new LocalDirectoryRepository(localStore),
     actions: new LocalActionsRepository(localStore),
     validations: new LocalValidationsRepository(localStore),
     adminUsers: new LocalAdminUsersRepository(localStore),

@@ -25,6 +25,14 @@ export interface CreateUserInput {
   role: UserRole;
   region: string;
   coordinatorId?: string;
+  /**
+   * Senha temporária do primeiro acesso. Exigida SOMENTE quando o e-mail ainda
+   * não tem identidade no Auth — quem já existe reaproveita a própria senha.
+   *
+   * Sem isto o cadastro avulso é recusado pelo servidor: o provisionamento por
+   * senha (que substituiu o convite) não tem como criar identidade sem ela.
+   */
+  initialPassword?: string;
 }
 
 export interface AdminUsersRepository {
@@ -313,7 +321,13 @@ export class SupabaseAdminUsersRepository implements AdminUsersRepository {
    * Antes chamava public.admin_create_user, depreciada na migration 0011 por
    * criar identidade Auth incompleta — o usuário aparecia na lista e nunca
    * conseguia entrar. Reaproveitar importUsers mantém um único caminho de
-   * onboarding: mesma validação, mesmo convite real e mesma transação.
+   * onboarding: mesma validação, mesma transação.
+   *
+   * A senha inicial ATRAVESSA daqui: quando o provisionamento deixou de ser por
+   * convite, criar identidade passou a exigi-la, e este caminho continuou sem
+   * enviá-la — todo cadastro avulso de usuário novo era recusado com "senha
+   * inicial obrigatória". Ela vive só nesta chamada e não é gravada em lugar
+   * nenhum do cliente.
    */
   async create(input: CreateUserInput): Promise<Result<User>> {
     const row: UserImportRow = {
@@ -322,6 +336,7 @@ export class SupabaseAdminUsersRepository implements AdminUsersRepository {
       email: input.email,
       role: input.role,
       region: input.region,
+      ...(input.initialPassword ? { initialPassword: input.initialPassword } : {}),
     };
     const res = await this.importUsers([row], true);
     if (!res.ok) return res;
@@ -340,8 +355,10 @@ export class SupabaseAdminUsersRepository implements AdminUsersRepository {
       role: line.role,
       region: input.region,
       avatarInitials: initials(line.name),
-      // Nasce convidado: só vira ativo quando confirmar o e-mail (0010).
-      active: false,
+      // Nasce ATIVO: a identidade é criada com `email_confirm: true` e a
+      // ativação (`admin_activate_confirmed_users`) roda no mesmo provisionamento.
+      // Não há mais espera por clique em convite — não existe convite.
+      active: true,
     });
   }
   async setActive(userId: string, active: boolean): Promise<Result<User>> {
@@ -354,46 +371,113 @@ export class SupabaseAdminUsersRepository implements AdminUsersRepository {
   }
 
   /**
-   * Onboarding corporativo em três fases (migration 0010 + Edge Function).
+   * Provisionamento corporativo POR SENHA, sem convite (migration 0010 + Edge
+   * Function `admin-provision-users`).
    *
    * A ordem é imposta pelo schema: `public.users.id` referencia `auth.users(id)`,
    * então o PERFIL NÃO PODE PRECEDER A IDENTIDADE.
    *
-   *   1. RPC em modo simulação — valida o lote inteiro, não grava nada em lugar
-   *      nenhum e devolve `pendingAuth`: os e-mails ainda sem identidade.
-   *   2. Edge Function `admin-invite-users` — cria/recupera as identidades com
-   *      service role (que jamais existe no bundle). Idempotente por e-mail;
-   *      falha aqui não tocou o Postgres e a operação é reexecutável.
-   *   3. RPC em modo commit, já com os `authUserId` — revalida e grava perfis e
-   *      escopos numa ÚNICA transação: ou entra tudo, ou não entra nada.
+   *   1. RPC em modo simulação, AQUI no cliente — valida o lote inteiro, não
+   *      grava nada e alimenta o relatório que o operador confere antes de
+   *      confirmar.
+   *   2. Edge Function `admin-provision-users` — refaz a simulação no servidor,
+   *      cria as identidades faltantes com `createUser(email, senha,
+   *      email_confirm: true)`, grava perfis e escopos em transação única e
+   *      ativa os confirmados. Idempotente por e-mail.
    *
-   * Diferença deliberada em relação ao adapter local: o servidor NÃO ativa
-   * ninguém. O usuário nasce 'invited' e só vira 'active' quando confirma o
-   * e-mail — `admin_activate_confirmed_users`. Até lá, a importação de
-   * Parceiros AACE o recusa como GC/Coordenador, por desenho.
+   * NENHUM e-mail é enviado em nenhum ponto: não há convite, não há link de
+   * confirmação e nenhum SMTP é necessário. A identidade nasce com o e-mail já
+   * confirmado, que é justamente a condição de `admin_activate_confirmed_users`
+   * — por isso o usuário sai de 'invited' para 'active' no mesmo fluxo.
+   *
+   * A senha inicial vem da planilha, vive só nesta chamada e não é gravada,
+   * registrada nem devolvida em relatório algum.
    */
   async importUsers(rows: UserImportRow[], commit: boolean): Promise<Result<UserImportReport>> {
     if (rows.length > MAX_USER_IMPORT_ROWS) {
       return err('validation/invalid-input', `Lote excede o limite de ${MAX_USER_IMPORT_ROWS} linhas.`);
     }
 
+    // A SIMULAÇÃO continua local: a tela precisa do relatório linha a linha
+    // antes de o operador confirmar, e nada é gravado nem criado aqui.
     const simulated = await this.callImportRpc(rows, false);
     if (!simulated.ok) return simulated;
     if (!commit) return simulated;
 
-    // Fase 2: só quem ainda não tem identidade entra no convite.
-    let prepared = rows;
-    const pending = simulated.value.pendingAuth ?? [];
-    if (pending.length > 0) {
-      const invited = await this.inviteIdentities(pending);
-      if (!invited.ok) return invited;
-      prepared = rows.map((row) => {
-        const authUserId = invited.value.get(normalizeEmail(row.email));
-        return authUserId ? { ...row, authUserId } : row;
-      });
+    // O COMMIT inteiro é delegado à Edge Function `admin-provision-users`, que
+    // roda simulação → criação das identidades → gravação → ativação numa única
+    // chamada com service role. A senha inicial só existe nesta requisição: sai
+    // do parser da planilha, atravessa o HTTPS e morre no servidor.
+    return this.provisionUsers(rows);
+  }
+
+  /**
+   * Fase de gravação — provisionamento sem convite.
+   *
+   * A identidade nasce por `createUser(email, senha, email_confirm: true)`,
+   * portanto NENHUM e-mail é enviado e nenhum SMTP é necessário. A função antiga
+   * `admin-invite-users` permanece publicada, mas fora deste caminho.
+   *
+   * `requirePasswordChange: true` NÃO é opcional aqui. A senha inicial vem da
+   * planilha e é conhecida por quem a preparou — deixar essa senha valendo
+   * indefinidamente anularia o propósito de tê-la trocado na primeira entrada.
+   * A opção existe desligada na Edge Function porque lá o default seguro é não
+   * mexer em conta alguma; neste caminho, que é a carga corporativa, o padrão
+   * seguro é o inverso.
+   *
+   * `resetExistingPasswords` fica no default `false`: reimportar a planilha não
+   * pode devolver a senha temporária a quem já trocou a dele.
+   *
+   * As opções vão sob `options`, não soltas na raiz do corpo: é onde a função
+   * as lê. Mandá-las na raiz não dá erro algum — a função cai nos defaults e
+   * simplesmente não marca ninguém, em silêncio.
+   */
+  private async provisionUsers(rows: UserImportRow[]): Promise<Result<UserImportReport>> {
+    const { data, error } = await this.client.functions.invoke('admin-provision-users', {
+      body: { rows, options: { requirePasswordChange: true } },
+    });
+    if (error) {
+      return err(net(error.message || 'Falha ao provisionar os usuários.', error));
     }
 
-    return this.callImportRpc(prepared, true);
+    const dto = data as {
+      ok: boolean;
+      counters?: { total: number; created: number; alreadyExisting: number; failed: number; activated: number };
+      rows?: Array<{ email: string; state: string; authUserId: string | null; message?: string }>;
+      report?: {
+        mode: 'simulate' | 'commit';
+        applied: boolean;
+        counters: { total: number; inserted: number; updated: number; errors: number; pendingAuth: number };
+        rows: UserImportReportRow[];
+      } | null;
+      error?: string;
+    };
+
+    if (!dto?.ok) {
+      // Nada foi gravado no Postgres; abortar aqui mantém a base íntegra.
+      const falhas = (dto?.rows ?? []).filter((r) => r.state === 'failed');
+      return err(net(
+        `Provisionamento incompleto (${falhas.length} de ${dto?.rows?.length ?? 0}). `
+        + 'Nada foi gravado — corrija e rode a importação novamente: '
+        + falhas.map((f) => `${f.email}: ${f.message ?? 'falha'}`).join('; '),
+      ));
+    }
+
+    const report = dto.report;
+    return ok({
+      mode: 'commit',
+      applied: true,
+      counters: {
+        total: report?.counters.total ?? dto.counters?.total ?? rows.length,
+        inserted: report?.counters.inserted ?? dto.counters?.created ?? 0,
+        updated: report?.counters.updated ?? 0,
+        errors: report?.counters.errors ?? 0,
+        pendingAuth: 0,
+      },
+      pendingAuth: [],
+      coordinationsWithoutCoordinator: [],
+      rows: report?.rows ?? [],
+    });
   }
 
   /** Chama a RPC transacional e traduz o relatório para o contrato da UI. */
@@ -423,33 +507,6 @@ export class SupabaseAdminUsersRepository implements AdminUsersRepository {
     });
   }
 
-  /** Fase 2 — convite via Edge Function. Devolve e-mail normalizado → authUserId. */
-  private async inviteIdentities(emails: string[]): Promise<Result<Map<string, string>>> {
-    const { data, error } = await this.client.functions.invoke('admin-invite-users', {
-      body: { emails },
-    });
-    if (error) {
-      return err(net(error.message || 'Falha ao convidar os usuários no Supabase Auth.', error));
-    }
-    const dto = data as {
-      ok: boolean;
-      rows: Array<{ email: string; state: string; authUserId: string | null; message?: string }>;
-    };
-    const resolved = new Map<string, string>();
-    for (const row of dto.rows ?? []) {
-      if (row.authUserId) resolved.set(normalizeEmail(row.email), row.authUserId);
-    }
-    if (!dto.ok) {
-      // Nada foi gravado no Postgres ainda; abortar aqui mantém a base íntegra.
-      const falhas = (dto.rows ?? []).filter((r) => !r.authUserId);
-      return err(net(
-        `Convite incompleto (${falhas.length} de ${dto.rows?.length ?? 0}). `
-        + 'Nada foi gravado — corrija e rode a importação novamente: '
-        + falhas.map((f) => `${f.email}: ${f.message ?? 'falha'}`).join('; '),
-      ));
-    }
-    return ok(resolved);
-  }
 }
 
 export class SupabaseAdminIndicatorsRepository implements AdminIndicatorsRepository {

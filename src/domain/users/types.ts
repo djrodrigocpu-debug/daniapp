@@ -19,6 +19,18 @@ export interface UserImportRow {
   role: UserRole;
   /** Área de atuação: coordenação do GC/coordenador, região do regional. */
   region: string;
+  /**
+   * Senha inicial da identidade Auth. Só é EXIGIDA para e-mail que ainda não
+   * tem identidade — o parser não sabe quais são, então aceita ausente e a
+   * Edge Function decide.
+   *
+   * CICLO DE VIDA: existe apenas em memória, do parse até a chamada de
+   * provisionamento. Nunca é gravada em banco, relatório, log ou storage — por
+   * isso NÃO aparece em `UserImportReportRow`.
+   */
+  initialPassword?: string;
+  /** Coluna "ativo" da planilha. Ausente ⇒ true. */
+  active?: boolean;
 }
 
 export type UserIssue = SheetIssue<keyof Omit<UserImportRow, 'index'>>;

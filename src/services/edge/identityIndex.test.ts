@@ -13,7 +13,7 @@ import {
   AuthUserLike,
   PER_PAGE,
   MAX_PAGES,
-} from '../../../supabase/functions/admin-invite-users/identityIndex';
+} from '../../../supabase/functions/_shared/identityIndex';
 
 /** Página com `nextPage` explícito (null encerra). */
 function pagina(users: AuthUserLike[], nextPage: number | null): ListUsersResult {
