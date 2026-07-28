@@ -13,6 +13,7 @@ import { UserImportReport, UserImportRow } from '../domain/users/types';
 import { canRemoveDemoSeedData, countDemoSeedData, removeDemoSeedData } from '../data/demoCleanup';
 import { localStore } from '../data/store/localStore';
 import { useOperationalUser } from './useOperationalUser';
+import { MutationOutcome, aplicarMutacao } from './adminMutation';
 
 export type AdminResult = { ok: true } | { ok: false; message: string };
 export type AdminImportResult = { ok: true; report: ImportReport } | { ok: false; message: string };
@@ -92,10 +93,18 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     return localStore.subscribe(() => void load());
   }, [source]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const wrap = useCallback(async (op: Promise<{ ok: boolean; error?: { message: string } }>): Promise<AdminResult> => {
-    const res = await op;
-    return res.ok ? { ok: true } : { ok: false, message: res.error?.message ?? 'Falha na operação.' };
-  }, []);
+  /**
+   * Toda mutação administrativa passa por aqui. O contrato — gravar, recarregar
+   * só em caso de sucesso, e só então responder — vive em `adminMutation.ts`,
+   * exercitado por comportamento.
+   *
+   * `importPartners` e `importUsers` já recarregavam por conta própria e
+   * continuam fora deste caminho, para não recarregar duas vezes.
+   */
+  const wrap = useCallback(
+    (op: Promise<MutationOutcome>): Promise<AdminResult> => aplicarMutacao(op, load),
+    [load],
+  );
 
   const importPartners = useCallback(async (rows: ImportRow[], commit: boolean): Promise<AdminImportResult> => {
     const res = await adminPartners.importPartners(rows, commit);
