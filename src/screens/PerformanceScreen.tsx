@@ -8,6 +8,7 @@ import { AppButton } from '../components/AppButton';
 import { ActionPlanModal } from '../components/ActionPlanModal';
 import { usePerformance } from '../context/usePerformance';
 import { decideOperationDetailState } from '../domain/operations/operationDetailState';
+import { parseDecimalInput } from '../domain/indicators/indicatorForm';
 import { achievement, calculateIndicatorStatus } from '../data/performance';
 import { colors, radius, spacing } from '../theme';
 import { ActionPlan, IndicatorDefinition, IndicatorResult, RootStackParamList, TrafficLight } from '../types';
@@ -22,9 +23,11 @@ function formatValue(value: number, unit: string) {
 
 export function PerformanceScreen({ route }: NativeStackScreenProps<RootStackParamList, 'Performance'>) {
   const { operationId } = route.params;
-  const { loading, error, getOperation, indicatorResults, indicatorDefinitions, actionPlans, latestReport, updateIndicatorResult, saveActionPlan, createVisitReport } = usePerformance();
+  const { loading, error, getOperation, indicatorResults, indicatorDefinitions, actionPlans, latestReport, saveIndicatorResult, saveActionPlan, createVisitReport } = usePerformance();
   const operation = getOperation(operationId);
-  const [editing, setEditing] = useState<string | null>(null);
+  // Entrada de resultado: com `result` edita o existente; sem `result` registra
+  // o PRIMEIRO valor do indicador para esta operação.
+  const [entryFor, setEntryFor] = useState<{ definition: IndicatorDefinition; result?: IndicatorResult } | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<{ definition: IndicatorDefinition; result: IndicatorResult } | null>(null);
   const [objective, setObjective] = useState('Evoluir os indicadores críticos e garantir execução do plano de ação.');
   const [showAll, setShowAll] = useState(false);
@@ -41,6 +44,13 @@ export function PerformanceScreen({ route }: NativeStackScreenProps<RootStackPar
     })
     .filter((item): item is NonNullable<typeof item> => item !== null)
     .sort((a, b) => statusOrder[a.status] - statusOrder[b.status] || b.definition.weight - a.definition.weight), [indicatorResults, indicatorDefinitions, operationId]);
+
+  // Indicadores cadastrados AINDA sem resultado nesta operação: estado próprio —
+  // "sem resultado" não é meta atingida, não é meta perdida e não é zero.
+  const pendingDefinitions = useMemo(
+    () => indicatorDefinitions.filter((definition) => !items.some((item) => item.definition.id === definition.id)),
+    [indicatorDefinitions, items],
+  );
 
   // Mesma regra pura do detalhe do parceiro: carregando e erro de rede/RLS
   // NUNCA aparecem como inexistência.
@@ -81,14 +91,36 @@ export function PerformanceScreen({ route }: NativeStackScreenProps<RootStackPar
   const visible = showAll ? items : items.filter((item) => item.status !== 'green');
   const openPlans = operationActionPlans.filter((plan) => !['completed', 'validated'].includes(plan.status));
   const previousReport = latestReport(operationId);
+  const selectedPlanExisting = selectedPlan
+    ? operationActionPlans.find((plan) => plan.themeId === selectedPlan.definition.id && !['completed', 'validated'].includes(plan.status))
+    : undefined;
 
   function savePlan(input: Omit<ActionPlan, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) {
     saveActionPlan(input);
     setSelectedPlan(null);
   }
 
+  async function saveEntry(definition: IndicatorDefinition, result: IndicatorResult | undefined, values: { target: number; actual: number; diagnosis?: string; observation?: string }) {
+    const res = await saveIndicatorResult({
+      operationId,
+      indicatorId: definition.id,
+      // Edição preserva o período do resultado; criação deixa o servidor
+      // aplicar o mês corrente.
+      period: result?.period,
+      ...values,
+    });
+    if (!res.ok) {
+      alertDialog('Não foi possível salvar', res.error.message);
+      return;
+    }
+    setEntryFor(null);
+    alertDialog('Resultado salvo', 'O valor foi registrado no servidor para este Parceiro AACE.');
+  }
+
   function finishVisit() {
-    const plans = operationActionPlans.filter((plan) => plan.evaluationId === `PERF_${operationId}`);
+    // Planos operacionais da Gestão Assistida: vinculados à OPERAÇÃO, sem
+    // avaliação (evaluation_id nulo no servidor → '' na projeção).
+    const plans = operationActionPlans.filter((plan) => !plan.evaluationId);
     const summary = `${critical.length} indicador(es) crítico(s), ${attention.length} em atenção e ${healthy.length} dentro da meta. ${plans.length} plano(s) de ação vinculado(s).`;
     createVisitReport({
       operationId,
@@ -140,7 +172,7 @@ export function PerformanceScreen({ route }: NativeStackScreenProps<RootStackPar
       </View>
 
       {visible.map(({ definition, result, status: indicatorStatus, achievement: pct }) => {
-        const isEditing = editing === result.id;
+        const isEditing = entryFor?.result?.id === result.id;
         const existingPlan = operationActionPlans.find((plan) => plan.themeId === definition.id && !['completed', 'validated'].includes(plan.status));
         return (
           <View key={result.id} style={[styles.indicatorCard, { borderLeftColor: trafficLightColor[indicatorStatus] }]}>
@@ -162,33 +194,17 @@ export function PerformanceScreen({ route }: NativeStackScreenProps<RootStackPar
             </View>
 
             {isEditing ? (
-              <View style={styles.editArea}>
-                <View style={styles.editRow}>
-                  <NumericField label="Meta" value={result.target} onChange={(value) => updateIndicatorResult(result.id, { target: value })} />
-                  <NumericField label="Realizado" value={result.actual} onChange={(value) => updateIndicatorResult(result.id, { actual: value })} />
-                </View>
-                {/* O catálogo corporativo não tem opções de diagnóstico; sem
-                    elas a observação livre continua sendo o registro. */}
-                {definition.diagnosticOptions.length > 0 && (
-                  <>
-                    <Text style={styles.label}>Diagnóstico</Text>
-                    <View style={styles.chips}>
-                      {definition.diagnosticOptions.map((option) => (
-                        <Pressable key={option} onPress={() => updateIndicatorResult(result.id, { diagnosis: option })} style={[styles.chip, result.diagnosis === option && styles.chipActive]}>
-                          <Text style={[styles.chipText, result.diagnosis === option && styles.chipTextActive]}>{option}</Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  </>
-                )}
-                <TextInput value={result.observation ?? ''} onChangeText={(observation) => updateIndicatorResult(result.id, { observation })} placeholder="Observação objetiva da visita" placeholderTextColor={colors.neutral} multiline style={styles.observation} />
-                <AppButton title="Concluir diagnóstico" compact onPress={() => setEditing(null)} />
-              </View>
+              <ResultEntry
+                definition={definition}
+                result={result}
+                onCancel={() => setEntryFor(null)}
+                onSave={(values) => void saveEntry(definition, result, values)}
+              />
             ) : (
               <>
                 {result.diagnosis && <Text style={styles.diagnosis}>Diagnóstico: {result.diagnosis}</Text>}
                 <View style={styles.actionsRow}>
-                  <AppButton title="Diagnosticar" compact variant="secondary" onPress={() => setEditing(result.id)} style={styles.flex} />
+                  <AppButton title="Diagnosticar" compact variant="secondary" onPress={() => setEntryFor({ definition, result })} style={styles.flex} />
                   {indicatorStatus !== 'green' && <AppButton title={existingPlan ? 'Editar ação' : 'Gerar ação'} compact onPress={() => setSelectedPlan({ definition, result })} style={styles.flex} />}
                 </View>
               </>
@@ -197,9 +213,42 @@ export function PerformanceScreen({ route }: NativeStackScreenProps<RootStackPar
         );
       })}
 
+      {/* Indicadores cadastrados sem resultado NESTA operação: aqui nasce o
+          primeiro valor — antes não existia caminho algum de criação. */}
+      {pendingDefinitions.map((definition) => {
+        const isRegistering = !!entryFor && !entryFor.result && entryFor.definition.id === definition.id;
+        return (
+          <View key={definition.id} style={[styles.indicatorCard, { borderLeftColor: trafficLightColor.not_evaluated }]}>
+            <View style={styles.indicatorTop}>
+              <View style={styles.flex}>
+                {!!definition.category && <Text style={styles.category}>{definition.category}</Text>}
+                <Text style={styles.indicatorTitle}>{definition.title}</Text>
+              </View>
+              <View style={[styles.status, { backgroundColor: `${trafficLightColor.not_evaluated}18` }]}>
+                <View style={[styles.dot, { backgroundColor: trafficLightColor.not_evaluated }]} />
+                <Text style={[styles.statusText, { color: trafficLightColor.not_evaluated }]}>Sem resultado</Text>
+              </View>
+            </View>
+            <Text style={styles.diagnosis}>Nenhum resultado registrado — sem valor não há semáforo nem atingimento.</Text>
+            {isRegistering ? (
+              <ResultEntry
+                definition={definition}
+                onCancel={() => setEntryFor(null)}
+                onSave={(values) => void saveEntry(definition, undefined, values)}
+              />
+            ) : (
+              <View style={styles.actionsRow}>
+                <AppButton title="Registrar resultado" compact onPress={() => setEntryFor({ definition })} style={styles.flex} />
+              </View>
+            )}
+          </View>
+        );
+      })}
+
       {/* Três ausências DIFERENTES: catálogo vazio, catálogo sem medição para
           este parceiro e tudo dentro da meta. Só a terceira é boa notícia —
-          declarar "dentro da meta" sem indicador algum seria dado falso. */}
+          declarar "dentro da meta" sem indicador algum seria dado falso; e um
+          indicador SEM resultado também impede a declaração. */}
       {!visible.length && (
         !indicatorDefinitions.length ? (
           <View style={styles.emptyCard}>
@@ -209,11 +258,11 @@ export function PerformanceScreen({ route }: NativeStackScreenProps<RootStackPar
         ) : !items.length ? (
           <View style={styles.emptyCard}>
             <Ionicons name="stats-chart-outline" size={28} color={colors.inkMuted} />
-            <Text style={styles.emptyText}>Nenhum resultado de indicador registrado para este Parceiro AACE.</Text>
+            <Text style={styles.emptyText}>Nenhum resultado de indicador registrado para este Parceiro AACE. Registre o primeiro valor nos cartões acima.</Text>
           </View>
-        ) : (
+        ) : !pendingDefinitions.length ? (
           <View style={styles.allGood}><Ionicons name="checkmark-circle" size={28} color={colors.success} /><Text style={styles.allGoodText}>Todos os indicadores estão dentro da meta.</Text></View>
-        )
+        ) : null
       )}
 
       <View style={styles.reportCard}>
@@ -225,10 +274,13 @@ export function PerformanceScreen({ route }: NativeStackScreenProps<RootStackPar
 
       <ActionPlanModal
         visible={!!selectedPlan}
-        existing={selectedPlan ? operationActionPlans.find((plan) => plan.themeId === selectedPlan.definition.id) : undefined}
+        existing={selectedPlanExisting}
         defaultOwner="Gerente de canal / parceiro"
         onClose={() => setSelectedPlan(null)}
-        onSave={(plan) => selectedPlan && savePlan({ ...plan, operationId, evaluationId: `PERF_${operationId}`, themeId: selectedPlan.definition.id, problem: `${selectedPlan.definition.title}: realizado ${formatValue(selectedPlan.result.actual, selectedPlan.definition.unit)} versus meta ${formatValue(selectedPlan.result.target, selectedPlan.definition.unit)}.`, rootCause: selectedPlan.result.diagnosis ?? plan.rootCause, status: 'not_started' })}
+        // Vínculo canônico do plano operacional: OPERAÇÃO por UUID, sem
+        // avaliação (evaluationId vazio → NULL no servidor). Reeditar reaproveita
+        // o `id` do plano aberto — clique repetido atualiza, não duplica.
+        onSave={(plan) => selectedPlan && savePlan({ ...plan, id: selectedPlanExisting?.id, operationId, evaluationId: '', themeId: selectedPlan.definition.id, problem: `${selectedPlan.definition.title}: realizado ${formatValue(selectedPlan.result.actual, selectedPlan.definition.unit)} versus meta ${formatValue(selectedPlan.result.target, selectedPlan.definition.unit)}.`, rootCause: selectedPlan.result.diagnosis ?? plan.rootCause, status: 'not_started' })}
       />
     </Screen>
   );
@@ -236,7 +288,66 @@ export function PerformanceScreen({ route }: NativeStackScreenProps<RootStackPar
 
 function Summary({ value, label, color }: { value: number; label: string; color: string }) { return <View style={styles.summary}><Text style={[styles.summaryValue, { color }]}>{value}</Text><Text style={styles.summaryLabel}>{label}</Text></View>; }
 function ValueBox({ label, value, strong }: { label: string; value: string; strong?: boolean }) { return <View style={styles.valueBox}><Text style={styles.valueLabel}>{label}</Text><Text style={[styles.valueText, strong && styles.valueStrong]}>{value}</Text></View>; }
-function NumericField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) { return <View style={styles.flex}><Text style={styles.label}>{label}</Text><TextInput keyboardType="decimal-pad" value={String(value)} onChangeText={(text) => onChange(Number(text.replace(',', '.')) || 0)} style={styles.numericInput} /></View>; }
+function NumericField({ label, value, onChangeText }: { label: string; value: string; onChangeText: (text: string) => void }) { return <View style={styles.flex}><Text style={styles.label}>{label}</Text><TextInput keyboardType="decimal-pad" value={value} onChangeText={onChangeText} style={styles.numericInput} /></View>; }
+
+/**
+ * Entrada bufferizada de resultado: nada é gravado por tecla — o valor só vai
+ * ao servidor no salvar, validado (NaN e vazio recusados; zero preservado).
+ * Sem `result` é o registro do PRIMEIRO valor do indicador nesta operação.
+ */
+function ResultEntry({ definition, result, onCancel, onSave }: {
+  definition: IndicatorDefinition;
+  result?: IndicatorResult;
+  onCancel: () => void;
+  onSave: (values: { target: number; actual: number; diagnosis?: string; observation?: string }) => void;
+}) {
+  const [target, setTarget] = useState(result ? String(result.target) : String(definition.defaultTarget));
+  const [actual, setActual] = useState(result ? String(result.actual) : '');
+  const [diagnosis, setDiagnosis] = useState<string | undefined>(result?.diagnosis);
+  const [observation, setObservation] = useState(result?.observation ?? '');
+
+  function handleSave() {
+    const parsedTarget = parseDecimalInput(target);
+    if (parsedTarget === null) {
+      alertDialog('Meta inválida', 'Informe uma meta numérica. Zero é válido; campo vazio não.');
+      return;
+    }
+    const parsedActual = parseDecimalInput(actual);
+    if (parsedActual === null) {
+      alertDialog('Realizado inválido', 'Informe o valor realizado. Zero é válido; campo vazio não.');
+      return;
+    }
+    onSave({ target: parsedTarget, actual: parsedActual, diagnosis, observation: observation.trim() || undefined });
+  }
+
+  return (
+    <View style={styles.editArea}>
+      <View style={styles.editRow}>
+        <NumericField label={`Meta (${definition.unit})`} value={target} onChangeText={setTarget} />
+        <NumericField label={`Realizado (${definition.unit})`} value={actual} onChangeText={setActual} />
+      </View>
+      {/* O catálogo corporativo não tem opções de diagnóstico; sem
+          elas a observação livre continua sendo o registro. */}
+      {definition.diagnosticOptions.length > 0 && (
+        <>
+          <Text style={styles.label}>Diagnóstico</Text>
+          <View style={styles.chips}>
+            {definition.diagnosticOptions.map((option) => (
+              <Pressable key={option} onPress={() => setDiagnosis(option)} style={[styles.chip, diagnosis === option && styles.chipActive]}>
+                <Text style={[styles.chipText, diagnosis === option && styles.chipTextActive]}>{option}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      )}
+      <TextInput value={observation} onChangeText={setObservation} placeholder="Observação objetiva da visita" placeholderTextColor={colors.neutral} multiline style={styles.observation} />
+      <View style={styles.editRow}>
+        <AppButton title="Cancelar" compact variant="secondary" onPress={onCancel} style={styles.flex} />
+        <AppButton title={result ? 'Salvar resultado' : 'Registrar resultado'} compact onPress={handleSave} style={styles.flex} />
+      </View>
+    </View>
+  );
+}
 
 const styles = StyleSheet.create({
   hero: { backgroundColor: colors.ink, borderRadius: radius.lg, padding: spacing.xl }, eyebrow: { color: '#FCA5A5', fontSize: 10, fontWeight: '900', letterSpacing: 1 }, title: { color: colors.white, fontSize: 24, fontWeight: '900', marginTop: 5 }, subtitle: { color: '#D1D5DB', fontSize: 12, marginTop: 4 },

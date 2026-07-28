@@ -189,6 +189,61 @@ describe('1/3/6/8/14 — modo corporativo consulta o servidor, uma vez por cole�
   });
 });
 
+describe('saveIndicatorResult — criação/atualização de resultado (Fatia 6C)', () => {
+  it('modo demonstração: cria o PRIMEIRO resultado no store e depois atualiza sem duplicar', async () => {
+    const store = storeCom({ indicatorDefinitions: [DEF_SINT] });
+    const repo = new LocalPerformanceRepository(store);
+
+    const criado = await repo.saveIndicatorResult({ operationId: OP_UUID, indicatorId: IND_UUID, period: '2026-07', actual: 42.5 });
+    expect(criado.ok && criado.value.actual).toBe(42.5);
+    expect(criado.ok && criado.value.target).toBe(DEF_SINT.defaultTarget); // meta ausente = meta da definição
+    expect(store.getSnapshot().indicatorResults).toHaveLength(1);
+
+    const atualizado = await repo.saveIndicatorResult({ operationId: OP_UUID, indicatorId: IND_UUID, period: '2026-07', actual: 55, target: 60 });
+    expect(atualizado.ok && atualizado.value.actual).toBe(55);
+    expect(atualizado.ok && atualizado.value.previousActual).toBe(42.5);
+    expect(store.getSnapshot().indicatorResults).toHaveLength(1); // atualizou, não duplicou
+  });
+
+  it('ausência de resultado não vira zero: valor NaN/não finito é recusado nos DOIS modos', async () => {
+    const local = new LocalPerformanceRepository(storeCom({ indicatorDefinitions: [DEF_SINT] }));
+    const localNaN = await local.saveIndicatorResult({ operationId: OP_UUID, indicatorId: IND_UUID, actual: Number.NaN });
+    expect(localNaN.ok).toBe(false);
+
+    let chamouRpc = false;
+    const client = { rpc: () => { chamouRpc = true; return Promise.resolve({ data: null, error: null }); } } as never;
+    const remoto = new SupabasePerformanceRepository(client);
+    const remotoNaN = await remoto.saveIndicatorResult({ operationId: OP_UUID, indicatorId: IND_UUID, actual: Number.NaN });
+    expect(remotoNaN.ok).toBe(false);
+    const metaNaN = await remoto.saveIndicatorResult({ operationId: OP_UUID, indicatorId: IND_UUID, actual: 1, target: Number.POSITIVE_INFINITY });
+    expect(metaNaN.ok).toBe(false);
+    expect(chamouRpc).toBe(false); // valor inválido nunca chega ao servidor
+  });
+
+  it('modo corporativo: chama a RPC save_indicator_result com UUIDs canônicos', async () => {
+    const rpcCalls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+    const dto = { id: RES_SINT.id, operationId: OP_UUID, indicatorId: IND_UUID, period: '2026-07', target: 50, actual: 40, previousActual: 0, updatedAt: RES_SINT.updatedAt };
+    const client = {
+      rpc: (fn: string, args: Record<string, unknown>) => { rpcCalls.push({ fn, args }); return Promise.resolve({ data: dto, error: null }); },
+    } as never;
+    const res = await new SupabasePerformanceRepository(client).saveIndicatorResult({ operationId: OP_UUID, indicatorId: IND_UUID, period: '2026-07', actual: 40, target: 50 });
+    expect(res.ok && res.value.id).toBe(RES_SINT.id);
+    expect(rpcCalls).toHaveLength(1);
+    expect(rpcCalls[0].fn).toBe('save_indicator_result');
+    const input = rpcCalls[0].args.p_input as Record<string, unknown>;
+    expect(input.operationId).toBe(OP_UUID);
+    expect(input.indicatorId).toBe(IND_UUID);
+    expect(input.actual).toBe(40);
+  });
+
+  it('erro do servidor vira falha explícita, nunca sucesso silencioso', async () => {
+    const client = { rpc: () => Promise.resolve({ data: null, error: { message: 'falha sintetica' } }) } as never;
+    const res = await new SupabasePerformanceRepository(client).saveIndicatorResult({ operationId: OP_UUID, indicatorId: IND_UUID, actual: 1 });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error.code).toBe('network/unavailable');
+  });
+});
+
 describe('mapeamentos — contrato servidor → tela', () => {
   it('indicador sem versão é descartado em vez de virar meta zero', () => {
     const semVersao = { id: IND_UUID, code: 'IND-SINT', name: 'x', lifecycle: 'active', createdAt: '', usageCount: 0, versions: [] } as AdminIndicator;

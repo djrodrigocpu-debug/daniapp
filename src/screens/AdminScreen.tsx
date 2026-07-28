@@ -7,7 +7,8 @@ import { AppButton } from '../components/AppButton';
 import { EmptyState } from '../components/EmptyState';
 import { useAdmin } from '../context/AdminProvider';
 import { colors, radius, spacing } from '../theme';
-import { UserRole } from '../types';
+import { AdminIndicator, IndicatorDirection, IndicatorUnit, UserRole } from '../types';
+import { INDICATOR_DIRECTIONS, INDICATOR_UNITS, validateIndicatorVersionForm } from '../domain/indicators/indicatorForm';
 import { roleLabel } from '../utils/format';
 import { PartnersSection } from './admin/PartnersSection';
 import { UserImportFlow } from './admin/UserImportFlow';
@@ -190,14 +191,28 @@ function IndicatorsSection() {
   const { indicators, createIndicator, addIndicatorVersion, deactivateIndicator, removeIndicator } = useAdmin();
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
+  const [unit, setUnit] = useState<IndicatorUnit>('%');
+  const [direction, setDirection] = useState<IndicatorDirection>('higher_better');
   const [target, setTarget] = useState('');
+  const [yellowTolerance, setYellowTolerance] = useState('');
   const [weight, setWeight] = useState('');
   const [busy, setBusy] = useState(false);
 
   async function submit() {
+    if (!code.trim() || !name.trim()) {
+      alertDialog('Campos obrigatórios', 'Informe código e nome do indicador.');
+      return;
+    }
+    // Validação estrita: NaN e ausência são recusados; zero é preservado; nada
+    // recebe default oculto — o contrato completo vai como digitado.
+    const validation = validateIndicatorVersionForm({ unit, direction, target, yellowTolerance, weight });
+    if (!validation.ok) {
+      alertDialog('Cadastro incompleto', validation.message);
+      return;
+    }
     setBusy(true);
-    const res = await createIndicator(code, name, {
-      unit: '%', direction: 'higher_better', target: Number(target) || 0, yellowTolerance: 0, weight: Number(weight) || 1, effectiveFrom: new Date().toISOString().slice(0, 10),
+    const res = await createIndicator(code.trim(), name.trim(), {
+      ...validation.value, effectiveFrom: new Date().toISOString().slice(0, 10),
     });
     setBusy(false);
     if (!res.ok) {
@@ -206,13 +221,24 @@ function IndicatorsSection() {
     }
     setCode('');
     setName('');
+    setUnit('%');
+    setDirection('higher_better');
     setTarget('');
+    setYellowTolerance('');
     setWeight('');
   }
 
-  async function newVersion(indicatorId: string, lastTarget: number, lastWeight: number) {
-    const res = await addIndicatorVersion(indicatorId, {
-      unit: '%', direction: 'higher_better', target: lastTarget, yellowTolerance: 0, weight: lastWeight, effectiveFrom: new Date().toISOString().slice(0, 10),
+  async function newVersion(ind: AdminIndicator) {
+    // Nova versão parte do contrato VIGENTE — antes unidade, direção e
+    // tolerância eram silenciosamente redefinidas para %, higher_better e 0.
+    const last = ind.versions[ind.versions.length - 1];
+    const res = await addIndicatorVersion(ind.id, {
+      unit: last?.unit ?? '%',
+      direction: last?.direction ?? 'higher_better',
+      target: last?.target ?? 0,
+      yellowTolerance: last?.yellowTolerance ?? 0,
+      weight: last?.weight ?? 1,
+      effectiveFrom: new Date().toISOString().slice(0, 10),
     });
     if (!res.ok) alertDialog('Falha', res.message);
   }
@@ -228,8 +254,25 @@ function IndicatorsSection() {
         <Text style={styles.cardTitle}>Novo indicador</Text>
         <TextInput value={code} onChangeText={setCode} placeholder="Código (ex.: IND-050)" placeholderTextColor={colors.neutral} autoCapitalize="characters" style={styles.input} />
         <TextInput value={name} onChangeText={setName} placeholder="Nome do indicador" placeholderTextColor={colors.neutral} style={styles.input} />
-        <View style={styles.inlineRow}>
+        <Text style={styles.fieldLabel}>Unidade</Text>
+        <View style={styles.roleRow}>
+          {INDICATOR_UNITS.map((item) => (
+            <Pressable key={item} onPress={() => setUnit(item)} style={[styles.chip, unit === item && styles.chipActive]} accessibilityRole="button">
+              <Text style={[styles.chipText, unit === item && styles.chipTextActive]}>{item}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Text style={styles.fieldLabel}>Direção</Text>
+        <View style={styles.roleRow}>
+          {INDICATOR_DIRECTIONS.map((item) => (
+            <Pressable key={item.value} onPress={() => setDirection(item.value)} style={[styles.chip, direction === item.value && styles.chipActive]} accessibilityRole="button">
+              <Text style={[styles.chipText, direction === item.value && styles.chipTextActive]}>{item.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <View style={[styles.inlineRow, styles.mt]}>
           <TextInput value={target} onChangeText={setTarget} placeholder="Meta" placeholderTextColor={colors.neutral} keyboardType="numeric" style={[styles.input, styles.flex]} />
+          <TextInput value={yellowTolerance} onChangeText={setYellowTolerance} placeholder="Tolerância amarela (%)" placeholderTextColor={colors.neutral} keyboardType="numeric" style={[styles.input, styles.flex]} />
           <TextInput value={weight} onChangeText={setWeight} placeholder="Peso" placeholderTextColor={colors.neutral} keyboardType="numeric" style={[styles.input, styles.flex]} />
         </View>
         <AppButton title="Criar indicador" onPress={() => void submit()} loading={busy} style={styles.mt} />
@@ -249,9 +292,9 @@ function IndicatorsSection() {
                 <Text style={[styles.statusToggleText, { color: ind.lifecycle === 'active' ? colors.success : colors.inkMuted }]}>{ind.lifecycle === 'active' ? 'Ativo' : 'Inativo'}</Text>
               </View>
             </View>
-            <Text style={styles.indMeta}>v{last?.versionNumber ?? 1} · meta {last?.target} · peso {last?.weight} · {ind.versions.length} versão(ões) · {ind.usageCount} uso(s)</Text>
+            <Text style={styles.indMeta}>v{last?.versionNumber ?? 1} · {last?.unit} · {last?.direction === 'lower_better' ? 'menor é melhor' : 'maior é melhor'} · meta {last?.target} · tol. {last?.yellowTolerance}% · peso {last?.weight} · {ind.versions.length} versão(ões) · {ind.usageCount} uso(s)</Text>
             <View style={styles.indActions}>
-              <AppButton title="Nova versão" compact variant="secondary" onPress={() => void newVersion(ind.id, last?.target ?? 0, last?.weight ?? 1)} style={styles.flex} />
+              <AppButton title="Nova versão" compact variant="secondary" onPress={() => void newVersion(ind)} style={styles.flex} />
               {ind.lifecycle === 'active' && <AppButton title="Inativar" compact variant="secondary" onPress={() => void deactivateIndicator(ind.id)} style={styles.flex} />}
               <AppButton title="Excluir" compact variant="danger" onPress={() => void tryRemove(ind.id)} style={styles.flex} />
             </View>
