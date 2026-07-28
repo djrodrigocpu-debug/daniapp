@@ -10,6 +10,7 @@ import { scopeFromUser } from '../data/repositories/OperationsRepository';
 import { ValidationDecision } from '../data/repositories/ValidationsRepository';
 import { localStore } from '../data/store/localStore';
 import { useOperationalUser } from './useOperationalUser';
+import { useOperations } from './OperationsProvider';
 
 export type ValidateResult = { ok: true } | { ok: false; message: string };
 
@@ -29,6 +30,9 @@ export function ValidationsProvider({ children }: { children: React.ReactNode })
   const { validations: repo, source } = useRepositories();
   const user = useOperationalUser();
   const data = useSyncExternalStore(localStore.subscribe, localStore.getSnapshot);
+  // Mesma correção do bug "Parceiro não existente": a operação vem da lista
+  // REAL já carregada, não do store local de demonstração.
+  const { operations } = useOperations();
   const [pending, setPending] = useState<Evaluation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +74,7 @@ export function ValidationsProvider({ children }: { children: React.ReactNode })
     [repo, user],
   );
 
-  const getOperation = useCallback((id: string) => data.operations.find((o) => o.id === id), [data.operations]);
+  const getOperation = useCallback((id: string) => operations.find((o) => o.id === id), [operations]);
   const getUser = useCallback((id: string) => data.users.find((u) => u.id === id), [data.users]);
 
   const value = useMemo<ValidationsContextValue>(

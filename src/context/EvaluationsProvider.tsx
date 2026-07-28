@@ -12,6 +12,7 @@ import { useRepositories } from '../data/repositories/RepositoryProvider';
 import { EvidenceInput, ActionPlanInput } from '../data/repositories/EvaluationsRepository';
 import { localStore } from '../data/store/localStore';
 import { useOperationalUser } from './useOperationalUser';
+import { useOperations } from './OperationsProvider';
 
 export type SubmitResult = { ok: true } | { ok: false; message: string };
 
@@ -37,9 +38,13 @@ export function EvaluationsProvider({ children }: { children: React.ReactNode })
   const { evaluations: repo } = useRepositories();
   const user = useOperationalUser();
   const data = useSyncExternalStore(localStore.subscribe, localStore.getSnapshot);
+  // Operação é entidade REAL, já buscada pela mesma fonte que preenche a
+  // lista (§ correção do bug "Parceiro não existente"). `data.operations` é
+  // o store local de demonstração — nunca populado pelos dados corporativos.
+  const { operations } = useOperations();
 
   const getEvaluation = useCallback((id: string) => data.evaluations.find((e) => e.id === id), [data.evaluations]);
-  const getOperation = useCallback((id: string) => data.operations.find((o) => o.id === id), [data.operations]);
+  const getOperation = useCallback((id: string) => operations.find((o) => o.id === id), [operations]);
   const getUser = useCallback((id: string) => data.users.find((u) => u.id === id), [data.users]);
   const listByOperation = useCallback(
     (operationId: string) =>
