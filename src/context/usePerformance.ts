@@ -18,8 +18,9 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActionPlan, IndicatorDefinition, IndicatorResult, Operation, VisitReport } from '../types';
+import { Result } from '../domain/errors/result';
 import { useRepositories } from '../data/repositories/RepositoryProvider';
-import { VisitReportInput } from '../data/repositories/PerformanceRepository';
+import { SaveIndicatorResultInput, VisitReportInput } from '../data/repositories/PerformanceRepository';
 import { ActionPlanInput } from '../data/repositories/EvaluationsRepository';
 import { localStore } from '../data/store/localStore';
 import { useOperationalUser } from './useOperationalUser';
@@ -36,6 +37,13 @@ export interface PerformanceApi {
   indicatorDefinitions: IndicatorDefinition[];
   actionPlans: (operationId: string) => ActionPlan[];
   latestReport: (operationId: string) => VisitReport | undefined;
+  /**
+   * Cria o primeiro resultado de operação+indicador+período ou atualiza o
+   * existente pelo caminho corporativo (RPC `save_indicator_result`). Retorna o
+   * Result para a tela distinguir sucesso, validação e falha de rede — erro
+   * nunca vira silêncio.
+   */
+  saveIndicatorResult: (input: SaveIndicatorResultInput) => Promise<Result<IndicatorResult>>;
   updateIndicatorResult: (resultId: string, patch: Partial<IndicatorResult>) => void;
   saveActionPlan: (input: ActionPlanInput) => void;
   createVisitReport: (input: VisitReportInput) => void;
@@ -137,6 +145,22 @@ export function usePerformance(): PerformanceApi {
     [latestReportByOperation],
   );
 
+  const saveIndicatorResult = useCallback(
+    async (input: SaveIndicatorResultInput) => {
+      const res = await perfRepo.saveIndicatorResult(input);
+      if (res.ok) {
+        // A linha persistida volta do servidor: substitui a existente pelo id
+        // ou entra como primeiro resultado — sem recarregar as três coleções.
+        setResults((prev) => {
+          const exists = prev.some((r) => r.id === res.value.id);
+          return exists ? prev.map((r) => (r.id === res.value.id ? res.value : r)) : [res.value, ...prev];
+        });
+      }
+      return res;
+    },
+    [perfRepo],
+  );
+
   const updateIndicatorResult = useCallback(
     (resultId: string, patch: Partial<IndicatorResult>) => {
       // A linha gravada volta do servidor: o estado passa a refletir o que foi
@@ -172,6 +196,7 @@ export function usePerformance(): PerformanceApi {
     indicatorDefinitions: definitions,
     actionPlans,
     latestReport,
+    saveIndicatorResult,
     updateIndicatorResult,
     saveActionPlan,
     createVisitReport,

@@ -20,6 +20,21 @@ import { LocalStore, localStore } from '../store/localStore';
 
 export type VisitReportInput = Omit<VisitReport, 'id' | 'createdAt' | 'createdBy'>;
 
+/**
+ * Entrada do caminho de criação/atualização de resultado. Operação e indicador
+ * são UUIDs canônicos; `period` ausente = mês corrente (decidido no servidor);
+ * `target` ausente = meta da versão vigente do indicador.
+ */
+export interface SaveIndicatorResultInput {
+  operationId: string;
+  indicatorId: string;
+  actual: number;
+  target?: number;
+  period?: string;
+  diagnosis?: string;
+  observation?: string;
+}
+
 export interface PerformanceRepository {
   /** Catálogo de indicadores do modo vigente — UMA consulta, nada por card. */
   listIndicatorDefinitions(): Promise<Result<IndicatorDefinition[]>>;
@@ -27,6 +42,11 @@ export interface PerformanceRepository {
   listIndicatorResults(): Promise<Result<IndicatorResult[]>>;
   /** Relatórios de visita das operações visíveis, mais recentes primeiro. */
   listVisitReports(): Promise<Result<VisitReport[]>>;
+  /**
+   * Cria o PRIMEIRO resultado de operação+indicador+período ou atualiza o
+   * existente — a chave é decidida pelo servidor (unique de indicator_results).
+   */
+  saveIndicatorResult(input: SaveIndicatorResultInput): Promise<Result<IndicatorResult>>;
   updateIndicatorResult(resultId: string, patch: Partial<IndicatorResult>): Promise<Result<IndicatorResult>>;
   createVisitReport(input: VisitReportInput, createdBy: string): Promise<Result<VisitReport>>;
 }
@@ -44,6 +64,50 @@ export class LocalPerformanceRepository implements PerformanceRepository {
 
   async listVisitReports(): Promise<Result<VisitReport[]>> {
     return ok(this.store.getSnapshot().visitReports);
+  }
+
+  async saveIndicatorResult(input: SaveIndicatorResultInput): Promise<Result<IndicatorResult>> {
+    // Mesma validação do servidor: valor ausente/NaN nunca vira zero.
+    if (!Number.isFinite(input.actual)) return err('validation/invalid-input', 'Informe um valor numérico para o realizado.');
+    if (input.target !== undefined && !Number.isFinite(input.target)) {
+      return err('validation/invalid-input', 'A meta precisa ser numérica.');
+    }
+    const definition = this.store.getSnapshot().indicatorDefinitions.find((d) => d.id === input.indicatorId);
+    if (!definition) return err('validation/invalid-input', 'Indicador não encontrado.');
+    const period = input.period ?? new Date().toISOString().slice(0, 7);
+    const now = new Date().toISOString();
+    let saved: IndicatorResult | null = null;
+    this.store.update((prev) => {
+      const existing = prev.indicatorResults.find(
+        (r) => r.operationId === input.operationId && r.indicatorId === input.indicatorId && r.period === period,
+      );
+      if (existing) {
+        saved = {
+          ...existing,
+          previousActual: existing.actual,
+          actual: input.actual,
+          target: input.target ?? existing.target,
+          diagnosis: input.diagnosis ?? existing.diagnosis,
+          observation: input.observation ?? existing.observation,
+          updatedAt: now,
+        };
+        return { ...prev, indicatorResults: prev.indicatorResults.map((r) => (r.id === existing.id ? saved! : r)) };
+      }
+      saved = {
+        id: makeId('IR'),
+        operationId: input.operationId,
+        indicatorId: input.indicatorId,
+        period,
+        target: input.target ?? definition.defaultTarget,
+        actual: input.actual,
+        previousActual: 0,
+        diagnosis: input.diagnosis,
+        observation: input.observation,
+        updatedAt: now,
+      };
+      return { ...prev, indicatorResults: [saved, ...prev.indicatorResults] };
+    });
+    return saved ? ok(saved) : err('validation/invalid-input', 'Não foi possível salvar o resultado.');
   }
 
   async updateIndicatorResult(resultId: string, patch: Partial<IndicatorResult>): Promise<Result<IndicatorResult>> {
@@ -184,6 +248,21 @@ export class SupabasePerformanceRepository implements PerformanceRepository {
       return err(new AppError('network/unavailable', 'Falha ao carregar os relatórios de visita.', { cause: error }));
     }
     return ok(((data ?? []) as unknown as VisitReportRow[]).map(toVisitReport));
+  }
+
+  async saveIndicatorResult(input: SaveIndicatorResultInput): Promise<Result<IndicatorResult>> {
+    // NaN não sobrevive à serialização JSON (viraria null) — recusar aqui é o
+    // que garante que valor inválido nunca chega ao servidor como ausência.
+    if (!Number.isFinite(input.actual)) {
+      return err(new AppError('validation/invalid-input', 'Informe um valor numérico para o realizado.'));
+    }
+    if (input.target !== undefined && !Number.isFinite(input.target)) {
+      return err(new AppError('validation/invalid-input', 'A meta precisa ser numérica.'));
+    }
+    const { data, error } = await this.client.rpc('save_indicator_result', { p_input: input });
+    return error
+      ? err(new AppError('network/unavailable', 'Falha ao salvar o resultado do indicador.', { cause: error }))
+      : ok(data as IndicatorResult);
   }
 
   async updateIndicatorResult(resultId: string, patch: Partial<IndicatorResult>): Promise<Result<IndicatorResult>> {
