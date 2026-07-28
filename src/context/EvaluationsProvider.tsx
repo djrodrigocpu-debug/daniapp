@@ -6,10 +6,11 @@
  * `EvaluationsRepository` selecionado (Local ou Supabase). Assim OperationDetail e
  * Evaluation operam sobre persistência real, com a mesma interface em ambos os modos.
  */
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { ActionPlan, AssessmentAnswer, Evaluation, Evidence, Frequency, Operation, User } from '../types';
 import { useRepositories } from '../data/repositories/RepositoryProvider';
 import { EvidenceInput, ActionPlanInput } from '../data/repositories/EvaluationsRepository';
+import { scopeFromUser } from '../data/repositories/OperationsRepository';
 import { localStore } from '../data/store/localStore';
 import { useOperationalUser } from './useOperationalUser';
 import { useOperations } from './OperationsProvider';
@@ -18,6 +19,10 @@ import { useDirectory } from './DirectoryProvider';
 export type SubmitResult = { ok: true } | { ok: false; message: string };
 
 interface EvaluationsContextValue {
+  /** true enquanto a carga inicial das coleções não terminou. */
+  loading: boolean;
+  /** Falha ao carregar as AVALIAÇÕES — nunca é apresentada como inexistência. */
+  error: string | null;
   getEvaluation: (id: string) => Evaluation | undefined;
   getOperation: (id: string) => Operation | undefined;
   getUser: (id: string) => User | undefined;
@@ -36,33 +41,52 @@ interface EvaluationsContextValue {
 const EvaluationsContext = createContext<EvaluationsContextValue | undefined>(undefined);
 
 export function EvaluationsProvider({ children }: { children: React.ReactNode }) {
-  const { evaluations: repo, source } = useRepositories();
+  const { evaluations: repo, actions: actionsRepo, source } = useRepositories();
   const user = useOperationalUser();
-  const data = useSyncExternalStore(localStore.subscribe, localStore.getSnapshot);
   // Operação é entidade REAL, já buscada pela mesma fonte que preenche a
-  // lista (§ correção do bug "Parceiro não existente"). `data.operations` é
-  // o store local de demonstração — nunca populado pelos dados corporativos.
+  // lista (§ correção do bug "Parceiro não existente").
   const { operations } = useOperations();
   // Usuário real vem do diretório compartilhado, não do seed local.
   const { getUser } = useDirectory();
 
   /**
-   * Avaliações visíveis, carregadas UMA vez pelo repositório do modo vigente.
-   * Antes os lookups liam `data.evaluations` (localStore de demonstração):
-   * em modo corporativo o histórico vinha sempre vazio, uma avaliação criada
-   * no servidor voltava como "não encontrada" e `getCurrentDraft` nunca
-   * achava o rascunho aberto — o guard de ciclo em andamento não disparava.
+   * Avaliações, planos de ação e evidências visíveis — TRÊS consultas por
+   * sessão, uma por coleção, pelo repositório do modo vigente. Antes os
+   * lookups liam o localStore de demonstração: em modo corporativo o
+   * histórico vinha vazio, uma avaliação criada no servidor voltava como
+   * "não encontrada", o guard de rascunho aberto nunca disparava e — última
+   * ocorrência da mesma classe — plano de ação e evidência reais gravados
+   * pelo servidor apareciam como inexistentes na edição da avaliação.
    */
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
+  const [actionPlans, setActionPlans] = useState<ActionPlan[]>([]);
+  const [evidences, setEvidences] = useState<Evidence[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!user) {
       setEvaluations([]);
+      setActionPlans([]);
+      setEvidences([]);
+      setLoading(false);
+      setError(null);
       return;
     }
-    const res = await repo.listVisible();
-    setEvaluations(res.ok ? res.value : []);
-  }, [repo, user]);
+    // Os planos vêm do MESMO repositório que a aba Ações usa (uma consulta por
+    // escopo), e as evidências da projeção do modo vigente — nada por item.
+    const [evals, plans, evid] = await Promise.all([
+      repo.listVisible(),
+      actionsRepo.listByScope(scopeFromUser(user)),
+      repo.listVisibleEvidences(),
+    ]);
+    setEvaluations(evals.ok ? evals.value : []);
+    setActionPlans(plans.ok ? plans.value : []);
+    setEvidences(evid.ok ? evid.value : []);
+    // Erro de rede/RLS nas avaliações NÃO é inexistência: a tela distingue.
+    setError(evals.ok ? null : evals.error.message);
+    setLoading(false);
+  }, [repo, actionsRepo, user]);
 
   useEffect(() => {
     void load();
@@ -90,12 +114,15 @@ export function EvaluationsProvider({ children }: { children: React.ReactNode })
   );
   const getActionPlan = useCallback(
     (evaluationId: string, themeId: string) =>
-      data.actionPlans.find((p) => p.evaluationId === evaluationId && p.themeId === themeId),
-    [data.actionPlans],
+      actionPlans.find((p) => p.evaluationId === evaluationId && p.themeId === themeId),
+    [actionPlans],
   );
+  // Índice por UUID: o lookup por resposta renderizada é O(k) sobre a lista
+  // já carregada — nenhuma consulta por item.
+  const evidenceById = useMemo(() => new Map(evidences.map((e) => [e.id, e])), [evidences]);
   const getEvidences = useCallback(
-    (ids: string[]) => ids.map((id) => data.evidences.find((e) => e.id === id)).filter((e): e is Evidence => !!e),
-    [data.evidences],
+    (ids: string[]) => ids.map((id) => evidenceById.get(id)).filter((e): e is Evidence => !!e),
+    [evidenceById],
   );
 
   const startEvaluation = useCallback(
@@ -114,23 +141,25 @@ export function EvaluationsProvider({ children }: { children: React.ReactNode })
     },
     [repo, load],
   );
+  // As três mutações recarregam: a tela relê getEvidences/getActionPlan em
+  // seguida e precisa encontrar o que o servidor acabou de gravar.
   const addEvidence = useCallback(
     (evaluationId: string, themeId: string, input: EvidenceInput) => {
-      void repo.addEvidence(evaluationId, themeId, input);
+      void repo.addEvidence(evaluationId, themeId, input).then(() => load());
     },
-    [repo],
+    [repo, load],
   );
   const removeEvidence = useCallback(
     (evaluationId: string, evidenceId: string) => {
-      void repo.removeEvidence(evaluationId, evidenceId);
+      void repo.removeEvidence(evaluationId, evidenceId).then(() => load());
     },
-    [repo],
+    [repo, load],
   );
   const saveActionPlan = useCallback(
     (input: ActionPlanInput) => {
-      void repo.saveActionPlan(input);
+      void repo.saveActionPlan(input).then(() => load());
     },
-    [repo],
+    [repo, load],
   );
   const submit = useCallback(
     async (evaluationId: string): Promise<SubmitResult> => {
@@ -145,6 +174,8 @@ export function EvaluationsProvider({ children }: { children: React.ReactNode })
 
   const value = useMemo<EvaluationsContextValue>(
     () => ({
+      loading,
+      error,
       getEvaluation,
       getOperation,
       getUser,
@@ -159,7 +190,7 @@ export function EvaluationsProvider({ children }: { children: React.ReactNode })
       saveActionPlan,
       submit,
     }),
-    [getEvaluation, getOperation, getUser, listByOperation, getCurrentDraft, getActionPlan, getEvidences, startEvaluation, saveAnswer, addEvidence, removeEvidence, saveActionPlan, submit],
+    [loading, error, getEvaluation, getOperation, getUser, listByOperation, getCurrentDraft, getActionPlan, getEvidences, startEvaluation, saveAnswer, addEvidence, removeEvidence, saveActionPlan, submit],
   );
 
   return <EvaluationsContext.Provider value={value}>{children}</EvaluationsContext.Provider>;

@@ -24,12 +24,16 @@ export interface ActionPlan { id: string; operationId: string; evaluationId: str
 export interface IndicatorDefinition {
   id: string;
   title: string;
-  category: 'Resultado' | 'Qualidade' | 'Processo';
+  /** Agrupamento do catálogo de demonstração. O modelo corporativo
+   * (`indicator_definitions`) NÃO tem coluna equivalente — em modo Supabase
+   * fica ausente em vez de ser inventado. */
+  category?: 'Resultado' | 'Qualidade' | 'Processo';
   unit: IndicatorUnit;
   direction: IndicatorDirection;
   defaultTarget: number;
   yellowTolerance: number;
   weight: number;
+  /** Idem: sem coluna correspondente no servidor — vazio em modo corporativo. */
   diagnosticOptions: string[];
 }
 

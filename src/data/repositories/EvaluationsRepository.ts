@@ -25,6 +25,16 @@ export interface EvaluationsRepository {
    * vez mantém a API síncrona das telas sem N+1.
    */
   listVisible(): Promise<Result<Evaluation[]>>;
+  /**
+   * Metadados das evidências visíveis — UMA consulta, indexável por id.
+   *
+   * Existe pela mesma razão de `listVisible`: `ui_evaluations` entrega apenas
+   * os `evidenceIds` de cada resposta, e o lookup de metadados (nome, tipo,
+   * status) lia o store local de demonstração — evidência real gravada pelo
+   * servidor aparecia como inexistente. No modo corporativo a fonte é a
+   * projeção `ui_evidences` (0019), sob a RLS de `evidence_files`.
+   */
+  listVisibleEvidences(): Promise<Result<Evidence[]>>;
   getById(id: string): Promise<Result<Evaluation | null>>;
   listByOperation(operationId: string): Promise<Result<Evaluation[]>>;
   /** Rascunho/devolvida em aberto para a operação (idempotência de ciclo). */
