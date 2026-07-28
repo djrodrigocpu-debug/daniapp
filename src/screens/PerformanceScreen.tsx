@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { alertDialog } from '../utils/dialog';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,6 +7,7 @@ import { Screen } from '../components/Screen';
 import { AppButton } from '../components/AppButton';
 import { ActionPlanModal } from '../components/ActionPlanModal';
 import { usePerformance } from '../context/usePerformance';
+import { decideOperationDetailState } from '../domain/operations/operationDetailState';
 import { achievement, calculateIndicatorStatus } from '../data/performance';
 import { colors, radius, spacing } from '../theme';
 import { ActionPlan, IndicatorDefinition, IndicatorResult, RootStackParamList, TrafficLight } from '../types';
@@ -21,7 +22,7 @@ function formatValue(value: number, unit: string) {
 
 export function PerformanceScreen({ route }: NativeStackScreenProps<RootStackParamList, 'Performance'>) {
   const { operationId } = route.params;
-  const { getOperation, indicatorResults, indicatorDefinitions, actionPlans, latestReport, updateIndicatorResult, saveActionPlan, createVisitReport } = usePerformance();
+  const { loading, error, getOperation, indicatorResults, indicatorDefinitions, actionPlans, latestReport, updateIndicatorResult, saveActionPlan, createVisitReport } = usePerformance();
   const operation = getOperation(operationId);
   const [editing, setEditing] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<{ definition: IndicatorDefinition; result: IndicatorResult } | null>(null);
@@ -31,13 +32,49 @@ export function PerformanceScreen({ route }: NativeStackScreenProps<RootStackPar
   const operationActionPlans = actionPlans(operationId);
   const items = useMemo(() => indicatorResults(operationId)
     .map((result) => {
-      const definition = indicatorDefinitions.find((item) => item.id === result.indicatorId)!;
+      // Resultado sem definição correspondente é descartado — antes o `!`
+      // derrubava a tela inteira em vez de simplesmente não exibir o card.
+      const definition = indicatorDefinitions.find((item) => item.id === result.indicatorId);
+      if (!definition) return null;
       const status = calculateIndicatorStatus(definition, result);
       return { definition, result, status, achievement: achievement(definition, result) };
     })
+    .filter((item): item is NonNullable<typeof item> => item !== null)
     .sort((a, b) => statusOrder[a.status] - statusOrder[b.status] || b.definition.weight - a.definition.weight), [indicatorResults, indicatorDefinitions, operationId]);
 
-  if (!operation) return <Screen><Text>Parceiro AACE não encontrado.</Text></Screen>;
+  // Mesma regra pura do detalhe do parceiro: carregando e erro de rede/RLS
+  // NUNCA aparecem como inexistência.
+  const detailState = decideOperationDetailState({ loading, error, found: !!operation });
+  if (detailState === 'loading') {
+    return (
+      <Screen>
+        <View style={styles.stateBox}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.stateText}>Carregando a Gestão Assistida…</Text>
+        </View>
+      </Screen>
+    );
+  }
+  if (detailState === 'error') {
+    return (
+      <Screen>
+        <View style={styles.stateBox}>
+          <Ionicons name="cloud-offline-outline" size={32} color={colors.danger} />
+          <Text style={styles.stateText}>Não foi possível carregar a Gestão Assistida.</Text>
+        </View>
+      </Screen>
+    );
+  }
+  if (!operation) {
+    return (
+      <Screen>
+        <View style={styles.stateBox}>
+          <Ionicons name="alert-circle-outline" size={32} color={colors.inkMuted} />
+          <Text style={styles.stateText}>Parceiro AACE não encontrado.</Text>
+        </View>
+      </Screen>
+    );
+  }
   const critical = items.filter((item) => item.status === 'red');
   const attention = items.filter((item) => item.status === 'yellow');
   const healthy = items.filter((item) => item.status === 'green');
@@ -109,7 +146,7 @@ export function PerformanceScreen({ route }: NativeStackScreenProps<RootStackPar
           <View key={result.id} style={[styles.indicatorCard, { borderLeftColor: trafficLightColor[indicatorStatus] }]}>
             <View style={styles.indicatorTop}>
               <View style={styles.flex}>
-                <Text style={styles.category}>{definition.category}</Text>
+                {!!definition.category && <Text style={styles.category}>{definition.category}</Text>}
                 <Text style={styles.indicatorTitle}>{definition.title}</Text>
               </View>
               <View style={[styles.status, { backgroundColor: `${trafficLightColor[indicatorStatus]}18` }]}>
@@ -130,14 +167,20 @@ export function PerformanceScreen({ route }: NativeStackScreenProps<RootStackPar
                   <NumericField label="Meta" value={result.target} onChange={(value) => updateIndicatorResult(result.id, { target: value })} />
                   <NumericField label="Realizado" value={result.actual} onChange={(value) => updateIndicatorResult(result.id, { actual: value })} />
                 </View>
-                <Text style={styles.label}>Diagnóstico</Text>
-                <View style={styles.chips}>
-                  {definition.diagnosticOptions.map((option) => (
-                    <Pressable key={option} onPress={() => updateIndicatorResult(result.id, { diagnosis: option })} style={[styles.chip, result.diagnosis === option && styles.chipActive]}>
-                      <Text style={[styles.chipText, result.diagnosis === option && styles.chipTextActive]}>{option}</Text>
-                    </Pressable>
-                  ))}
-                </View>
+                {/* O catálogo corporativo não tem opções de diagnóstico; sem
+                    elas a observação livre continua sendo o registro. */}
+                {definition.diagnosticOptions.length > 0 && (
+                  <>
+                    <Text style={styles.label}>Diagnóstico</Text>
+                    <View style={styles.chips}>
+                      {definition.diagnosticOptions.map((option) => (
+                        <Pressable key={option} onPress={() => updateIndicatorResult(result.id, { diagnosis: option })} style={[styles.chip, result.diagnosis === option && styles.chipActive]}>
+                          <Text style={[styles.chipText, result.diagnosis === option && styles.chipTextActive]}>{option}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </>
+                )}
                 <TextInput value={result.observation ?? ''} onChangeText={(observation) => updateIndicatorResult(result.id, { observation })} placeholder="Observação objetiva da visita" placeholderTextColor={colors.neutral} multiline style={styles.observation} />
                 <AppButton title="Concluir diagnóstico" compact onPress={() => setEditing(null)} />
               </View>
@@ -154,7 +197,24 @@ export function PerformanceScreen({ route }: NativeStackScreenProps<RootStackPar
         );
       })}
 
-      {!visible.length && <View style={styles.allGood}><Ionicons name="checkmark-circle" size={28} color={colors.success} /><Text style={styles.allGoodText}>Todos os indicadores estão dentro da meta.</Text></View>}
+      {/* Três ausências DIFERENTES: catálogo vazio, catálogo sem medição para
+          este parceiro e tudo dentro da meta. Só a terceira é boa notícia —
+          declarar "dentro da meta" sem indicador algum seria dado falso. */}
+      {!visible.length && (
+        !indicatorDefinitions.length ? (
+          <View style={styles.emptyCard}>
+            <Ionicons name="stats-chart-outline" size={28} color={colors.inkMuted} />
+            <Text style={styles.emptyText}>Nenhum indicador cadastrado no programa. Sem catálogo não há prioridades a calcular para esta visita.</Text>
+          </View>
+        ) : !items.length ? (
+          <View style={styles.emptyCard}>
+            <Ionicons name="stats-chart-outline" size={28} color={colors.inkMuted} />
+            <Text style={styles.emptyText}>Nenhum resultado de indicador registrado para este Parceiro AACE.</Text>
+          </View>
+        ) : (
+          <View style={styles.allGood}><Ionicons name="checkmark-circle" size={28} color={colors.success} /><Text style={styles.allGoodText}>Todos os indicadores estão dentro da meta.</Text></View>
+        )
+      )}
 
       <View style={styles.reportCard}>
         <Text style={styles.reportTitle}>Relatório automático da visita</Text>
@@ -188,5 +248,7 @@ const styles = StyleSheet.create({
   valueRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md }, valueBox: { flex: 1, backgroundColor: colors.background, borderRadius: radius.md, padding: spacing.sm }, valueLabel: { color: colors.inkMuted, fontSize: 9 }, valueText: { color: colors.ink, fontSize: 13, fontWeight: '700', marginTop: 3 }, valueStrong: { fontSize: 16, fontWeight: '900' }, diagnosis: { color: colors.inkMuted, fontSize: 11, marginTop: spacing.md }, actionsRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   editArea: { marginTop: spacing.lg, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border }, editRow: { flexDirection: 'row', gap: spacing.md }, numericInput: { minHeight: 42, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: spacing.md, color: colors.ink, marginBottom: spacing.md }, chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: spacing.md }, chip: { borderWidth: 1, borderColor: colors.border, borderRadius: 99, paddingHorizontal: 10, paddingVertical: 7 }, chipActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft }, chipText: { color: colors.inkMuted, fontSize: 10, fontWeight: '700' }, chipTextActive: { color: colors.primary }, observation: { minHeight: 70, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.md, color: colors.ink, textAlignVertical: 'top', marginBottom: spacing.md },
   allGood: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.successSoft, borderRadius: radius.lg, padding: spacing.lg }, allGoodText: { color: colors.success, fontWeight: '800' },
+  emptyCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.lg }, emptyText: { flex: 1, color: colors.inkMuted, fontSize: 12, lineHeight: 17, fontWeight: '700' },
+  stateBox: { alignItems: 'center', justifyContent: 'center', gap: spacing.md, paddingVertical: spacing.xl * 2 }, stateText: { color: colors.inkMuted, fontSize: 13, fontWeight: '700', textAlign: 'center' },
   reportCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.xl, marginTop: spacing.lg, marginBottom: spacing.xl }, reportTitle: { color: colors.ink, fontSize: 18, fontWeight: '900' }, reportText: { color: colors.ink, fontSize: 13, fontWeight: '700', marginTop: spacing.sm }, reportHint: { color: colors.inkMuted, fontSize: 11, lineHeight: 16, marginTop: 5 }, finishButton: { marginTop: spacing.lg },
 });

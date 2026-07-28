@@ -113,6 +113,70 @@ describe('resolução de PLANO DE AÇÃO e EVIDÊNCIA reais — sem seed de demo
   });
 });
 
+describe('GESTÃO ASSISTIDA — indicadores, planos e visitas sem seed de demonstração', () => {
+  it('1/2/3 — as quatro coleções deixaram de sair do store local', () => {
+    for (const colecao of ['data.indicatorResults', 'data.indicatorDefinitions', 'data.actionPlans', 'data.visitReports']) {
+      expect(arquivos.performance).not.toContain(colecao);
+    }
+    // O snapshot do store deixou de ser lido diretamente pelo hook.
+    expect(arquivos.performance).not.toContain('localStore.getSnapshot');
+  });
+
+  it('1/3 — indicadores, resultados e visitas vêm do repositório do modo vigente', () => {
+    for (const leitura of ['perfRepo.listIndicatorDefinitions()', 'perfRepo.listIndicatorResults()', 'perfRepo.listVisitReports()']) {
+      expect(arquivos.performance).toContain(leitura);
+    }
+    const repo = ler('src/data/repositories/PerformanceRepository.ts');
+    expect(repo).toContain("from('ui_indicators')");
+    expect(repo).toContain("from('indicator_results')");
+    expect(repo).toContain("from('visit_reports')");
+  });
+
+  it('2/7 — os planos reusam a coleção corporativa da aba Ações, sem repositório novo', () => {
+    expect(arquivos.performance).toContain("from './ActionsProvider'");
+    expect(arquivos.performance).toContain('useActions()');
+    // Nenhuma consulta paralela de planos criada dentro do hook.
+    expect(arquivos.performance).not.toContain('listByScope');
+  });
+
+  it('4 — o modo demonstração mantém store e reatividade', () => {
+    expect(arquivos.performance).toMatch(/source !== 'local'/);
+    expect(arquivos.performance).toContain('localStore.subscribe');
+    const repo = ler('src/data/repositories/PerformanceRepository.ts');
+    expect(repo).toContain('class LocalPerformanceRepository');
+    expect(repo).toContain('class SupabasePerformanceRepository');
+  });
+
+  it('6/8/13/14 — associação por chave canônica indexada, sem busca por nome e sem N+1', () => {
+    expect(arquivos.performance).toContain('resultsByOperation.get(operationId)');
+    expect(arquivos.performance).toContain('plansByOperation.get(operationId)');
+    expect(arquivos.performance).toContain('latestReportByOperation.get(operationId)');
+    expect(arquivos.performance).not.toMatch(/find\(\s*\(?\w\)?\s*=>\s*\w\.(name|email|title|partnerName)\b/);
+  });
+
+  it('10/11/12 — a tela distingue carregando, erro e inexistência do parceiro', () => {
+    const tela = ler('src/screens/PerformanceScreen.tsx');
+    expect(tela).toContain('decideOperationDetailState');
+    expect(tela).toMatch(/detailState === 'loading'/);
+    expect(tela).toMatch(/detailState === 'error'/);
+    expect(tela.indexOf("detailState === 'loading'")).toBeLessThan(tela.indexOf('Parceiro AACE não encontrado'));
+  });
+
+  it('9 — catálogo vazio não é anunciado como "dentro da meta"', () => {
+    const tela = ler('src/screens/PerformanceScreen.tsx');
+    // O bloco verde só pode ser alcançado DEPOIS de descartar catálogo vazio e
+    // parceiro sem resultado; sem isso, zero indicador virava boa notícia.
+    const vazio = tela.indexOf('!indicatorDefinitions.length');
+    const semResultado = tela.indexOf('!items.length');
+    const naMeta = tela.indexOf('Todos os indicadores estão dentro da meta');
+    expect(vazio).toBeGreaterThan(-1);
+    expect(vazio).toBeLessThan(semResultado);
+    expect(semResultado).toBeLessThan(naMeta);
+    // E nenhum indicador é fabricado quando o servidor não entrega definição.
+    expect(tela).not.toContain('indicatorDefinitions.find((item) => item.id === result.indicatorId)!');
+  });
+});
+
 describe('resolução de Operação real — os quatro pontos usam a lista já carregada', () => {
   for (const [nome, fonte] of Object.entries(arquivos)) {
     it(`${nome} — importa e consome useOperations()`, () => {
