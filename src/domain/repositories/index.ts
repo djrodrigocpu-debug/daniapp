@@ -61,6 +61,53 @@ export interface AuthRepository {
    * A autorização é do servidor: o cliente não informa quem ativar.
    */
   activateSelf?(): Promise<Result<true>>;
+
+  // -------------------------------------------------------------------------
+  // Gate de primeiro acesso (migrations 0016/0017)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Autentica no provedor SEM montar a sessão corporativa.
+   *
+   * Existe porque `signIn` acima devolve a sessão já montada, e montar a sessão
+   * corporativa é exatamente o que NÃO pode acontecer enquanto a senha temporária
+   * não for trocada. Separar as duas etapas é o que permite ao controlador
+   * consultar o gate no meio do caminho.
+   */
+  signInRaw?(email: string, password: string): Promise<Result<true>>;
+
+  /** Lê `public.password_change_status()` sob o JWT do próprio usuário. */
+  passwordGate?(): Promise<Result<PasswordGateState>>;
+
+  /**
+   * Troca a senha temporária pela Edge Function `initial-password-change`.
+   *
+   * O cliente NÃO chama `auth.updateUser` aqui: a troca precisa provar a senha
+   * atual e encerrar o onboarding com service role, e nenhuma das duas coisas
+   * pode acontecer no dispositivo.
+   */
+  completeInitialPasswordChange?(
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<Result<true>>;
+
+  /** Renova o token depois da troca de senha, antes de reler o gate. */
+  refreshSession?(): Promise<Result<true>>;
+}
+
+/**
+ * Estado do gate, SEMPRE lido do servidor — nunca inferido no cliente.
+ *
+ * `authenticated` distingue "não há sessão no provedor" de "há sessão e ela está
+ * liberada": sem essa distinção, uma leitura falha pareceria acesso livre.
+ */
+export interface PasswordGateState {
+  /** true quando existe sessão no provedor de identidade. */
+  authenticated: boolean;
+  /** true enquanto a senha temporária não for trocada. */
+  required: boolean;
+  /** Apenas rótulo para a tela do gate; não é credencial. */
+  email: string | null;
 }
 
 /**

@@ -7,7 +7,12 @@
  * estruturalmente pronto; as consultas assumem o esquema de 0001/0002.
  */
 import { SupabaseClient } from '@supabase/supabase-js';
-import { AuthCallbackIntent, AuthRepository, AuthenticatedSession } from '../../domain/repositories';
+import {
+  AuthCallbackIntent,
+  AuthRepository,
+  AuthenticatedSession,
+  PasswordGateState,
+} from '../../domain/repositories';
 import { UserAccount, UserScope, Role, UserStatus } from '../../domain/model';
 import { rolesFromScopes } from '../../domain/auth/session';
 import { Result, ok, err } from '../../domain/errors/result';
@@ -66,6 +71,30 @@ function mapScopes(rows: ScopeRow[], assignments: AssignmentRow[]): UserScope[] 
     validTo: r.valid_to,
     active: r.active,
   }));
+}
+
+/**
+ * Extrai a mensagem REAL de uma falha de Edge Function.
+ *
+ * `functions.invoke` devolve a mesma frase genérica para qualquer não-2xx; o
+ * motivo ("Senha atual incorreta", por exemplo) está no corpo da resposta, que
+ * o SDK guarda em `context`. Sem ler dali, toda recusa viraria o mesmo erro
+ * opaco e o usuário não saberia o que corrigir.
+ *
+ * O corpo da função carrega apenas mensagem e código — nunca a senha.
+ */
+async function mensagemDaFuncao(error: unknown): Promise<string> {
+  const generica = 'Não foi possível alterar a senha. Tente novamente.';
+  const contexto = (error as { context?: unknown } | null)?.context as Response | undefined;
+  if (!contexto || typeof contexto.json !== 'function') return generica;
+  try {
+    const corpo = await contexto.json();
+    const mensagem = (corpo as { error?: unknown } | null)?.error;
+    return typeof mensagem === 'string' && mensagem.trim() !== '' ? mensagem : generica;
+  } catch {
+    // Corpo ilegível ou já consumido: fica a mensagem genérica.
+    return generica;
+  }
 }
 
 export class SupabaseAuthRepository implements AuthRepository {
@@ -165,6 +194,88 @@ export class SupabaseAuthRepository implements AuthRepository {
     if (error) {
       return err(new AppError('auth/invalid-credentials',
         error.message || 'Não foi possível definir a senha.', { severity: 'medium' }));
+    }
+    return ok(true);
+  }
+
+  // -------------------------------------------------------------------------
+  // Gate de primeiro acesso (migrations 0016/0017)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Autentica SEM montar a sessão corporativa.
+   *
+   * A diferença para `signIn` é tudo: aqui nenhuma consulta a `users`,
+   * `user_scopes` ou `operation_assignments` acontece. Quem ainda deve a troca
+   * da senha temporária não pode ter perfil, escopo nem papel carregados.
+   */
+  async signInRaw(email: string, password: string): Promise<Result<true>> {
+    const { data, error } = await this.client.auth.signInWithPassword({ email: email.trim(), password });
+    if (error || !data.session) {
+      return err(new AppError('auth/invalid-credentials', 'E-mail ou senha inválidos.', { severity: 'medium' }));
+    }
+    return ok(true);
+  }
+
+  /**
+   * Lê `public.password_change_status()` (0016/0017) sob o JWT do próprio
+   * usuário. A RPC deduz a identidade de `auth.uid()`; o cliente não informa —
+   * nem poderia — de quem é o estado consultado.
+   */
+  async passwordGate(): Promise<Result<PasswordGateState>> {
+    const { data: sessionData, error: sessionError } = await this.client.auth.getSession();
+    if (sessionError) {
+      return err(new AppError('auth/session-expired', 'Sessão inválida.', { cause: sessionError }));
+    }
+    const session = sessionData.session;
+    if (!session) return ok({ authenticated: false, required: false, email: null });
+
+    const { data, error } = await this.client.rpc('password_change_status');
+    if (error) {
+      // Erro é erro, NUNCA "liberado": quem trata isto fecha o acesso.
+      return err(new AppError('unknown',
+        'Não foi possível verificar o estado do seu acesso. Tente novamente.', { cause: error }));
+    }
+    return ok({
+      authenticated: true,
+      required: Boolean((data as { required?: boolean } | null)?.required),
+      email: session.user.email ?? null,
+    });
+  }
+
+  /**
+   * Troca a senha temporária pela Edge Function `initial-password-change`.
+   *
+   * `auth.updateUser` NÃO é chamado aqui de propósito: no cliente ele trocaria a
+   * senha sem provar a atual e sem encerrar o onboarding, que exige service role.
+   * As duas senhas existem apenas nesta chamada — não vão para estado global,
+   * armazenamento local, log nem URL.
+   */
+  async completeInitialPasswordChange(
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<Result<true>> {
+    const { data, error } = await this.client.functions.invoke('initial-password-change', {
+      body: { currentPassword, newPassword },
+    });
+
+    if (error) {
+      return err(new AppError('auth/invalid-credentials',
+        await mensagemDaFuncao(error), { severity: 'medium' }));
+    }
+    // Corpo inesperado não é sucesso. O controlador ainda relê o estado depois,
+    // mas deixar passar aqui já seria confiar no formato da resposta.
+    if (!(data as { ok?: boolean } | null)?.ok) {
+      return err(new AppError('unknown', 'Não foi possível alterar a senha. Tente novamente.'));
+    }
+    return ok(true);
+  }
+
+  /** Renova o token após a troca, antes da releitura do gate. */
+  async refreshSession(): Promise<Result<true>> {
+    const { error } = await this.client.auth.refreshSession();
+    if (error) {
+      return err(new AppError('auth/session-expired', 'Não foi possível renovar a sessão.', { cause: error }));
     }
     return ok(true);
   }

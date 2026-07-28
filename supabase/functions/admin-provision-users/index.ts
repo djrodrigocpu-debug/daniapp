@@ -26,7 +26,7 @@
  */
 // @ts-nocheck — este arquivo roda em Deno, fora do tsconfig do app.
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.102.0';
 import { AuthAdminPort, CallerPort, DbPort, HandlerError, handleProvisionUsers } from './handler.ts';
 import { isPreflight, jsonHeaders, preflightResponse } from '../_shared/cors.ts';
 import { buildIdentityIndex } from '../_shared/identityIndex.ts';

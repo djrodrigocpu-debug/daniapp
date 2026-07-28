@@ -43,6 +43,14 @@ interface AuthContextValue {
   dismissOnboardingError: () => void;
   /** Define a senha do usuario autenticado pelo link. */
   updatePassword: (password: string) => Promise<{ ok: boolean; message?: string }>;
+  /**
+   * Troca a senha temporaria do primeiro acesso (gate). Delega ao controlador,
+   * que so libera apos RELER `password_change_status` no servidor.
+   */
+  changeInitialPassword: (
+    currentPassword: string,
+    newPassword: string,
+  ) => Promise<{ ok: boolean; message?: string }>;
   /** Ativa o proprio perfil apos o convite (RPC activate_self). */
   activateSelf: () => Promise<{ ok: boolean; message?: string }>;
   signIn: (email: string, password: string) => Promise<{ ok: boolean; message?: string }>;
@@ -173,6 +181,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!r) return { ok: false, message: 'Indisponível neste modo de autenticação.' };
         return r.ok ? { ok: true } : { ok: false, message: r.error.message };
       },
+      changeInitialPassword: (currentPassword, newPassword) =>
+        controller.completePasswordChange(currentPassword, newPassword),
       signIn: (email, password) => controller.signIn(email, password),
       signOut: () => controller.signOut(),
       requestPasswordReset: async (email: string) => {

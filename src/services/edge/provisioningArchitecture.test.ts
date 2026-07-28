@@ -37,10 +37,16 @@ function semComentarios(fonte: string): string {
     .join('\n');
 }
 
+const TROCA = join(RAIZ, 'supabase', 'functions', 'initial-password-change');
+
 const indexProvision = semComentarios(ler(join(PROVISION, 'index.ts')));
 const handlerProvision = semComentarios(ler(join(PROVISION, 'handler.ts')));
+const indexTroca = semComentarios(ler(join(TROCA, 'index.ts')));
+const handlerTroca = semComentarios(ler(join(TROCA, 'handler.ts')));
 const adminRepository = semComentarios(ler(join(RAIZ, 'src', 'data', 'repositories', 'AdminRepository.ts')));
 const loginScreen = semComentarios(ler(join(RAIZ, 'src', 'screens', 'LoginScreen.tsx')));
+const telaGate = semComentarios(ler(join(RAIZ, 'src', 'screens', 'InitialPasswordScreen.tsx')));
+const navegador = semComentarios(ler(join(RAIZ, 'src', 'navigation', 'AppNavigator.tsx')));
 
 describe('admin-provision-users — ausência de convite e de e-mail', () => {
   it('inviteUserByEmail NÃO aparece em nenhum arquivo da função', () => {
@@ -146,6 +152,101 @@ describe('cliente — o caminho operacional não passa mais pelo convite', () =>
     // Nada de CPF/CNPJ como credencial.
     expect(loginScreen.toLowerCase()).not.toContain('cpf');
     expect(loginScreen.toLowerCase()).not.toContain('cnpj');
+  });
+});
+
+describe('versão do SDK fixada nas funções publicadas', () => {
+  /**
+   * As DUAS funções do deploy precisam da versão exata. Um import flutuante
+   * (`@2`) resolveria para a mais recente a cada redeploy: a troca depende de
+   * `updateUser({ current_password })`, e cair numa versão que ignore esse campo
+   * trocaria a senha SEM validar a atual — o gate viraria enfeite.
+   */
+  it('as duas funções fixam 2.102.0', () => {
+    for (const fonte of [indexProvision, indexTroca]) {
+      expect(fonte).toContain('@supabase/supabase-js@2.102.0');
+    }
+  });
+
+  it('nenhuma delas usa import flutuante', () => {
+    for (const fonte of [indexProvision, indexTroca]) {
+      // `@2` seguido de aspas é a forma flutuante; `@2.102.0` passa.
+      expect(fonte).not.toMatch(/supabase-js@2['"]/);
+    }
+  });
+});
+
+describe('initial-password-change — sem convite, sem e-mail, sem atalho', () => {
+  it('nenhum mecanismo de envio ou de recuperação é referenciado', () => {
+    const proibidos = [
+      'inviteUserByEmail',
+      'resetPasswordForEmail',
+      'generateLink',
+      'signInWithOtp',
+      'smtp',
+      'sendMail',
+      'INVITE_REDIRECT_URL',
+    ];
+    for (const termo of proibidos) {
+      expect(indexTroca.toLowerCase()).not.toContain(termo.toLowerCase());
+      expect(handlerTroca.toLowerCase()).not.toContain(termo.toLowerCase());
+    }
+  });
+
+  it('a troca passa por updateUser com current_password, nunca por updateUserById', () => {
+    expect(indexTroca).toContain('current_password');
+    // `updateUserById` é administrativo: trocaria a senha sem conferir a atual.
+    expect(indexTroca).not.toContain('updateUserById');
+    expect(handlerTroca).not.toContain('updateUserById');
+  });
+
+  it('a conclusão é server-side e a prova por hash não voltou', () => {
+    expect(indexTroca).toContain('service_complete_initial_password_change');
+    for (const fonte of [indexTroca, handlerTroca]) {
+      expect(fonte).not.toContain('encrypted_password');
+      expect(fonte).not.toContain('initial_password_hash');
+      expect(fonte.toLowerCase()).not.toContain('bcrypt');
+    }
+  });
+
+  it('a identidade não é lida do corpo da requisição', () => {
+    // O corpo é desestruturado com exatamente dois campos.
+    expect(indexTroca).toContain('body?.currentPassword');
+    expect(indexTroca).toContain('body?.newPassword');
+    expect(indexTroca).not.toContain('body?.userId');
+    expect(indexTroca).not.toContain('body?.email');
+  });
+});
+
+describe('gate no cliente — a troca só acontece no servidor', () => {
+  it('a tela do gate NÃO chama o SDK de autenticação', () => {
+    for (const proibido of ['auth.updateUser', 'supabase', 'signInWithPassword', 'rpc(']) {
+      expect(telaGate).not.toContain(proibido);
+    }
+  });
+
+  it('a tela não persiste as senhas em lugar nenhum', () => {
+    for (const proibido of ['AsyncStorage', 'localStorage', 'sessionStorage', 'SecureStore']) {
+      expect(telaGate).not.toContain(proibido);
+    }
+  });
+
+  it('o repositório chama a Edge Function, e só ela', () => {
+    const repo = semComentarios(
+      ler(join(RAIZ, 'src', 'services', 'supabase', 'SupabaseAuthRepository.ts')),
+    );
+    expect(repo).toContain("functions.invoke('initial-password-change'");
+    expect(repo).toContain("rpc('password_change_status')");
+    // A conclusão é exclusiva do service_role: o cliente não a alcança.
+    expect(repo).not.toContain('service_complete_initial_password_change');
+    expect(repo).not.toContain('complete_initial_password_change');
+  });
+
+  it('o navegador decide a superfície pelo módulo puro', () => {
+    expect(navegador).toContain('decideSurface');
+    expect(navegador).toContain('InitialPasswordScreen');
+    // A comparação solta de status não pode voltar a decidir a navegação.
+    expect(navegador).not.toContain("state.status !== 'authenticated'");
   });
 });
 
