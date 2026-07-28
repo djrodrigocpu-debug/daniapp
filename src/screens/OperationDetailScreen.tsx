@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { alertDialog } from '../utils/dialog';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,17 +9,48 @@ import { ProgressBar } from '../components/ProgressBar';
 import { SectionTitle } from '../components/SectionTitle';
 import { StatusPill } from '../components/StatusPill';
 import { useEvaluations } from '../context/EvaluationsProvider';
+import { useOperations } from '../context/OperationsProvider';
+import { decideOperationDetailState } from '../domain/operations/operationDetailState';
 import { colors, radius, spacing } from '../theme';
 import { RootStackParamList } from '../types';
 import { formatDate, getMaturity, trafficLightColor } from '../utils/format';
 
 export function OperationDetailScreen({ route, navigation }: NativeStackScreenProps<RootStackParamList, 'OperationDetail'>) {
   const { operationId } = route.params;
-  const { getOperation, getUser, listByOperation, startEvaluation, getCurrentDraft } = useEvaluations();
-  const operation = getOperation(operationId);
+  const { getUser, listByOperation, startEvaluation, getCurrentDraft } = useEvaluations();
+  // A identidade canônica é public.operations.id, e é `useOperations()` (via
+  // `ui_operations`) quem a busca de verdade — a mesma fonte que já preenche a
+  // lista. `EvaluationsProvider.getOperation` lê do store local de
+  // demonstração, nunca populado pelos dados reais em modo corporativo: um
+  // Parceiro AACE recém-carregado aparecia na lista e "não existia" aqui.
+  const { operations, loading, error } = useOperations();
+  const operation = operations.find((o) => o.id === operationId);
 
   const history = useMemo(() => listByOperation(operationId).slice(0, 5), [listByOperation, operationId]);
-  if (!operation) return <Screen><Text>Parceiro AACE não encontrado.</Text></Screen>;
+
+  const detailState = decideOperationDetailState({ loading, error, found: operation !== undefined });
+
+  if (detailState === 'loading') {
+    return (
+      <Screen>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.centeredText}>Carregando Parceiro AACE…</Text>
+        </View>
+      </Screen>
+    );
+  }
+  if (detailState === 'error') {
+    return (
+      <Screen>
+        <View style={styles.centered}>
+          <Ionicons name="cloud-offline-outline" size={32} color={colors.danger} />
+          <Text style={styles.centeredText}>Não foi possível carregar este Parceiro AACE.</Text>
+        </View>
+      </Screen>
+    );
+  }
+  if (detailState === 'not_found' || !operation) return <Screen><Text>Parceiro AACE não encontrado.</Text></Screen>;
   const activeOperation = operation;
 
   const manager = getUser(activeOperation.managerId);
@@ -107,6 +138,8 @@ function InfoRow({ icon, label, value, last }: { icon: keyof typeof Ionicons.gly
 }
 
 const styles = StyleSheet.create({
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, paddingVertical: spacing.xl },
+  centeredText: { color: colors.inkMuted, fontSize: 13, textAlign: 'center' },
   identityCard: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, marginBottom: spacing.md },
   identityTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   icon: { width: 44, height: 44, borderRadius: 14, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
