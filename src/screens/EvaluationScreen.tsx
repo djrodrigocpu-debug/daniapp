@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { alertDialog } from '../utils/dialog';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,6 +10,7 @@ import { AppButton } from '../components/AppButton';
 import { ActionPlanModal } from '../components/ActionPlanModal';
 import { ProgressBar } from '../components/ProgressBar';
 import { useEvaluations } from '../context/EvaluationsProvider';
+import { decideOperationDetailState } from '../domain/operations/operationDetailState';
 import { themes } from '../data/catalog';
 import { colors, radius, spacing } from '../theme';
 import { ActionPlan, AssessmentAnswer, RootStackParamList, Theme, TrafficLight } from '../types';
@@ -20,7 +21,7 @@ const selectableStatuses: TrafficLight[] = ['green', 'yellow', 'red', 'not_appli
 
 export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<RootStackParamList, 'Evaluation'>) {
   const {
-    getEvaluation, getOperation, getActionPlan, getEvidences, saveAnswer, addEvidence, removeEvidence, saveActionPlan, submit,
+    loading, error, getEvaluation, getOperation, getActionPlan, getEvidences, saveAnswer, addEvidence, removeEvidence, saveActionPlan, submit,
   } = useEvaluations();
   const evaluation = route.params.evaluationId ? getEvaluation(route.params.evaluationId) : undefined;
   const operation = getOperation(route.params.operationId);
@@ -37,6 +38,32 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
     }));
   }, [evaluation]);
 
+  // Mesma regra pura do detalhe do parceiro: carregando e erro de rede/RLS
+  // NUNCA aparecem como inexistência — só a ausência confirmada na lista já
+  // carregada é "não encontrada".
+  const detailState = decideOperationDetailState({
+    loading, error, found: !!evaluation && !!operation,
+  });
+  if (detailState === 'loading') {
+    return (
+      <Screen>
+        <View style={styles.stateBox}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.stateText}>Carregando avaliação…</Text>
+        </View>
+      </Screen>
+    );
+  }
+  if (detailState === 'error') {
+    return (
+      <Screen>
+        <View style={styles.stateBox}>
+          <Ionicons name="cloud-offline-outline" size={32} color={colors.danger} />
+          <Text style={styles.stateText}>Não foi possível carregar esta avaliação.</Text>
+        </View>
+      </Screen>
+    );
+  }
   if (!evaluation || !operation) return <Screen><Text>Avaliação não encontrada.</Text></Screen>;
   const activeEvaluation = evaluation;
   const activeOperation = operation;
@@ -244,6 +271,8 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
 }
 
 const styles = StyleSheet.create({
+  stateBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, paddingVertical: spacing.xl },
+  stateText: { color: colors.inkMuted, fontSize: 13, textAlign: 'center' },
   summary: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg },
   eyebrow: { color: colors.primary, fontSize: 10, fontWeight: '900', letterSpacing: 0.8 },
   title: { color: colors.ink, fontSize: 22, fontWeight: '900', marginTop: 4 },

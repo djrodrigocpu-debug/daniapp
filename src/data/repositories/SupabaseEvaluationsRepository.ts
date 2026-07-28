@@ -40,6 +40,18 @@ export class SupabaseEvaluationsRepository implements EvaluationsRepository {
     return toResult((data as Evaluation[]) ?? [], error, 'Falha ao carregar as avaliações.');
   }
 
+  /**
+   * Projeção `ui_evidences` (0019): metadados sob a RLS de `evidence_files`.
+   * A view traz também `evaluationId` (chave de limpeza administrativa);
+   * o mapeamento devolve exatamente a forma `Evidence` que a tela consome.
+   */
+  async listVisibleEvidences(): Promise<Result<Evidence[]>> {
+    const { data, error } = await this.client.from('ui_evidences').select('*');
+    if (error) return err(fail('Falha ao carregar as evidências.', error));
+    const rows = (data ?? []) as Array<Evidence & { evaluationId?: string }>;
+    return ok(rows.map(({ evaluationId: _descartado, ...evidence }) => evidence as Evidence));
+  }
+
   async getById(id: string): Promise<Result<Evaluation | null>> {
     const { data, error } = await this.client.from('ui_evaluations').select('*').eq('id', id).maybeSingle();
     return toResult((data as Evaluation) ?? null, error, 'Falha ao carregar a avaliação.');
@@ -105,10 +117,12 @@ export class SupabaseEvaluationsRepository implements EvaluationsRepository {
   }
 
   async listActionPlans(evaluationId: string): Promise<Result<ActionPlan[]>> {
+    // A coluna da view é a quotada "evaluationId" — `evaluation_id` não existe
+    // em ui_action_plans e derrubava a consulta inteira.
     const { data, error } = await this.client
       .from('ui_action_plans')
       .select('*')
-      .eq('evaluation_id', evaluationId);
+      .eq('evaluationId', evaluationId);
     return toResult((data as ActionPlan[]) ?? [], error, 'Falha ao carregar os planos.');
   }
 

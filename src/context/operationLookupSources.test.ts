@@ -80,6 +80,39 @@ describe('resolução de USUÁRIO e AVALIAÇÃO reais — sem seed de demonstra�
   });
 });
 
+describe('resolução de PLANO DE AÇÃO e EVIDÊNCIA reais — sem seed de demonstração', () => {
+  it('10/11 — getActionPlan e getEvidences não leem mais o store local', () => {
+    expect(arquivos.evaluations).not.toContain('data.actionPlans');
+    expect(arquivos.evaluations).not.toContain('data.evidences');
+    // As coleções vêm dos repositórios do modo vigente, uma consulta cada.
+    expect(arquivos.evaluations).toContain('actionsRepo.listByScope(scopeFromUser(user))');
+    expect(arquivos.evaluations).toContain('repo.listVisibleEvidences()');
+  });
+
+  it('13/14 — as mutações recarregam antes de a tela reler o estado', () => {
+    for (const mutacao of ['addEvidence', 'saveActionPlan', 'removeEvidence']) {
+      const inicio = arquivos.evaluations.indexOf(`const ${mutacao}`);
+      const trecho = arquivos.evaluations.slice(inicio, inicio + 400);
+      expect(trecho).toContain('.then(() => load())');
+    }
+  });
+
+  it('15/19/20 — evidências indexadas por UUID, sem busca por nome e sem consulta por item', () => {
+    expect(arquivos.evaluations).toContain('new Map(evidences.map((e) => [e.id, e]))');
+    expect(arquivos.evaluations).toContain('evidenceById.get(id)');
+    expect(arquivos.evaluations).not.toMatch(/find\(\s*\(?e\)?\s*=>\s*e\.(name|uri)\b/);
+  });
+
+  it('16/17/18 — a tela de avaliação distingue carregando, erro e inexistência', () => {
+    const tela = ler('src/screens/EvaluationScreen.tsx');
+    expect(tela).toContain('decideOperationDetailState');
+    expect(tela).toMatch(/detailState === 'loading'/);
+    expect(tela).toMatch(/detailState === 'error'/);
+    // "não encontrada" só depois do estado confirmado.
+    expect(tela.indexOf("detailState === 'loading'")).toBeLessThan(tela.indexOf('Avaliação não encontrada'));
+  });
+});
+
 describe('resolução de Operação real — os quatro pontos usam a lista já carregada', () => {
   for (const [nome, fonte] of Object.entries(arquivos)) {
     it(`${nome} — importa e consome useOperations()`, () => {

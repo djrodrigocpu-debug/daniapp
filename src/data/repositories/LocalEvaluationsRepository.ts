@@ -36,6 +36,10 @@ export class LocalEvaluationsRepository implements EvaluationsRepository {
     return ok(this.store.getSnapshot().evaluations);
   }
 
+  async listVisibleEvidences(): Promise<Result<Evidence[]>> {
+    return ok(this.store.getSnapshot().evidences);
+  }
+
   async getById(id: string): Promise<Result<Evaluation | null>> {
     return ok(this.store.getSnapshot().evaluations.find((item) => item.id === id) ?? null);
   }
