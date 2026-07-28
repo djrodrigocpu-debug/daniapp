@@ -41,7 +41,14 @@ export interface UserParseResult {
   layout: SheetLayout;
 }
 
-export type UserImportRowStatus = 'ok' | 'duplicate' | 'error';
+/**
+ * `pending_auth` é do caminho REMOTO: a RPC `admin_import_users` marca assim a
+ * linha cujo e-mail ainda não tem identidade no Supabase Auth. Não é erro — é o
+ * estado normal de todo usuário novo antes do provisionamento, que é
+ * justamente quem cria a identidade. Numa carga inicial, TODAS as linhas
+ * chegam neste estado.
+ */
+export type UserImportRowStatus = 'ok' | 'duplicate' | 'error' | 'pending_auth';
 export type UserImportRowAction = 'insert' | 'update' | 'none';
 
 export interface UserImportReportRow {
