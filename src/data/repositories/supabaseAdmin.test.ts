@@ -196,6 +196,73 @@ const rpcReport = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+describe('SupabaseAdminUsersRepository.create — cadastro avulso', () => {
+  /** Lote de um: a resposta precisa parecer um commit aplicado. */
+  const funcaoOk = () => ({
+    data: {
+      ok: true,
+      counters: { total: 1, created: 1, alreadyExisting: 0, failed: 0, activated: 1 },
+      rows: [{ email: 'nova.pessoa@sint.example', state: 'created', authUserId: 'auth-nova' }],
+      report: rpcReport({
+        mode: 'commit',
+        applied: true,
+        rows: [{
+          index: 1, name: 'Nova Pessoa', email: 'nova.pessoa@sint.example',
+          role: 'coordinator', status: 'inserted', messages: [], userId: 'u-nova',
+        }],
+      }),
+    },
+  });
+
+  const entrada = {
+    name: 'Nova Pessoa',
+    email: 'nova.pessoa@sint.example',
+    role: 'coordinator' as const,
+    region: 'COORD NORTE',
+  };
+
+  it('a senha inicial ATRAVESSA até a função — sem ela nenhum usuário novo nasce', async () => {
+    // Quando o provisionamento deixou de ser por convite, criar identidade
+    // passou a exigir senha. Este caminho continuou sem enviá-la e todo cadastro
+    // avulso de usuário novo era recusado pelo servidor.
+    const { client, fnCalls } = fakeClient({
+      rpc: { admin_import_users: () => ({ data: rpcReport({ counters: { total: 1, inserted: 1, updated: 0, errors: 0, pendingAuth: 1 } }) }) },
+      functions: { 'admin-provision-users': funcaoOk },
+    });
+    await new SupabaseAdminUsersRepository(client)
+      .create({ ...entrada, initialPassword: 'SenhaFicticia2026' });
+
+    const linhas = fnCalls[0].body.rows as UserImportRow[];
+    expect(linhas[0].initialPassword).toBe('SenhaFicticia2026');
+    // E a exigência de troca acompanha o cadastro avulso, como na importação.
+    expect((fnCalls[0].body.options as Record<string, unknown>).requirePasswordChange).toBe(true);
+  });
+
+  it('sem senha informada a chave nem sequer é enviada', async () => {
+    // E-mail que já tem identidade não precisa de senha: quem decide é o
+    // servidor, então o cliente não inventa string vazia.
+    const { client, fnCalls } = fakeClient({
+      rpc: { admin_import_users: () => ({ data: rpcReport({ counters: { total: 1, inserted: 1, updated: 0, errors: 0, pendingAuth: 0 } }) }) },
+      functions: { 'admin-provision-users': funcaoOk },
+    });
+    await new SupabaseAdminUsersRepository(client).create(entrada);
+
+    const linhas = fnCalls[0].body.rows as UserImportRow[];
+    expect('initialPassword' in linhas[0]).toBe(false);
+  });
+
+  it('a senha não aparece no resultado devolvido à tela', async () => {
+    const { client } = fakeClient({
+      rpc: { admin_import_users: () => ({ data: rpcReport({ counters: { total: 1, inserted: 1, updated: 0, errors: 0, pendingAuth: 1 } }) }) },
+      functions: { 'admin-provision-users': funcaoOk },
+    });
+    const res = await new SupabaseAdminUsersRepository(client)
+      .create({ ...entrada, initialPassword: 'SenhaFicticia2026' });
+
+    expect(JSON.stringify(res)).not.toContain('SenhaFicticia2026');
+  });
+});
+
 describe('SupabaseAdminUsersRepository.importUsers — provisionamento sem convite', () => {
   it('simulação chama só a RPC em modo simulate e não provisiona ninguém', async () => {
     const { client, rpcCalls, fnCalls } = fakeClient({
@@ -237,6 +304,44 @@ describe('SupabaseAdminUsersRepository.importUsers — provisionamento sem convi
     // O cliente emite apenas a simulação; o commit acontece dentro da função.
     expect(rpcCalls.map((c) => c.params.p_commit)).toEqual([false]);
     expect(res.ok && res.value.applied).toBe(true);
+  });
+
+  it('o commit EXIGE a troca da senha temporária e não redefine quem já existe', async () => {
+    // A opção nasce desligada na Edge Function (default seguro do lado da API).
+    // Se o cliente não a ligar, a carga corporativa entra com senha de planilha
+    // valendo para sempre — o gate existiria sem ninguém ser mandado até ele.
+    const { client, fnCalls } = fakeClient({
+      rpc: { admin_import_users: () => ({ data: rpcReport({ pendingAuth: ['ana@sint.example'] }) }) },
+      functions: {
+        'admin-provision-users': () => ({
+          data: {
+            ok: true,
+            counters: { total: 2, created: 2, alreadyExisting: 0, failed: 0, activated: 2 },
+            rows: [
+              { email: 'ana@sint.example', state: 'created', authUserId: 'auth-ana' },
+              { email: 'bruno@sint.example', state: 'created', authUserId: 'auth-bruno' },
+            ],
+            report: rpcReport({ mode: 'commit', applied: true }),
+          },
+        }),
+      },
+    });
+    await new SupabaseAdminUsersRepository(client).importUsers(USER_ROWS, true);
+
+    // Sob `options` — é de onde a função lê. Na raiz do corpo ela não enxerga,
+    // cai nos defaults e não marca ninguém, sem erro nenhum.
+    const opcoes = fnCalls[0].body.options as Record<string, unknown>;
+    expect(opcoes.requirePasswordChange).toBe(true);
+    // Reimportar a planilha NÃO pode devolver a senha temporária a quem já trocou.
+    expect(opcoes.resetExistingPasswords).toBeUndefined();
+  });
+
+  it('a simulação não pede troca de senha: ela não grava nada', async () => {
+    const { client, fnCalls } = fakeClient({
+      rpc: { admin_import_users: () => ({ data: rpcReport({}) }) },
+    });
+    await new SupabaseAdminUsersRepository(client).importUsers(USER_ROWS, false);
+    expect(fnCalls).toHaveLength(0);
   });
 
   it('provisionamento incompleto ABORTA — nada é gravado', async () => {

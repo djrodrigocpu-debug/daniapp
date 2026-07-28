@@ -155,6 +155,35 @@ describe('cliente — o caminho operacional não passa mais pelo convite', () =>
   });
 });
 
+describe('contrato de fio das opções de provisionamento', () => {
+  /**
+   * A COSTURA CEGA do sistema. Os testes de comportamento injetam `options`
+   * direto no handler, e os do repositório param no corpo enviado — ninguém
+   * atravessa o `index.ts`, que é o único lugar onde as duas pontas se
+   * encontram e não é alcançável por runner nenhum (importa Deno e esm.sh).
+   *
+   * Uma divergência aqui não quebra nada visivelmente: a função não acha as
+   * opções, cai nos defaults seguros e simplesmente não marca ninguém, em
+   * silêncio. Foi o que aconteceu de verdade — a carga inteira nasceria sem
+   * troca obrigatória e só se descobriria no primeiro acesso de alguém.
+   */
+  it('as opções trafegam sob `options`, e as duas pontas concordam', () => {
+    expect(indexProvision).toContain('options: body?.options');
+    expect(adminRepository).toMatch(/body:\s*\{\s*rows,\s*options:\s*\{/);
+  });
+
+  it('nenhuma ponta lê as opções soltas na raiz do corpo', () => {
+    expect(indexProvision).not.toContain('body?.requirePasswordChange');
+    expect(indexProvision).not.toContain('body?.resetExistingPasswords');
+  });
+
+  it('o cadastro avulso leva a senha inicial adiante', () => {
+    // Sem esta linha, criar usuário novo pela tela é recusado pelo servidor com
+    // "senha inicial obrigatória" — o convite sumiu, a senha ficou obrigatória.
+    expect(adminRepository).toContain('input.initialPassword');
+  });
+});
+
 describe('versão do SDK fixada nas funções publicadas', () => {
   /**
    * As DUAS funções do deploy precisam da versão exata. Um import flutuante
@@ -193,11 +222,22 @@ describe('initial-password-change — sem convite, sem e-mail, sem atalho', () =
     }
   });
 
-  it('a troca passa por updateUser com current_password, nunca por updateUserById', () => {
-    expect(indexTroca).toContain('current_password');
-    // `updateUserById` é administrativo: trocaria a senha sem conferir a atual.
+  it('a senha atual é provada por AUTENTICAÇÃO, não por campo enviado ao provedor', () => {
+    // `current_password` no update depende de uma configuração do projeto que
+    // estava DESLIGADA: uma troca com senha atual errada foi aceita com 200.
+    // A prova precisa ser algo que não dependa de botão de painel.
+    expect(indexTroca).toContain('grant_type=password');
+    expect(indexTroca).not.toContain('current_password');
+    // `updateUserById` é administrativo: trocaria a senha sem conferir nada.
     expect(indexTroca).not.toContain('updateUserById');
     expect(handlerTroca).not.toContain('updateUserById');
+  });
+
+  it('a troca NÃO passa pelo updateUser do SDK, que exige sessão carregada', () => {
+    // Com apenas o cabeçalho Authorization o SDK falha antes de sair da função,
+    // e a troca nunca acontecia. O endpoint do GoTrue aceita o JWT direto.
+    expect(indexTroca).not.toContain('auth.updateUser(');
+    expect(indexTroca).toContain('/auth/v1/user');
   });
 
   it('a conclusão é server-side e a prova por hash não voltou', () => {

@@ -25,6 +25,14 @@ export interface CreateUserInput {
   role: UserRole;
   region: string;
   coordinatorId?: string;
+  /**
+   * Senha temporária do primeiro acesso. Exigida SOMENTE quando o e-mail ainda
+   * não tem identidade no Auth — quem já existe reaproveita a própria senha.
+   *
+   * Sem isto o cadastro avulso é recusado pelo servidor: o provisionamento por
+   * senha (que substituiu o convite) não tem como criar identidade sem ela.
+   */
+  initialPassword?: string;
 }
 
 export interface AdminUsersRepository {
@@ -313,7 +321,13 @@ export class SupabaseAdminUsersRepository implements AdminUsersRepository {
    * Antes chamava public.admin_create_user, depreciada na migration 0011 por
    * criar identidade Auth incompleta — o usuário aparecia na lista e nunca
    * conseguia entrar. Reaproveitar importUsers mantém um único caminho de
-   * onboarding: mesma validação, mesmo convite real e mesma transação.
+   * onboarding: mesma validação, mesma transação.
+   *
+   * A senha inicial ATRAVESSA daqui: quando o provisionamento deixou de ser por
+   * convite, criar identidade passou a exigi-la, e este caminho continuou sem
+   * enviá-la — todo cadastro avulso de usuário novo era recusado com "senha
+   * inicial obrigatória". Ela vive só nesta chamada e não é gravada em lugar
+   * nenhum do cliente.
    */
   async create(input: CreateUserInput): Promise<Result<User>> {
     const row: UserImportRow = {
@@ -322,6 +336,7 @@ export class SupabaseAdminUsersRepository implements AdminUsersRepository {
       email: input.email,
       role: input.role,
       region: input.region,
+      ...(input.initialPassword ? { initialPassword: input.initialPassword } : {}),
     };
     const res = await this.importUsers([row], true);
     if (!res.ok) return res;
@@ -402,10 +417,24 @@ export class SupabaseAdminUsersRepository implements AdminUsersRepository {
    * A identidade nasce por `createUser(email, senha, email_confirm: true)`,
    * portanto NENHUM e-mail é enviado e nenhum SMTP é necessário. A função antiga
    * `admin-invite-users` permanece publicada, mas fora deste caminho.
+   *
+   * `requirePasswordChange: true` NÃO é opcional aqui. A senha inicial vem da
+   * planilha e é conhecida por quem a preparou — deixar essa senha valendo
+   * indefinidamente anularia o propósito de tê-la trocado na primeira entrada.
+   * A opção existe desligada na Edge Function porque lá o default seguro é não
+   * mexer em conta alguma; neste caminho, que é a carga corporativa, o padrão
+   * seguro é o inverso.
+   *
+   * `resetExistingPasswords` fica no default `false`: reimportar a planilha não
+   * pode devolver a senha temporária a quem já trocou a dele.
+   *
+   * As opções vão sob `options`, não soltas na raiz do corpo: é onde a função
+   * as lê. Mandá-las na raiz não dá erro algum — a função cai nos defaults e
+   * simplesmente não marca ninguém, em silêncio.
    */
   private async provisionUsers(rows: UserImportRow[]): Promise<Result<UserImportReport>> {
     const { data, error } = await this.client.functions.invoke('admin-provision-users', {
-      body: { rows },
+      body: { rows, options: { requirePasswordChange: true } },
     });
     if (error) {
       return err(net(error.message || 'Falha ao provisionar os usuários.', error));

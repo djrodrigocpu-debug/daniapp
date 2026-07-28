@@ -42,24 +42,49 @@ const servidor = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
 
 const authPort: AuthPort = {
   async resolveCaller(accessToken) {
-    const { data, error } = await comoUsuario(accessToken).auth.getUser();
+    // O token vai EXPLÍCITO. `getUser()` sem argumento procura uma sessão
+    // carregada no cliente, e este cliente não tem nenhuma — só o cabeçalho.
+    const { data, error } = await comoUsuario(accessToken).auth.getUser(accessToken);
     if (error || !data?.user?.id) return null;
     return { id: data.user.id, email: (data.user.email ?? '').toLowerCase() };
   },
-  async updateOwnPassword(accessToken, currentPassword, newPassword) {
-    // `current_password` faz o GoTrue conferir a senha vigente antes de trocar.
-    // É por isso que esta função NÃO usa `updateUserById`: aquele caminho é
-    // administrativo e trocaria a senha sem validar nada.
-    const { error } = await comoUsuario(accessToken).auth.updateUser({
-      current_password: currentPassword,
-      password: newPassword,
+
+  /**
+   * PROVA a senha atual e só então troca. Duas decisões aqui vieram de erros
+   * observados no ambiente real, não de preferência:
+   *
+   * 1) A PROVA É UMA AUTENTICAÇÃO, feita aqui. A versão anterior mandava
+   *    `current_password` no update e confiava que o provedor conferiria. Este
+   *    projeto NÃO exige reautenticação no update: uma troca com senha atual
+   *    ERRADA foi aceita com 200. Ou seja, a garantia dependia de um botão de
+   *    configuração que ninguém no código controla — e que estava desligado.
+   *    Tentar autenticar com a senha informada não depende de configuração
+   *    alguma: ou a senha vale, ou não vale.
+   *
+   * 2) A TROCA VAI PELO ENDPOINT, não pelo SDK. `auth.updateUser` exige sessão
+   *    carregada no cliente; com apenas o cabeçalho `Authorization` ele falha
+   *    antes de sair da função, e a falha chegava classificada como erro
+   *    genérico do provedor. Na prática, a troca NUNCA funcionava.
+   */
+  async updateOwnPassword(accessToken, email, currentPassword, newPassword) {
+    const prova = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: ANON_KEY },
+      body: JSON.stringify({ email, password: currentPassword }),
     });
-    if (!error) return { ok: true };
-    const texto = `${error.message ?? ''}`.toLowerCase();
-    const invalidCurrent = texto.includes('current password')
-      || texto.includes('invalid login')
-      || texto.includes('credentials');
-    return { ok: false, invalidCurrent };
+    // Corpo descartado: ele traz tokens, e nada aqui precisa deles.
+    if (!prova.ok) return { ok: false, invalidCurrent: true };
+
+    const troca = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: ANON_KEY,
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ password: newPassword }),
+    });
+    return troca.ok ? { ok: true } : { ok: false, invalidCurrent: false };
   },
 };
 

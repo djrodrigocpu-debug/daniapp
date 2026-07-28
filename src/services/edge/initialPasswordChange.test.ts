@@ -44,10 +44,12 @@ function deps(options: FakeOptions = {}) {
       if (token === OUTRO_TOKEN) return { id: UUID_OUTRO, email: 'outro@sint.test' };
       return null;
     }),
-    updateOwnPassword: vi.fn(async (_t: string, atual: string, _nova: string) => {
+    updateOwnPassword: vi.fn(async (_t: string, _email: string, atual: string, _nova: string) => {
       logs.push('updateOwnPassword');
       if (options.falhaProvedor) return { ok: false as const, invalidCurrent: false };
       const esperada = options.senhaAtualCorreta ?? SENHA_TEMP;
+      // A prova da senha atual acontece DENTRO desta porta: é uma autenticação,
+      // não um campo enviado ao provedor na esperança de que ele confira.
       if (atual !== esperada) return { ok: false as const, invalidCurrent: true };
       return { ok: true as const };
     }),
@@ -150,6 +152,23 @@ describe('troca e conclusão', () => {
     const d = deps();
     expect(await call(d)).toEqual({ ok: true, required: false });
     expect(d.concluidos).toEqual([UUID]);
+  });
+
+  it('13b — a prova da senha atual recebe o e-mail DO TOKEN, não do corpo', async () => {
+    const d = deps();
+    await handleInitialPasswordChange(
+      {
+        accessToken: TOKEN,
+        currentPassword: SENHA_TEMP,
+        newPassword: SENHA_NOVA,
+        // @ts-expect-error — campo inexistente no contrato, de propósito
+        email: 'vitima@sint.test',
+      },
+      d,
+    );
+    const args = (d.auth.updateOwnPassword as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(args[1]).toBe(EMAIL);
+    expect(args[1]).not.toBe('vitima@sint.test');
   });
 
   it('14 — o UUID nunca vem do corpo da requisição', async () => {

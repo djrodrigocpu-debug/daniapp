@@ -108,13 +108,14 @@ function UsersSection() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [region, setRegion] = useState('');
+  const [initialPassword, setInitialPassword] = useState('');
   const [role, setRole] = useState<UserRole>('channel_manager');
   const [busy, setBusy] = useState(false);
   const [importVisible, setImportVisible] = useState(false);
 
   async function submit() {
     setBusy(true);
-    const res = await createUser({ name, email, region, role });
+    const res = await createUser({ name, email, region, role, initialPassword });
     setBusy(false);
     if (!res.ok) {
       alertDialog('Não foi possível criar', res.message);
@@ -123,6 +124,8 @@ function UsersSection() {
     setName('');
     setEmail('');
     setRegion('');
+    // A senha temporária não fica na tela depois de enviada.
+    setInitialPassword('');
   }
 
   async function cycleRole(userId: string, current: UserRole) {
@@ -138,6 +141,11 @@ function UsersSection() {
         <TextInput value={name} onChangeText={setName} placeholder="Nome" placeholderTextColor={colors.neutral} style={styles.input} />
         <TextInput value={email} onChangeText={setEmail} placeholder="E-mail corporativo" placeholderTextColor={colors.neutral} autoCapitalize="none" keyboardType="email-address" style={styles.input} />
         <TextInput value={region} onChangeText={setRegion} placeholder="Área de atuação" placeholderTextColor={colors.neutral} style={styles.input} />
+        <TextInput value={initialPassword} onChangeText={setInitialPassword} placeholder="Senha inicial (mín. 12, com letras e números)" placeholderTextColor={colors.neutral} autoCapitalize="none" autoCorrect={false} style={styles.input} />
+        <Text style={styles.hint}>
+          A senha inicial só é necessária para quem ainda não tem acesso. Ela é temporária:
+          o usuário será obrigado a trocá-la no primeiro acesso.
+        </Text>
         <Text style={styles.fieldLabel}>Perfil</Text>
         <View style={styles.roleRow}>
           {ROLES.map((r) => (
@@ -272,6 +280,7 @@ const styles = StyleSheet.create({
   inlineRow: { flexDirection: 'row', gap: spacing.sm },
   flex: { flex: 1 },
   fieldLabel: { color: colors.ink, fontSize: 12, fontWeight: '800', marginTop: spacing.sm, marginBottom: spacing.sm },
+  hint: { color: colors.inkMuted, fontSize: 11, lineHeight: 16 },
   roleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingHorizontal: 11, paddingVertical: 7 },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },

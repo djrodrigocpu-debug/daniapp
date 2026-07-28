@@ -73,12 +73,17 @@ export interface AuthPort {
   /** Resolve o usuário a partir do token. `null` quando o token é inválido. */
   resolveCaller(accessToken: string): Promise<CallerIdentity | null>;
   /**
-   * Troca a senha COM validação da senha atual pelo provedor.
-   * Executa sob o JWT do próprio usuário — nunca com service role, e nunca
-   * `updateUserById`, que trocaria a senha sem conferir a atual.
+   * PROVA a senha atual e só então troca, sob o JWT do próprio usuário — nunca
+   * com service role, e nunca `updateUserById`, que trocaria a senha sem
+   * conferir nada.
+   *
+   * O e-mail entra aqui porque a prova da senha atual é uma AUTENTICAÇÃO: não
+   * dá para provar que alguém sabe a senha sem tentar usá-la. Ver a nota da
+   * implementação sobre por que `current_password` do provedor não basta.
    */
   updateOwnPassword(
     accessToken: string,
+    email: string,
     currentPassword: string,
     newPassword: string,
   ): Promise<{ ok: true } | { ok: false; invalidCurrent: boolean }>;
@@ -162,8 +167,11 @@ export async function handleInitialPasswordChange(
   //    existem juntas, e é o único lugar onde "são iguais" pode ser decidido.
   validateNewPassword(nova, atual, caller.email);
 
-  // 4) O provedor valida a senha atual e efetiva a troca.
-  const trocado = await deps.auth.updateOwnPassword(request.accessToken, atual, nova);
+  // 4) A senha atual é provada e a troca é efetivada. O e-mail vem do token,
+  //    igual ao uuid — nunca do corpo.
+  const trocado = await deps.auth.updateOwnPassword(
+    request.accessToken, caller.email, atual, nova,
+  );
   if (!trocado.ok) {
     // Falhou: o onboarding NÃO é concluído e a conta segue no gate.
     throw falha(trocado.invalidCurrent ? 400 : 502,

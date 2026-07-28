@@ -126,7 +126,8 @@ export function InitialPasswordScreen({
               autoCapitalize="none"
               autoComplete="new-password"
               editable={!busy}
-              placeholder={`Mínimo de ${MIN_PASSWORD_LENGTH} caracteres, com letras e números`}
+              // Curto de propósito: a versão longa truncava na largura de celular.
+              placeholder={`Mínimo de ${MIN_PASSWORD_LENGTH}, com letras e números`}
               placeholderTextColor={colors.neutral}
               style={styles.input}
               accessibilityLabel="Nova senha"
