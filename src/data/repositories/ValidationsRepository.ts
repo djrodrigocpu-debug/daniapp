@@ -30,6 +30,14 @@ export interface ValidationsRepository {
     decision: ValidationDecision,
     note: string,
   ): Promise<Result<Evaluation>>;
+  /**
+   * Nome funcional do avaliador por avaliação (Fila de validação). `public.users`
+   * só é legível pelo próprio usuário ou por Administrador — este método usa a
+   * projeção `ui_evaluation_people` (migration 0026), que repete a checagem de
+   * escopo de operação já usada pela leitura de avaliações, sem abrir o
+   * diretório inteiro de usuários.
+   */
+  getEvaluatorNames(evaluationIds: string[]): Promise<Result<Record<string, string>>>;
 }
 
 const VALIDATOR_ROLES: OperationScope['role'][] = ['coordinator', 'regional', 'admin'];
@@ -102,6 +110,18 @@ export class LocalValidationsRepository implements ValidationsRepository {
     });
     return saved ? ok(saved) : err('validation/invalid-input', 'Falha ao registrar a decisão.');
   }
+
+  async getEvaluatorNames(evaluationIds: string[]): Promise<Result<Record<string, string>>> {
+    const data = this.store.getSnapshot();
+    const ids = new Set(evaluationIds);
+    const result: Record<string, string> = {};
+    for (const evaluation of data.evaluations) {
+      if (!ids.has(evaluation.id)) continue;
+      const evaluator = data.users.find((u) => u.id === evaluation.evaluatorId);
+      if (evaluator) result[evaluation.id] = evaluator.name;
+    }
+    return ok(result);
+  }
 }
 
 export class SupabaseValidationsRepository implements ValidationsRepository {
@@ -131,5 +151,19 @@ export class SupabaseValidationsRepository implements ValidationsRepository {
     });
     if (error) return err(new AppError('network/unavailable', 'Falha ao registrar a decisão.', { cause: error }));
     return ok(data as Evaluation);
+  }
+
+  async getEvaluatorNames(evaluationIds: string[]): Promise<Result<Record<string, string>>> {
+    if (evaluationIds.length === 0) return ok({});
+    const { data, error } = await this.client
+      .from('ui_evaluation_people')
+      .select('*')
+      .in('evaluationId', evaluationIds);
+    if (error) return err(new AppError('network/unavailable', 'Falha ao carregar os avaliadores.', { cause: error }));
+    const result: Record<string, string> = {};
+    for (const row of (data ?? []) as Array<{ evaluationId: string; evaluatorName: string | null }>) {
+      if (row.evaluatorName) result[row.evaluationId] = row.evaluatorName;
+    }
+    return ok(result);
   }
 }

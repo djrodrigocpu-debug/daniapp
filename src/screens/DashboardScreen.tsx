@@ -58,12 +58,16 @@ export function DashboardScreen() {
         </View>
         <View style={styles.heroScoreRow}>
           <View>
-            <Text style={styles.heroScoreLabel}>Índice médio dos Parceiros AACE</Text>
+            <Text style={styles.heroScoreLabel}>Índice médio geral</Text>
             <Text style={styles.heroScore}>{metrics.average}</Text>
           </View>
           <View style={styles.maturity}><Ionicons name="ribbon-outline" size={17} color={colors.white} /><Text style={styles.maturityText}>{getMaturity(metrics.average)}</Text></View>
         </View>
         <ProgressBar value={metrics.average} color={colors.white} />
+        <Text style={styles.coverageText}>{metrics.auditedCount} de {metrics.operationsCount} parceiros auditados</Text>
+        <Text style={styles.coverageHint}>
+          O índice geral considera todos os parceiros. Parceiros ainda sem auditoria aprovada entram como zero.
+        </Text>
       </View>
 
       <View style={styles.metrics}>
@@ -116,6 +120,8 @@ const styles = StyleSheet.create({
   heroScore: { color: colors.white, fontSize: 40, lineHeight: 44, fontWeight: '900' },
   maturity: { flexDirection: 'row', gap: 6, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.16)', paddingHorizontal: 10, paddingVertical: 7, borderRadius: radius.pill },
   maturityText: { color: colors.white, fontSize: 11, fontWeight: '800' },
+  coverageText: { color: colors.white, fontSize: 11, fontWeight: '800', marginTop: spacing.md },
+  coverageHint: { color: '#FFE9EA', fontSize: 10, lineHeight: 15, marginTop: 4 },
   metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.xl },
   focusCard: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.lg },
   focusRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.md },

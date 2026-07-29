@@ -14,7 +14,7 @@ import { formatDateTime, getMaturity } from '../utils/format';
 
 export function ValidationsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { pending, validate, getOperation, getUser } = useValidations();
+  const { pending, validate, getOperation, getEvaluatorName } = useValidations();
   const [selected, setSelected] = useState<Evaluation | null>(null);
   const [decision, setDecision] = useState<'approved' | 'returned'>('approved');
   const [note, setNote] = useState('');
@@ -47,7 +47,7 @@ export function ValidationsScreen() {
 
         {pending.length ? pending.map((evaluation) => {
           const operation = getOperation(evaluation.operationId);
-          const evaluator = getUser(evaluation.evaluatorId);
+          const evaluatorName = getEvaluatorName(evaluation.id);
           const redCount = evaluation.answers.filter((answer) => answer.status === 'red').length;
           const evidenceCount = evaluation.answers.reduce((sum, answer) => sum + answer.evidenceIds.length, 0);
           return (
@@ -61,7 +61,7 @@ export function ValidationsScreen() {
                 <View style={styles.scoreBlock}><Text style={styles.score}>{evaluation.score}</Text><Text style={styles.scoreLabel}>{getMaturity(evaluation.score)}</Text></View>
               </View>
               <View style={styles.metaBox}>
-                <Meta label="Avaliador" value={evaluator?.name ?? '—'} />
+                <Meta label="Avaliador" value={evaluatorName ?? '—'} />
                 <Meta label="Enviado em" value={formatDateTime(evaluation.submittedAt)} />
                 <Meta label="Não conformidades" value={`${redCount}`} />
                 <Meta label="Evidências" value={`${evidenceCount}`} />

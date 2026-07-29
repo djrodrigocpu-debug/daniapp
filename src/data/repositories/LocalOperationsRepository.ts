@@ -7,6 +7,7 @@ import { Result, ok, err } from '../../domain/errors/result';
 import { computeDashboardMetrics, DashboardMetrics } from '../../domain/dashboard/metrics';
 import { LocalStore, localStore } from '../store/localStore';
 import {
+  OperationPeople,
   OperationScope,
   OperationsRepository,
   filterVisibleOperations,
@@ -33,5 +34,18 @@ export class LocalOperationsRepository implements OperationsRepository {
     const data = this.store.getSnapshot();
     const operations = filterVisibleOperations(scope, data.operations);
     return ok(computeDashboardMetrics(operations, data.actionPlans, data.evaluations, nowISO));
+  }
+
+  async getOperationPeople(scope: OperationScope, operationId: string): Promise<Result<OperationPeople | null>> {
+    const data = this.store.getSnapshot();
+    const operation = data.operations.find((item) => item.id === operationId);
+    if (!operation || !isOperationVisible(scope, operation)) return ok(null);
+    const manager = data.users.find((u) => u.id === operation.managerId);
+    const coordinator = data.users.find((u) => u.id === operation.coordinatorId);
+    return ok({
+      managerName: manager?.name ?? null,
+      coordinatorName: coordinator?.name ?? null,
+      coordinationName: operation.coordinationName ?? null,
+    });
   }
 }

@@ -1,6 +1,23 @@
 # Changelog
 
 ## 1.3.0 — Publicação Web no Vercel
+
+### Microcorreção — contador de ações, nomes funcionais e Validações para Administração
+- Contador de ações abertas (`ui_operations."openActions"`, aba Ações e cartão do
+  Parceiro AACE) passa a incluir `waiting_partner`; `done`/`validated`/`cancelled_justified`
+  continuam fora.
+- Ficha do Parceiro AACE mostra o nome funcional do Gerente de Canal, do coordenador
+  responsável e da coordenadoria (antes apareciam como "—" para Coordenação e Regional,
+  por limite de leitura de `public.users`); Fila de validação mostra o nome do avaliador
+  pelo mesmo mecanismo. Projeção nova e restrita ao escopo (`ui_operation_people`,
+  `ui_evaluation_people` — migration 0026); `public.users` permanece fechado.
+- Administração passa a ver a aba Validações — a mesma existente para Coordenação e
+  Regional (mesma rota/componente/RPC), não uma tela nova. Gerente de Canal continua
+  sem a aba.
+- Rótulo "Índice médio" no painel passa a "Índice médio geral", com a cobertura
+  "X de Y parceiros auditados" e uma nota curta explicando que parceiros sem auditoria
+  aprovada entram como zero. A fórmula do índice não mudou.
+
 - Inclusão de `react-dom` e `react-native-web`.
 - Inclusão dos scripts `build`, `build:web` e `vercel-build`.
 - Exportação web do Expo configurada no modo SPA (`single`).

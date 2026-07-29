@@ -77,6 +77,24 @@ describe('computeDashboardMetrics', () => {
     expect(m.pendingValidationsCount).toBe(1);
   });
 
+  it('cobertura do índice: auditedCount conta só operações com lastAudit preenchido', () => {
+    const ops = [
+      op('O1', 90, 'green', '2026-07-30', '2026-07-01'), // auditado
+      op('O2', 0, 'not_evaluated', '2026-07-30'),        // nunca auditado
+      op('O3', 70, 'yellow', '2026-07-30', '2026-06-15'), // auditado
+    ];
+    const m = computeDashboardMetrics(ops, [], [], NOW);
+    expect(m.auditedCount).toBe(2);
+    expect(m.operationsCount).toBe(3); // "X de Y": X=auditedCount, Y=operationsCount
+  });
+
+  it('a fórmula do índice médio geral não muda com a cobertura: zero para não auditado entra na média', () => {
+    const ops = [op('O1', 100, 'green', '2026-07-30', '2026-07-01'), op('O2', 0, 'not_evaluated', '2026-07-30')];
+    const m = computeDashboardMetrics(ops, [], [], NOW);
+    expect(m.average).toBe(50); // (100+0)/2 — mesma fórmula de antes, não recalculada só sobre auditados
+    expect(m.auditedCount).toBe(1);
+  });
+
   it('conta auditorias pendentes (sem lastAudit ou nextAudit vencida) e ordena upcoming', () => {
     const ops = [
       op('O1', 80, 'green', '2026-08-30', '2026-07-01'), // futura, com lastAudit → não pendente

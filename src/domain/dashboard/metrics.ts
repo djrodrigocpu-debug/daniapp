@@ -6,9 +6,11 @@
 import { ActionPlan, Evaluation, Operation } from '../../types';
 
 export interface DashboardMetrics {
-  /** Índice médio (0–100) das operações do escopo. */
+  /** Índice médio geral (0–100): todas as operações do escopo, sem auditoria aprovada entram como zero. */
   average: number;
   operationsCount: number;
+  /** Quantas operações do escopo já têm auditoria oficial aprovada (lastAudit preenchido) — cobertura do índice. */
+  auditedCount: number;
   /** Parceiros em conformidade (semáforo verde). */
   compliantCount: number;
   /** Parceiros em atenção (semáforo amarelo). */
@@ -38,6 +40,7 @@ export function computeDashboardMetrics(
   const average = operations.length
     ? Math.round(operations.reduce((sum, operation) => sum + operation.currentScore, 0) / operations.length)
     : 0;
+  const auditedCount = operations.filter((operation) => !!operation.lastAudit).length;
 
   const critical = operations.filter((operation) => operation.status === 'red');
   // 'not_evaluated'/'not_applicable' ficam fora de conformidade E de atenção.
@@ -66,6 +69,7 @@ export function computeDashboardMetrics(
   return {
     average,
     operationsCount: operations.length,
+    auditedCount,
     compliantCount: compliant.length,
     attentionCount: attention.length,
     criticalCount: critical.length,

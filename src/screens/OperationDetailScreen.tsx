@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { alertDialog } from '../utils/dialog';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -10,6 +10,9 @@ import { SectionTitle } from '../components/SectionTitle';
 import { StatusPill } from '../components/StatusPill';
 import { useEvaluations } from '../context/EvaluationsProvider';
 import { useOperations } from '../context/OperationsProvider';
+import { useOperationalUser } from '../context/useOperationalUser';
+import { useRepositories } from '../data/repositories/RepositoryProvider';
+import { OperationPeople, scopeFromUser } from '../data/repositories/OperationsRepository';
 import { decideOperationDetailState } from '../domain/operations/operationDetailState';
 import { colors, radius, spacing } from '../theme';
 import { RootStackParamList } from '../types';
@@ -17,7 +20,7 @@ import { formatDate, getMaturity, trafficLightColor } from '../utils/format';
 
 export function OperationDetailScreen({ route, navigation }: NativeStackScreenProps<RootStackParamList, 'OperationDetail'>) {
   const { operationId } = route.params;
-  const { getUser, listByOperation, startEvaluation, getCurrentDraft } = useEvaluations();
+  const { listByOperation, startEvaluation, getCurrentDraft } = useEvaluations();
   // A identidade canônica é public.operations.id, e é `useOperations()` (via
   // `ui_operations`) quem a busca de verdade — a mesma fonte que já preenche a
   // lista. `EvaluationsProvider.getOperation` lê do store local de
@@ -25,6 +28,21 @@ export function OperationDetailScreen({ route, navigation }: NativeStackScreenPr
   // Parceiro AACE recém-carregado aparecia na lista e "não existia" aqui.
   const { operations, loading, error } = useOperations();
   const operation = operations.find((o) => o.id === operationId);
+
+  // Nomes funcionais (GC/coordenador/coordenadoria) via projeção `ui_operation_people`
+  // (migration 0026): `public.users` só é legível pelo próprio usuário ou por
+  // Administrador, então resolver por UUID direto mostrava "—" para Coordenação/Regional.
+  const { operations: operationsRepo } = useRepositories();
+  const currentUser = useOperationalUser();
+  const [people, setPeople] = useState<OperationPeople | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    if (!currentUser) { setPeople(null); return undefined; }
+    void operationsRepo.getOperationPeople(scopeFromUser(currentUser), operationId).then((res) => {
+      if (!cancelled) setPeople(res.ok ? res.value : null);
+    });
+    return () => { cancelled = true; };
+  }, [operationsRepo, currentUser, operationId]);
 
   const history = useMemo(() => listByOperation(operationId).slice(0, 5), [listByOperation, operationId]);
 
@@ -52,9 +70,6 @@ export function OperationDetailScreen({ route, navigation }: NativeStackScreenPr
   }
   if (detailState === 'not_found' || !operation) return <Screen><Text>Parceiro AACE não encontrado.</Text></Screen>;
   const activeOperation = operation;
-
-  const manager = getUser(activeOperation.managerId);
-  const coordinator = getUser(activeOperation.coordinatorId);
   const delta = activeOperation.currentScore - activeOperation.previousScore;
 
   async function launch(frequency: 'weekly' | 'monthly') {
@@ -97,8 +112,9 @@ export function OperationDetailScreen({ route, navigation }: NativeStackScreenPr
       </View>
 
       <View style={styles.infoCard}>
-        <InfoRow icon="person-outline" label="Gerente de canal" value={manager?.name ?? '—'} />
-        <InfoRow icon="people-outline" label="Coordenação" value={coordinator?.name ?? '—'} />
+        <InfoRow icon="person-outline" label="Gerente de canal" value={people?.managerName ?? 'Não atribuído'} />
+        <InfoRow icon="people-outline" label="Coordenador(a)" value={people?.coordinatorName ?? 'Não atribuído'} />
+        <InfoRow icon="git-network-outline" label="Coordenadoria" value={people?.coordinationName ?? 'Não atribuído'} />
         <InfoRow icon="calendar-outline" label="Última auditoria" value={formatDate(operation.lastAudit)} />
         <InfoRow icon="alarm-outline" label="Próxima auditoria" value={formatDate(operation.nextAudit)} last />
       </View>
