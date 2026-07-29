@@ -48,6 +48,12 @@ export interface AdminIndicatorsRepository {
   listAll(): Promise<Result<AdminIndicator[]>>;
   createDefinition(code: string, name: string, version: Omit<AdminIndicatorVersion, 'id' | 'versionNumber'>): Promise<Result<AdminIndicator>>;
   addVersion(indicatorId: string, version: Omit<AdminIndicatorVersion, 'id' | 'versionNumber'>): Promise<Result<AdminIndicator>>;
+  /**
+   * Corrige IDENTIDADE e RÓTULO (código e nome) sem criar versão: eles não fazem
+   * parte do contrato medido. Unidade, direção, meta, tolerância e peso continuam
+   * mudando só por `addVersion` — é isso que mantém a série histórica auditável.
+   */
+  updateDefinition(indicatorId: string, code: string, name: string): Promise<Result<AdminIndicator>>;
   deactivate(indicatorId: string): Promise<Result<AdminIndicator>>;
   /** Exclusão física — bloqueada se em uso (inative em vez de excluir — T05). */
   remove(indicatorId: string): Promise<Result<true>>;
@@ -263,6 +269,31 @@ export class LocalAdminIndicatorsRepository implements AdminIndicatorsRepository
         if (ind.id !== indicatorId) return ind;
         const nextNumber = ind.versions.reduce((max, v) => Math.max(max, v.versionNumber), 0) + 1;
         saved = { ...ind, versions: [...ind.versions, { ...version, id: makeId('INDV'), versionNumber: nextNumber }] };
+        return saved;
+      }),
+    }));
+    return saved ? ok(saved) : err('validation/invalid-input', 'Indicador não encontrado.');
+  }
+
+  async updateDefinition(indicatorId: string, code: string, name: string): Promise<Result<AdminIndicator>> {
+    const normalizedCode = code.trim().toUpperCase();
+    const normalizedName = name.trim();
+    if (!normalizedCode || !normalizedName) return err('validation/invalid-input', 'Código e nome são obrigatórios.');
+    const alvo = this.catalog().find((i) => i.id === indicatorId);
+    if (!alvo) return err('validation/invalid-input', 'Indicador não encontrado.');
+    if (this.catalog().some((i) => i.id !== indicatorId && i.code.toUpperCase() === normalizedCode)) {
+      return err('validation/invalid-input', `Já existe um indicador com o código ${normalizedCode}.`);
+    }
+    // Espelha a guarda da 0022: identidade de indicador já medido não muda.
+    if (normalizedCode !== alvo.code.toUpperCase() && alvo.usageCount > 0) {
+      return err('validation/invalid-input', `Indicador ${alvo.code} já em uso: só o nome pode ser alterado.`);
+    }
+    let saved: AdminIndicator | null = null;
+    this.store.update((prev) => ({
+      ...prev,
+      adminIndicators: (prev.adminIndicators ?? []).map((ind) => {
+        if (ind.id !== indicatorId) return ind;
+        saved = { ...ind, code: normalizedCode, name: normalizedName };
         return saved;
       }),
     }));
@@ -523,6 +554,17 @@ export class SupabaseAdminIndicatorsRepository implements AdminIndicatorsReposit
     const { data, error } = await this.client.rpc('admin_add_indicator_version', { p_indicator_id: indicatorId, p_version: version });
     return error ? err(net('Falha ao criar versão.', error)) : ok(data as AdminIndicator);
   }
+  async updateDefinition(indicatorId: string, code: string, name: string): Promise<Result<AdminIndicator>> {
+    const { data, error } = await this.client.rpc('admin_update_indicator', {
+      p_indicator_id: indicatorId,
+      p_code: code,
+      p_name: name,
+    });
+    // A mensagem do servidor já nomeia o código em conflito ou explica a recusa
+    // por uso — repassar texto genérico aqui esconderia justamente o que resolve.
+    return error ? err(net(error.message || 'Falha ao atualizar indicador.', error)) : ok(data as AdminIndicator);
+  }
+
   async deactivate(indicatorId: string): Promise<Result<AdminIndicator>> {
     const { data, error } = await this.client.rpc('admin_deactivate_indicator', { p_indicator_id: indicatorId });
     return error ? err(net('Falha ao inativar indicador.', error)) : ok(data as AdminIndicator);

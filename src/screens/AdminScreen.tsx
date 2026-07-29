@@ -187,16 +187,70 @@ function UsersSection() {
   );
 }
 
+/**
+ * Contrato MEDIDO de uma versão. Cadastro e nova versão preenchem exatamente os
+ * mesmos campos, então eles vivem em um componente só — duplicar a marcação faria
+ * as duas telas divergirem na primeira mudança de contrato.
+ */
+interface ContractDraft {
+  unit: IndicatorUnit;
+  direction: IndicatorDirection;
+  target: string;
+  yellowTolerance: string;
+  weight: string;
+}
+
+const CONTRATO_VAZIO: ContractDraft = {
+  unit: '%', direction: 'higher_better', target: '', yellowTolerance: '', weight: '',
+};
+
+const hoje = () => new Date().toISOString().slice(0, 10);
+
+function ContractFields({ draft, onChange }: { draft: ContractDraft; onChange: (patch: Partial<ContractDraft>) => void }) {
+  return (
+    <>
+      <Text style={styles.fieldLabel}>Unidade</Text>
+      <View style={styles.roleRow}>
+        {INDICATOR_UNITS.map((item) => (
+          <Pressable key={item} onPress={() => onChange({ unit: item })} style={[styles.chip, draft.unit === item && styles.chipActive]} accessibilityRole="button">
+            <Text style={[styles.chipText, draft.unit === item && styles.chipTextActive]}>{item}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <Text style={styles.fieldLabel}>Direção</Text>
+      <View style={styles.roleRow}>
+        {INDICATOR_DIRECTIONS.map((item) => (
+          <Pressable key={item.value} onPress={() => onChange({ direction: item.value })} style={[styles.chip, draft.direction === item.value && styles.chipActive]} accessibilityRole="button">
+            <Text style={[styles.chipText, draft.direction === item.value && styles.chipTextActive]}>{item.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <View style={[styles.inlineRow, styles.mt]}>
+        <TextInput value={draft.target} onChangeText={(v) => onChange({ target: v })} placeholder="Meta" placeholderTextColor={colors.neutral} keyboardType="numeric" style={[styles.input, styles.flex]} />
+        <TextInput value={draft.yellowTolerance} onChangeText={(v) => onChange({ yellowTolerance: v })} placeholder="Tolerância amarela (%)" placeholderTextColor={colors.neutral} keyboardType="numeric" style={[styles.input, styles.flex]} />
+        <TextInput value={draft.weight} onChangeText={(v) => onChange({ weight: v })} placeholder="Peso" placeholderTextColor={colors.neutral} keyboardType="numeric" style={[styles.input, styles.flex]} />
+      </View>
+    </>
+  );
+}
+
 function IndicatorsSection() {
-  const { indicators, createIndicator, addIndicatorVersion, deactivateIndicator, removeIndicator } = useAdmin();
+  const { indicators, createIndicator, addIndicatorVersion, updateIndicator, deactivateIndicator, removeIndicator } = useAdmin();
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
-  const [unit, setUnit] = useState<IndicatorUnit>('%');
-  const [direction, setDirection] = useState<IndicatorDirection>('higher_better');
-  const [target, setTarget] = useState('');
-  const [yellowTolerance, setYellowTolerance] = useState('');
-  const [weight, setWeight] = useState('');
+  const [novo, setNovo] = useState<ContractDraft>(CONTRATO_VAZIO);
   const [busy, setBusy] = useState(false);
+
+  /**
+   * Painéis abertos guardam o ID, nunca o objeto do indicador: cada mutação
+   * recarrega a lista e a referência anterior fica obsoleta na hora.
+   */
+  const [versionOf, setVersionOf] = useState<string | null>(null);
+  const [versionDraft, setVersionDraft] = useState<ContractDraft>(CONTRATO_VAZIO);
+  const [effectiveFrom, setEffectiveFrom] = useState(hoje());
+  const [identityOf, setIdentityOf] = useState<string | null>(null);
+  const [identityCode, setIdentityCode] = useState('');
+  const [identityName, setIdentityName] = useState('');
 
   async function submit() {
     if (!code.trim() || !name.trim()) {
@@ -205,14 +259,14 @@ function IndicatorsSection() {
     }
     // Validação estrita: NaN e ausência são recusados; zero é preservado; nada
     // recebe default oculto — o contrato completo vai como digitado.
-    const validation = validateIndicatorVersionForm({ unit, direction, target, yellowTolerance, weight });
+    const validation = validateIndicatorVersionForm(novo);
     if (!validation.ok) {
       alertDialog('Cadastro incompleto', validation.message);
       return;
     }
     setBusy(true);
     const res = await createIndicator(code.trim(), name.trim(), {
-      ...validation.value, effectiveFrom: new Date().toISOString().slice(0, 10),
+      ...validation.value, effectiveFrom: hoje(),
     });
     setBusy(false);
     if (!res.ok) {
@@ -221,26 +275,66 @@ function IndicatorsSection() {
     }
     setCode('');
     setName('');
-    setUnit('%');
-    setDirection('higher_better');
-    setTarget('');
-    setYellowTolerance('');
-    setWeight('');
+    setNovo(CONTRATO_VAZIO);
   }
 
-  async function newVersion(ind: AdminIndicator) {
-    // Nova versão parte do contrato VIGENTE — antes unidade, direção e
-    // tolerância eram silenciosamente redefinidas para %, higher_better e 0.
+  /**
+   * Abre a nova versão PRÉ-PREENCHIDA com o contrato vigente. Antes este botão
+   * gravava direto essa mesma cópia, sem perguntar nada: a versão nascia idêntica
+   * à anterior e não havia como versionar de fato — só como duplicar.
+   */
+  function openVersion(ind: AdminIndicator) {
     const last = ind.versions[ind.versions.length - 1];
-    const res = await addIndicatorVersion(ind.id, {
+    setIdentityOf(null);
+    setVersionOf(ind.id);
+    setVersionDraft({
       unit: last?.unit ?? '%',
       direction: last?.direction ?? 'higher_better',
-      target: last?.target ?? 0,
-      yellowTolerance: last?.yellowTolerance ?? 0,
-      weight: last?.weight ?? 1,
-      effectiveFrom: new Date().toISOString().slice(0, 10),
+      target: last === undefined ? '' : String(last.target),
+      yellowTolerance: last === undefined ? '' : String(last.yellowTolerance),
+      weight: last === undefined ? '' : String(last.weight),
     });
-    if (!res.ok) alertDialog('Falha', res.message);
+    setEffectiveFrom(hoje());
+  }
+
+  async function submitVersion(indicatorId: string) {
+    const validation = validateIndicatorVersionForm(versionDraft);
+    if (!validation.ok) {
+      alertDialog('Versão incompleta', validation.message);
+      return;
+    }
+    setBusy(true);
+    const res = await addIndicatorVersion(indicatorId, { ...validation.value, effectiveFrom: effectiveFrom.trim() });
+    setBusy(false);
+    if (!res.ok) {
+      alertDialog('Não foi possível criar a versão', res.message);
+      return;
+    }
+    setVersionOf(null);
+  }
+
+  function openIdentity(ind: AdminIndicator) {
+    setVersionOf(null);
+    setIdentityOf(ind.id);
+    setIdentityCode(ind.code);
+    setIdentityName(ind.name);
+  }
+
+  async function submitIdentity(indicatorId: string) {
+    if (!identityCode.trim() || !identityName.trim()) {
+      alertDialog('Campos obrigatórios', 'Informe código e nome do indicador.');
+      return;
+    }
+    setBusy(true);
+    const res = await updateIndicator(indicatorId, identityCode.trim(), identityName.trim());
+    setBusy(false);
+    // A mensagem do servidor nomeia o código em conflito ou explica a recusa por
+    // uso — mostrar texto próprio aqui esconderia o que resolve o problema.
+    if (!res.ok) {
+      alertDialog('Não foi possível salvar', res.message);
+      return;
+    }
+    setIdentityOf(null);
   }
 
   async function tryRemove(indicatorId: string) {
@@ -254,27 +348,7 @@ function IndicatorsSection() {
         <Text style={styles.cardTitle}>Novo indicador</Text>
         <TextInput value={code} onChangeText={setCode} placeholder="Código (ex.: IND-050)" placeholderTextColor={colors.neutral} autoCapitalize="characters" style={styles.input} />
         <TextInput value={name} onChangeText={setName} placeholder="Nome do indicador" placeholderTextColor={colors.neutral} style={styles.input} />
-        <Text style={styles.fieldLabel}>Unidade</Text>
-        <View style={styles.roleRow}>
-          {INDICATOR_UNITS.map((item) => (
-            <Pressable key={item} onPress={() => setUnit(item)} style={[styles.chip, unit === item && styles.chipActive]} accessibilityRole="button">
-              <Text style={[styles.chipText, unit === item && styles.chipTextActive]}>{item}</Text>
-            </Pressable>
-          ))}
-        </View>
-        <Text style={styles.fieldLabel}>Direção</Text>
-        <View style={styles.roleRow}>
-          {INDICATOR_DIRECTIONS.map((item) => (
-            <Pressable key={item.value} onPress={() => setDirection(item.value)} style={[styles.chip, direction === item.value && styles.chipActive]} accessibilityRole="button">
-              <Text style={[styles.chipText, direction === item.value && styles.chipTextActive]}>{item.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-        <View style={[styles.inlineRow, styles.mt]}>
-          <TextInput value={target} onChangeText={setTarget} placeholder="Meta" placeholderTextColor={colors.neutral} keyboardType="numeric" style={[styles.input, styles.flex]} />
-          <TextInput value={yellowTolerance} onChangeText={setYellowTolerance} placeholder="Tolerância amarela (%)" placeholderTextColor={colors.neutral} keyboardType="numeric" style={[styles.input, styles.flex]} />
-          <TextInput value={weight} onChangeText={setWeight} placeholder="Peso" placeholderTextColor={colors.neutral} keyboardType="numeric" style={[styles.input, styles.flex]} />
-        </View>
+        <ContractFields draft={novo} onChange={(patch) => setNovo((prev) => ({ ...prev, ...patch }))} />
         <AppButton title="Criar indicador" onPress={() => void submit()} loading={busy} style={styles.mt} />
       </View>
 
@@ -294,10 +368,32 @@ function IndicatorsSection() {
             </View>
             <Text style={styles.indMeta}>v{last?.versionNumber ?? 1} · {last?.unit} · {last?.direction === 'lower_better' ? 'menor é melhor' : 'maior é melhor'} · meta {last?.target} · tol. {last?.yellowTolerance}% · peso {last?.weight} · {ind.versions.length} versão(ões) · {ind.usageCount} uso(s)</Text>
             <View style={styles.indActions}>
-              <AppButton title="Nova versão" compact variant="secondary" onPress={() => void newVersion(ind)} style={styles.flex} />
+              <AppButton title={versionOf === ind.id ? 'Cancelar versão' : 'Nova versão'} compact variant="secondary" onPress={() => (versionOf === ind.id ? setVersionOf(null) : openVersion(ind))} style={styles.flex} />
+              <AppButton title={identityOf === ind.id ? 'Cancelar edição' : 'Editar'} compact variant="secondary" onPress={() => (identityOf === ind.id ? setIdentityOf(null) : openIdentity(ind))} style={styles.flex} />
               {ind.lifecycle === 'active' && <AppButton title="Inativar" compact variant="secondary" onPress={() => void deactivateIndicator(ind.id)} style={styles.flex} />}
               <AppButton title="Excluir" compact variant="danger" onPress={() => void tryRemove(ind.id)} style={styles.flex} />
             </View>
+
+            {identityOf === ind.id && (
+              <View style={styles.panel}>
+                <Text style={styles.panelTitle}>Corrigir código e nome</Text>
+                <Text style={styles.panelHint}>Não cria versão: código e nome são identidade e rótulo, não o contrato medido.</Text>
+                <TextInput value={identityCode} onChangeText={setIdentityCode} placeholder="Código (ex.: IND-050)" placeholderTextColor={colors.neutral} autoCapitalize="characters" style={styles.input} />
+                <TextInput value={identityName} onChangeText={setIdentityName} placeholder="Nome do indicador" placeholderTextColor={colors.neutral} style={styles.input} />
+                <AppButton title="Salvar" onPress={() => void submitIdentity(ind.id)} loading={busy} style={styles.mt} />
+              </View>
+            )}
+
+            {versionOf === ind.id && (
+              <View style={styles.panel}>
+                <Text style={styles.panelTitle}>Nova versão do contrato</Text>
+                <Text style={styles.panelHint}>Começa igual à v{last?.versionNumber ?? 1}. Altere o que muda e grave — a versão anterior fica preservada no histórico.</Text>
+                <ContractFields draft={versionDraft} onChange={(patch) => setVersionDraft((prev) => ({ ...prev, ...patch }))} />
+                <Text style={styles.fieldLabel}>Vigência a partir de</Text>
+                <TextInput value={effectiveFrom} onChangeText={setEffectiveFrom} placeholder="AAAA-MM-DD" placeholderTextColor={colors.neutral} style={styles.input} />
+                <AppButton title="Gravar versão" onPress={() => void submitVersion(ind.id)} loading={busy} style={styles.mt} />
+              </View>
+            )}
           </View>
         );
       }) : <EmptyState title="Nenhum indicador" description="Cadastre o primeiro indicador versionado." />}
@@ -351,5 +447,8 @@ const styles = StyleSheet.create({
   indName: { color: colors.ink, fontSize: 15, fontWeight: '800', marginTop: 2 },
   lifeBadge: { borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1 },
   indMeta: { color: colors.inkMuted, fontSize: 11, marginTop: spacing.sm },
-  indActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
+  indActions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.md },
+  panel: { marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border },
+  panelTitle: { color: colors.ink, fontSize: 13, fontWeight: '800' },
+  panelHint: { color: colors.inkMuted, fontSize: 12, marginTop: 2, marginBottom: spacing.sm },
 });
