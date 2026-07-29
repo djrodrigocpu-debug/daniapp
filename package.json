@@ -42,7 +42,7 @@
     "build:android:preview": "eas build --platform android --profile preview",
     "build:ios:preview": "eas build --platform ios --profile preview",
     "build": "expo export --platform web",
-    "build:web": "node scripts/check-build-env.mjs && expo export --platform web",
+    "build:web": "node scripts/check-build-env.mjs && expo export --platform web --clear",
     "vercel-build": "node scripts/check-build-env.mjs && expo export --platform web"
   },
   "private": true,
