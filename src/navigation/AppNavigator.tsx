@@ -42,7 +42,7 @@ const navTheme = {
 
 function MainTabs() {
   const currentUser = useOperationalUser();
-  const canValidate = currentUser?.role === 'regional' || currentUser?.role === 'coordinator';
+  const canValidate = currentUser?.role === 'regional' || currentUser?.role === 'coordinator' || currentUser?.role === 'admin';
   const isAdmin = currentUser?.role === 'admin';
 
   return (

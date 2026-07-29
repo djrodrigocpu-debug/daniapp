@@ -191,6 +191,87 @@ describe('validate_evaluation impõe segregação e escopo (T02)', () => {
 });
 
 // ===========================================================================
+// MICROCORREÇÃO 0026 — openActions com waiting_partner + projeção segura de nomes
+// ===========================================================================
+describe('ui_operations.openActions inclui waiting_partner, exclui done/validated', () => {
+  let db: TestDb;
+  beforeAll(async () => { db = await makeScenario(); }, 30_000);
+  afterAll(async () => { await db.close(); });
+
+  async function openActionsOf(opId: string): Promise<number> {
+    const [row] = await db.asUser(ID.uAdmin, (tx) =>
+      tx.query<{ openActions: number }>(`select "openActions" from public.ui_operations where "id"=$1`, [opId]));
+    return row.openActions;
+  }
+
+  it('waiting_partner conta como ação aberta', async () => {
+    await db.exec(`insert into public.action_plans (operation_id, description, due_date, priority, status)
+      values ('${ID.opA}','p1','2099-01-01','high','waiting_partner')`);
+    expect(await openActionsOf(ID.opA)).toBe(1);
+  });
+
+  it('done não conta como ação aberta', async () => {
+    await db.exec(`insert into public.action_plans (operation_id, description, due_date, priority, status)
+      values ('${ID.opA}','p2','2099-01-01','high','done')`);
+    expect(await openActionsOf(ID.opA)).toBe(1); // permanece 1: só o waiting_partner do teste anterior conta
+  });
+
+  it('validated não conta como ação aberta', async () => {
+    await db.exec(`insert into public.action_plans (operation_id, description, due_date, priority, status)
+      values ('${ID.opA}','p3','2099-01-01','high','validated')`);
+    expect(await openActionsOf(ID.opA)).toBe(1);
+  });
+});
+
+describe('ui_operation_people / ui_evaluation_people — nomes funcionais restritos ao escopo (0026)', () => {
+  let db: TestDb;
+  beforeAll(async () => { db = await makeScenario(); }, 30_000);
+  afterAll(async () => { await db.close(); });
+
+  it('coordenador recebe nomes só da própria coordenadoria', async () => {
+    const own = await db.asUser(ID.uCoord1, (tx) =>
+      tx.query<{ managerName: string; coordinatorName: string; coordinationName: string }>(
+        `select * from public.ui_operation_people where "operationId"=$1`, [ID.opA]));
+    expect(own).toEqual([{ operationId: ID.opA, managerName: 'GC A Fic', coordinatorName: 'Coord1 Fic', coordinationName: 'Coord 1' }]);
+
+    const other = await db.asUser(ID.uCoord1, (tx) =>
+      tx.query(`select * from public.ui_operation_people where "operationId"=$1`, [ID.opB]));
+    expect(other).toEqual([]); // fora da sua coordenadoria
+  });
+
+  it('regional recebe nomes de todas as operações da sua região', async () => {
+    const rows = await db.asUser(ID.uReg, (tx) =>
+      tx.query<{ operationId: string }>(`select "operationId" from public.ui_operation_people order by "operationId"`));
+    expect(rows.map((r) => r.operationId).sort()).toEqual([ID.opA, ID.opB].sort());
+  });
+
+  it('administração recebe nomes do escopo corporativo (operação e avaliador)', async () => {
+    const people = await db.asUser(ID.uAdmin, (tx) =>
+      tx.query<{ operationId: string }>(`select "operationId" from public.ui_operation_people order by "operationId"`));
+    expect(people.map((r) => r.operationId).sort()).toEqual([ID.opA, ID.opB].sort());
+
+    const [evaluator] = await db.asUser(ID.uAdmin, (tx) =>
+      tx.query<{ evaluatorName: string }>(`select "evaluatorName" from public.ui_evaluation_people where "evaluationId"=$1`, [ID.evalA]));
+    expect(evaluator.evaluatorName).toBe('GC A Fic');
+  });
+
+  it('perfil fora do escopo não recebe os nomes', async () => {
+    const people = await db.asUser(ID.uGcB, (tx) =>
+      tx.query(`select * from public.ui_operation_people where "operationId"=$1`, [ID.opA]));
+    expect(people).toEqual([]);
+    const evaluator = await db.asUser(ID.uGcB, (tx) =>
+      tx.query(`select * from public.ui_evaluation_people where "evaluationId"=$1`, [ID.evalA]));
+    expect(evaluator).toEqual([]);
+  });
+
+  it('a projeção não expõe e-mail nem colunas além do necessário', async () => {
+    const [row] = await db.asUser(ID.uCoord1, (tx) =>
+      tx.query<Record<string, unknown>>(`select * from public.ui_operation_people where "operationId"=$1`, [ID.opA]));
+    expect(Object.keys(row).sort()).toEqual(['coordinationName', 'coordinatorName', 'managerName', 'operationId'].sort());
+  });
+});
+
+// ===========================================================================
 // RPCs — administração (D-05: somente Administrador)
 // ===========================================================================
 describe('RPCs administrativos exigem is_admin (D-05)', () => {

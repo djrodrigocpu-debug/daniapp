@@ -43,6 +43,18 @@ export function filterVisibleOperations(scope: OperationScope, operations: Opera
   return operations.filter((operation) => isOperationVisible(scope, operation));
 }
 
+/**
+ * Nomes funcionais da operação (Ficha do Parceiro). `null` num campo significa
+ * vínculo realmente ausente no banco (ex.: coordenadoria sem coordenador
+ * definido) — a tela mostra "Não atribuído", nunca "—" (que fica reservado
+ * para "a operação em si não veio", fora de escopo).
+ */
+export interface OperationPeople {
+  managerName: string | null;
+  coordinatorName: string | null;
+  coordinationName: string | null;
+}
+
 export interface OperationsRepository {
   /** Operações visíveis ao escopo (já filtradas). */
   listVisible(scope: OperationScope): Promise<Result<Operation[]>>;
@@ -50,4 +62,6 @@ export interface OperationsRepository {
   getById(scope: OperationScope, id: string): Promise<Result<Operation | null>>;
   /** Métricas do dashboard calculadas sobre os registros reais do escopo. */
   getDashboard(scope: OperationScope, nowISO?: string): Promise<Result<DashboardMetrics>>;
+  /** Nomes funcionais (GC, coordenador, coordenadoria) da operação, no escopo do chamador. */
+  getOperationPeople(scope: OperationScope, operationId: string): Promise<Result<OperationPeople | null>>;
 }

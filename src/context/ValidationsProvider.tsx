@@ -23,6 +23,13 @@ interface ValidationsContextValue {
   validate: (evaluationId: string, decision: ValidationDecision, note: string) => Promise<ValidateResult>;
   getOperation: (id: string) => Operation | undefined;
   getUser: (id: string) => User | undefined;
+  /**
+   * Nome funcional do avaliador por avaliação (migration 0026) — nunca e-mail/UUID.
+   * Substitui `getUser(evaluation.evaluatorId)` na Fila de validação: `getUser`
+   * só resolve quem está no diretório visível ao chamador (self/admin — RLS de
+   * `public.users`), por isso Coordenação/Regional viam "—" para o avaliador.
+   */
+  getEvaluatorName: (evaluationId: string) => string | undefined;
 }
 
 const ValidationsContext = createContext<ValidationsContextValue | undefined>(undefined);
@@ -33,15 +40,18 @@ export function ValidationsProvider({ children }: { children: React.ReactNode })
   // Mesma correção do bug "Parceiro não existente": a operação vem da lista
   // REAL já carregada, não do store local de demonstração.
   const { operations } = useOperations();
-  // Avaliador é usuário real: vem do diretório compartilhado, não do seed.
+  // Mantido por compatibilidade de contrato (getUser genérico); a Fila de
+  // validação usa getEvaluatorName abaixo, que resolve dentro do escopo.
   const { getUser } = useDirectory();
   const [pending, setPending] = useState<Evaluation[]>([]);
+  const [evaluatorNames, setEvaluatorNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!user) {
       setPending([]);
+      setEvaluatorNames({});
       setLoading(false);
       setError(null);
       return;
@@ -52,9 +62,13 @@ export function ValidationsProvider({ children }: { children: React.ReactNode })
     if (!res.ok) {
       setError(res.error.message);
       setPending([]);
-    } else {
-      setPending(res.value);
+      setEvaluatorNames({});
+      setLoading(false);
+      return;
     }
+    setPending(res.value);
+    const namesRes = await repo.getEvaluatorNames(res.value.map((evaluation) => evaluation.id));
+    setEvaluatorNames(namesRes.ok ? namesRes.value : {});
     setLoading(false);
   }, [repo, user]);
 
@@ -77,10 +91,11 @@ export function ValidationsProvider({ children }: { children: React.ReactNode })
   );
 
   const getOperation = useCallback((id: string) => operations.find((o) => o.id === id), [operations]);
+  const getEvaluatorName = useCallback((evaluationId: string) => evaluatorNames[evaluationId], [evaluatorNames]);
 
   const value = useMemo<ValidationsContextValue>(
-    () => ({ pending, loading, error, refresh: () => void load(), validate, getOperation, getUser }),
-    [pending, loading, error, load, validate, getOperation, getUser],
+    () => ({ pending, loading, error, refresh: () => void load(), validate, getOperation, getUser, getEvaluatorName }),
+    [pending, loading, error, load, validate, getOperation, getUser, getEvaluatorName],
   );
 
   return <ValidationsContext.Provider value={value}>{children}</ValidationsContext.Provider>;

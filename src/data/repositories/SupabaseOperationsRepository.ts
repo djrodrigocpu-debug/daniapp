@@ -15,7 +15,7 @@ import { Operation } from '../../types';
 import { Result, ok, err } from '../../domain/errors/result';
 import { AppError } from '../../domain/errors/AppError';
 import { computeDashboardMetrics, DashboardMetrics } from '../../domain/dashboard/metrics';
-import { OperationScope, OperationsRepository, isOperationVisible } from './OperationsRepository';
+import { OperationPeople, OperationScope, OperationsRepository, isOperationVisible } from './OperationsRepository';
 
 /** Nome da projeção de leitura alinhada à UI (migration 0005). */
 const UI_OPERATIONS_VIEW = 'ui_operations';
@@ -82,5 +82,17 @@ export class SupabaseOperationsRepository implements OperationsRepository {
         nowISO,
       ),
     );
+  }
+
+  /** Projeção `ui_operation_people` (migration 0026): já vem restrita ao escopo do chamador. */
+  async getOperationPeople(_scope: OperationScope, operationId: string): Promise<Result<OperationPeople | null>> {
+    const { data, error } = await this.client
+      .from('ui_operation_people')
+      .select('*')
+      .eq('operationId', operationId)
+      .maybeSingle();
+    if (error) return err(toAppError('Falha ao carregar os responsáveis do Parceiro AACE.', error));
+    if (!data) return ok(null);
+    return ok(data as OperationPeople);
   }
 }
