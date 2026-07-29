@@ -90,6 +90,10 @@ export function OperationDetailScreen({ route, navigation }: NativeStackScreenPr
         </View>
         <ProgressBar value={operation.currentScore} color={trafficLightColor[operation.status]} />
         <Text style={styles.maturity}>{getMaturity(operation.currentScore)}</Text>
+        <Text style={styles.metricsNote}>
+          O Índice de excelência mede a auditoria dos processos. Os indicadores operacionais medem
+          resultados e não compõem esta nota.
+        </Text>
       </View>
 
       <View style={styles.infoCard}>
@@ -153,6 +157,7 @@ const styles = StyleSheet.create({
   deltaLabel: { color: colors.inkMuted, fontSize: 11 },
   delta: { fontSize: 17, fontWeight: '900', marginTop: 4 },
   maturity: { color: colors.inkMuted, fontSize: 11, fontWeight: '700', marginTop: spacing.sm },
+  metricsNote: { color: colors.inkMuted, fontSize: 10, lineHeight: 15, marginTop: spacing.md },
   infoCard: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.lg, marginBottom: spacing.xl },
   infoRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
   infoRowLast: { borderBottomWidth: 0 },

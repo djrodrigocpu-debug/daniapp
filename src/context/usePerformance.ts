@@ -174,10 +174,11 @@ export function usePerformance(): PerformanceApi {
   const saveActionPlan = useCallback(
     (input: ActionPlanInput) => {
       // Recarrega a coleção de planos: a tela relê `actionPlans` em seguida e
-      // precisa encontrar o que o servidor acabou de gravar.
-      void evalRepo.saveActionPlan(input).then(() => refreshPlans());
+      // precisa encontrar o que o servidor acabou de gravar. Autoria: o modo
+      // local grava o que vem daqui; o Supabase carimba auth.uid() (0025).
+      void evalRepo.saveActionPlan({ ...input, createdBy: input.createdBy ?? user?.id }).then(() => refreshPlans());
     },
-    [evalRepo, refreshPlans],
+    [evalRepo, refreshPlans, user?.id],
   );
   const createVisitReport = useCallback(
     (input: VisitReportInput) => {

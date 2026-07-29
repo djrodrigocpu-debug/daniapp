@@ -7,9 +7,10 @@ import { AppButton } from '../components/AppButton';
 import { useActions } from '../context/ActionsProvider';
 import { useOperationalUser } from '../context/useOperationalUser';
 import { themes } from '../data/catalog';
+import { allowedNextActionStatuses } from '../domain/workflow/actionPlanWorkflow';
 import { colors, radius, spacing } from '../theme';
 import { ActionStatus } from '../types';
-import { actionStatusLabel, formatDate } from '../utils/format';
+import { actionStatusLabel, formatDate, formatDateTime } from '../utils/format';
 
 const filterOptions: Array<{ key: 'open' | 'overdue' | 'completed'; label: string }> = [
   { key: 'open', label: 'Em aberto' },
@@ -42,10 +43,6 @@ export function ActionsScreen() {
       })
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   }, [scopedPlans, filter]);
-
-  const allowedStatuses: ActionStatus[] = currentUser?.role === 'channel_manager'
-    ? ['not_started', 'in_progress', 'waiting_partner', 'waiting_internal', 'completed']
-    : ['in_progress', 'waiting_partner', 'waiting_internal', 'completed', 'validated'];
 
   if (loading && scopedPlans.length === 0) {
     return (
@@ -84,6 +81,15 @@ export function ActionsScreen() {
           const theme = themes.find((item) => item.id === plan.themeId);
           const isOverdue = plan.status === 'overdue' || (new Date(`${plan.dueDate}T23:59:59`) < new Date() && !['completed', 'validated'].includes(plan.status));
           const effectiveStatus: ActionStatus = isOverdue ? 'overdue' : plan.status;
+          // Só transições PERMITIDAS pela máquina do manual aparecem — o
+          // servidor continua autoritativo e recusa qualquer forja.
+          const nextStatuses = currentUser
+            ? allowedNextActionStatuses(plan.status, {
+                role: currentUser.role,
+                isCreator: !!plan.createdBy && plan.createdBy === currentUser.id,
+                hasKnownCreator: !!plan.createdBy,
+              })
+            : [];
           return (
             <View key={plan.id} style={styles.card}>
               <View style={styles.cardTop}>
@@ -110,14 +116,26 @@ export function ActionsScreen() {
                 <View style={styles.metaItem}><Ionicons name="calendar-outline" size={15} color={isOverdue ? colors.danger : colors.inkMuted} /><Text style={[styles.metaText, isOverdue && { color: colors.danger, fontWeight: '800' }]}>{formatDate(plan.dueDate)}</Text></View>
               </View>
 
-              <Text style={styles.changeLabel}>Atualizar status</Text>
-              <View style={styles.statusOptions}>
-                {allowedStatuses.map((status) => (
-                  <Pressable key={status} onPress={() => updateStatus(plan.id, status)} style={[styles.statusOption, plan.status === status && { borderColor: statusColor[status], backgroundColor: `${statusColor[status]}12` }]}>
-                    <Text style={[styles.statusOptionText, plan.status === status && { color: statusColor[status] }]}>{actionStatusLabel[status]}</Text>
-                  </Pressable>
-                ))}
-              </View>
+              {plan.status === 'validated' ? (
+                <View style={styles.validatedBox}>
+                  <Ionicons name="shield-checkmark" size={16} color={colors.success} />
+                  <Text style={styles.validatedText}>
+                    Validado{plan.validatorName ? ` por ${plan.validatorName}` : ''}
+                    {plan.validatedAt ? ` em ${formatDateTime(plan.validatedAt)}` : ''}. Plano encerrado.
+                  </Text>
+                </View>
+              ) : nextStatuses.length > 0 && (
+                <>
+                  <Text style={styles.changeLabel}>Atualizar status</Text>
+                  <View style={styles.statusOptions}>
+                    {nextStatuses.map((status) => (
+                      <Pressable key={status} onPress={() => updateStatus(plan.id, status)} style={styles.statusOption}>
+                        <Text style={styles.statusOptionText}>{actionStatusLabel[status]}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
+              )}
             </View>
           );
         }) : <EmptyState title="Nenhum plano nesta visão" description="Altere o filtro ou aguarde o registro de novas não conformidades." />}
@@ -157,4 +175,6 @@ const styles = StyleSheet.create({
   statusOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   statusOption: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingHorizontal: 9, paddingVertical: 7 },
   statusOptionText: { color: colors.inkMuted, fontSize: 9, fontWeight: '800' },
+  validatedBox: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.successSoft, borderRadius: radius.md, padding: spacing.md, marginTop: spacing.lg },
+  validatedText: { color: colors.success, fontSize: 11, fontWeight: '700', flex: 1, lineHeight: 16 },
 });

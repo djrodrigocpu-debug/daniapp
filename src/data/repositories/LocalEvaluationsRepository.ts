@@ -23,7 +23,7 @@ const OPEN_STATUSES: Evaluation['status'][] = ['draft', 'returned'];
 function blankAnswers(frequency: Frequency): AssessmentAnswer[] {
   return themes
     .filter((theme) => theme.frequency === frequency)
-    .map((theme) => ({ themeId: theme.id, status: 'not_evaluated', measuredValue: '', observation: '', evidenceIds: [] }));
+    .map((theme) => ({ themeId: theme.id, status: 'not_evaluated', measuredValue: '', observation: '', notApplicableReason: '', evidenceIds: [] }));
 }
 
 export class LocalEvaluationsRepository implements EvaluationsRepository {
@@ -195,6 +195,7 @@ export class LocalEvaluationsRepository implements EvaluationsRepository {
         status: answer.status,
         evidenceCount: answer.evidenceIds.length,
         hasActionPlan: hasPlan,
+        notApplicableReason: answer.notApplicableReason ?? '',
       };
     });
     const gate = canSubmit(items);

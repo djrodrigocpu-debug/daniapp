@@ -11,6 +11,7 @@ import {
   INDICATOR_UNITS,
   parseDecimalInput,
   validateIndicatorVersionForm,
+  yellowLimitPreview,
 } from './indicatorForm';
 
 describe('parseDecimalInput', () => {
@@ -75,5 +76,29 @@ describe('validateIndicatorVersionForm', () => {
   it('tolerância e peso negativos são recusados', () => {
     expect(validateIndicatorVersionForm({ unit: '%', direction: 'higher_better', target: '10', yellowTolerance: '-1', weight: '1' }).ok).toBe(false);
     expect(validateIndicatorVersionForm({ unit: '%', direction: 'higher_better', target: '10', yellowTolerance: '0', weight: '-2' }).ok).toBe(false);
+  });
+
+  it('mensagens humanas falam em prioridade (rótulo), não em peso', () => {
+    const semPrioridade = validateIndicatorVersionForm({ unit: '%', direction: 'higher_better', target: '10', yellowTolerance: '0', weight: '' });
+    expect(!semPrioridade.ok && semPrioridade.message).toMatch(/prioridade/i);
+    const negativa = validateIndicatorVersionForm({ unit: '%', direction: 'higher_better', target: '10', yellowTolerance: '0', weight: '-1' });
+    expect(!negativa.ok && negativa.message).toMatch(/prioridade/i);
+  });
+});
+
+describe('yellowLimitPreview — prévia da tolerância percentual (Correção D)', () => {
+  it('higher_better: meta × (1 − tol/100)', () => {
+    expect(yellowLimitPreview('higher_better', '30', '10')).toBeCloseTo(27);
+  });
+  it('lower_better: meta × (1 + tol/100)', () => {
+    expect(yellowLimitPreview('lower_better', '15', '18')).toBeCloseTo(17.7);
+  });
+  it('aceita vírgula decimal PT-BR', () => {
+    expect(yellowLimitPreview('higher_better', '0,5', '12,5')).toBeCloseTo(0.4375);
+  });
+  it('campos inválidos ou tolerância negativa → null (sem prévia)', () => {
+    expect(yellowLimitPreview('higher_better', '', '10')).toBeNull();
+    expect(yellowLimitPreview('higher_better', '30', 'x')).toBeNull();
+    expect(yellowLimitPreview('higher_better', '30', '-1')).toBeNull();
   });
 });

@@ -17,9 +17,15 @@ export interface Operation { id: string; partnerName: string; officeName: string
 export interface Theme { id: string; pillar: string; title: string; kpi: string; target: string; frequency: Frequency; evidenceRequired: boolean; evidenceHint: string; validationMethod: string; weight: number; strategic: boolean; }
 export type EvidenceStatus = 'local' | 'uploading' | 'stored' | 'failed';
 export interface Evidence { id: string; themeId: string; name: string; uri: string; mimeType?: string; type: 'photo' | 'document'; createdAt: string; status?: EvidenceStatus; sizeBytes?: number; }
-export interface AssessmentAnswer { themeId: string; status: TrafficLight; measuredValue: string; observation: string; evidenceIds: string[]; }
+export interface AssessmentAnswer { themeId: string; status: TrafficLight; measuredValue: string; observation: string; evidenceIds: string[];
+  /** Justificativa obrigatória quando status = not_applicable (Correção B). */
+  notApplicableReason?: string; }
 export interface Evaluation { id: string; operationId: string; cycleLabel: string; periodStart: string; periodEnd: string; frequency: Frequency; evaluatorId: string; submittedAt?: string; validatedAt?: string; validatorId?: string; validatorNote?: string; status: EvaluationStatus; score: number; answers: AssessmentAnswer[]; createdAt: string; updatedAt: string; }
-export interface ActionPlan { id: string; operationId: string; evaluationId: string; themeId: string; problem: string; rootCause: string; action: string; owner: string; dueDate: string; priority: 'high' | 'medium' | 'low'; expectedEvidence: string; status: ActionStatus; completionNote?: string; createdAt: string; updatedAt: string; }
+export interface ActionPlan { id: string; operationId: string; evaluationId: string; themeId: string; problem: string; rootCause: string; action: string; owner: string; dueDate: string; priority: 'high' | 'medium' | 'low'; expectedEvidence: string; status: ActionStatus; completionNote?: string; createdAt: string; updatedAt: string;
+  /** Autoria autoritativa (segregação: o criador não valida o próprio plano). */
+  createdBy?: string;
+  /** Trilha da validação segregada — nome funcional e data, sem UUID na tela. */
+  validatorName?: string; validatedAt?: string; }
 
 export interface IndicatorDefinition {
   id: string;

@@ -22,7 +22,7 @@ function seed(): AppData {
     operations: [op('O1', 'U02', 'U03'), op('O2', 'U05', 'U06')],
     evaluations: [submitted('E1', 'O1', 'U03', 88), submitted('E2', 'O2', 'U06', 50)],
     actionPlans: [
-      { id: 'A1', operationId: 'O1', evaluationId: 'E1', themeId: 'T1', problem: '', rootCause: '', action: '', owner: '', dueDate: '2026-08-01', priority: 'high', expectedEvidence: '', status: 'in_progress', createdAt: '', updatedAt: '' },
+      { id: 'A1', operationId: 'O1', evaluationId: 'E1', themeId: 'T1', problem: '', rootCause: '', action: '', owner: '', dueDate: '2026-08-01', priority: 'high', expectedEvidence: '', status: 'in_progress', createdBy: 'U03', createdAt: '', updatedAt: '' },
       { id: 'A2', operationId: 'O2', evaluationId: 'E2', themeId: 'T1', problem: '', rootCause: '', action: '', owner: '', dueDate: '2026-08-01', priority: 'high', expectedEvidence: '', status: 'in_progress', createdAt: '', updatedAt: '' },
     ],
     evidences: [], indicatorDefinitions: [], indicatorResults: [], visitReports: [],
@@ -95,17 +95,96 @@ describe('LocalValidationsRepository — travas de validação (§14, T02)', () 
   });
 });
 
-describe('LocalActionsRepository — escopo e status', () => {
+const gc = { userId: 'U03', role: 'channel_manager' as const, name: 'GC Demo' };
+const coordActor = { userId: 'U02', role: 'coordinator' as const, name: 'Coordenação Demo' };
+
+describe('LocalActionsRepository — escopo e workflow (manual do GC normativo)', () => {
   it('lista apenas planos das operações visíveis', async () => {
     const { actions } = repo();
     const res = await actions.listByScope(scopeFromUser(user('U02', 'coordinator')));
     if (res.ok) expect(res.value.map((p) => p.id)).toEqual(['A1']); // A2 (O2) fora do escopo
   });
 
-  it('updateStatus altera o status do plano', async () => {
+  it('transição permitida altera o status (in_progress → completed)', async () => {
     const { actions } = repo();
-    const res = await actions.updateStatus('A1', 'completed');
+    const res = await actions.updateStatus('A1', 'completed', gc);
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.value.status).toBe('completed');
+  });
+
+  it('estados de espera são distintos e persistem separadamente', async () => {
+    const { actions, store } = repo();
+    await actions.updateStatus('A1', 'waiting_partner', gc);
+    expect(store.getSnapshot().actionPlans.find((p) => p.id === 'A1')!.status).toBe('waiting_partner');
+    await actions.updateStatus('A1', 'waiting_internal', gc);
+    expect(store.getSnapshot().actionPlans.find((p) => p.id === 'A1')!.status).toBe('waiting_internal');
+  });
+
+  it('transição fora da tabela é recusada (in_progress → not_started)', async () => {
+    const { actions } = repo();
+    const res = await actions.updateStatus('A1', 'not_started', gc);
+    expect(res.ok).toBe(false);
+  });
+
+  it('vencido não é escolha manual', async () => {
+    const { actions } = repo();
+    const res = await actions.updateStatus('A1', 'overdue', gc);
+    expect(res.ok).toBe(false);
+  });
+
+  it('GC não registra Validado', async () => {
+    const { actions } = repo();
+    await actions.updateStatus('A1', 'completed', gc);
+    const res = await actions.updateStatus('A1', 'validated', gc);
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error.code).toBe('authz/forbidden');
+  });
+
+  it('validar exige Concluído (in_progress → validated recusado)', async () => {
+    const { actions } = repo();
+    const res = await actions.updateStatus('A1', 'validated', coordActor);
+    expect(res.ok).toBe(false);
+  });
+
+  it('coordenação valida plano concluído de outro usuário e a trilha persiste', async () => {
+    const { actions, store } = repo();
+    await actions.updateStatus('A1', 'completed', gc);
+    const res = await actions.updateStatus('A1', 'validated', coordActor);
+    expect(res.ok).toBe(true);
+    const saved = store.getSnapshot().actionPlans.find((p) => p.id === 'A1')!;
+    expect(saved.status).toBe('validated');
+    expect(saved.validatorName).toBe('Coordenação Demo');
+    expect(saved.validatedAt).toBeTruthy();
+  });
+
+  it('criador não valida o próprio plano', async () => {
+    const { actions } = repo();
+    await actions.updateStatus('A1', 'completed', gc);
+    const res = await actions.updateStatus('A1', 'validated', { userId: 'U03', role: 'coordinator', name: 'Criador' });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error.code).toBe('authz/self-approval');
+  });
+
+  it('plano legado sem autoria tem validação bloqueada', async () => {
+    const { actions } = repo();
+    await actions.updateStatus('A2', 'completed', gc);
+    const res = await actions.updateStatus('A2', 'validated', coordActor);
+    expect(res.ok).toBe(false);
+  });
+
+  it('Validado é terminal: não reabre nem muda', async () => {
+    const { actions } = repo();
+    await actions.updateStatus('A1', 'completed', gc);
+    await actions.updateStatus('A1', 'validated', coordActor);
+    const res = await actions.updateStatus('A1', 'in_progress', coordActor);
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error.code).toBe('integrity/immutable-record');
+  });
+
+  it('Concluído reabre para Em andamento ANTES da validação', async () => {
+    const { actions } = repo();
+    await actions.updateStatus('A1', 'completed', gc);
+    const res = await actions.updateStatus('A1', 'in_progress', gc);
+    expect(res.ok).toBe(true);
   });
 });

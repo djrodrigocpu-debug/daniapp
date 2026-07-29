@@ -157,9 +157,11 @@ export function EvaluationsProvider({ children }: { children: React.ReactNode })
   );
   const saveActionPlan = useCallback(
     (input: ActionPlanInput) => {
-      void repo.saveActionPlan(input).then(() => load());
+      // Autoria: no modo local o repositório grava o que vem daqui; no modo
+      // Supabase o servidor IGNORA este campo e carimba auth.uid() (0025).
+      void repo.saveActionPlan({ ...input, createdBy: input.createdBy ?? user?.id }).then(() => load());
     },
-    [repo, load],
+    [repo, user?.id, load],
   );
   const submit = useCallback(
     async (evaluationId: string): Promise<SubmitResult> => {

@@ -24,12 +24,25 @@ const EVALUATION_TRANSITIONS: Record<EvaluationStatus, EvaluationStatus[]> = {
   superseded: [],
 };
 
+/**
+ * Máquina do plano de ação — o Manual do Gerente de Canal é normativo (decisão
+ * do proprietário). Espelho exato de app.action_transition_allowed (0025);
+ * paridade provada em src/db/action_plan_governance.integration.test.ts.
+ *
+ * blocked = "Aguardando área interna"; waiting_partner = "Aguardando parceiro";
+ * done = "Concluído"; validated = "Validado" (terminal, exige papel validador).
+ * DIVERGÊNCIA REGISTRADA: 'overdue' como origem não está na tabela do manual
+ * (Vencido é derivado da data), mas caminhos antigos persistiram 'overdue'
+ * fisicamente — sem estas saídas um plano legado ficaria preso.
+ */
 const ACTION_TRANSITIONS: Record<ActionStatus, ActionStatus[]> = {
-  open: ['in_progress', 'blocked', 'cancelled_justified'],
-  in_progress: ['blocked', 'done', 'overdue', 'cancelled_justified'],
-  blocked: ['in_progress', 'cancelled_justified'],
-  overdue: ['in_progress', 'done', 'cancelled_justified'],
-  done: ['in_progress'], // reabertura preserva histórico anterior (§7.7)
+  open: ['in_progress', 'waiting_partner', 'blocked'],
+  in_progress: ['waiting_partner', 'blocked', 'done'],
+  waiting_partner: ['in_progress', 'blocked', 'done'],
+  blocked: ['in_progress', 'waiting_partner', 'done'],
+  done: ['in_progress', 'validated'], // reabertura só ANTES da validação (§7.7)
+  validated: [], // terminal: não reabre, não muda
+  overdue: ['in_progress', 'waiting_partner', 'blocked', 'done'],
   cancelled_justified: [],
 };
 

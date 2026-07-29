@@ -32,8 +32,8 @@ describe('canSubmit (§6.1, §7.4)', () => {
     if (!r.ok) expect(r.error.code).toBe('validation/missing-evidence');
   });
 
-  it('não exige evidência quando item é não aplicável', () => {
-    const r = canSubmit([item({ evidenceRequired: true, evidenceCount: 0, status: 'not_applicable' })]);
+  it('não exige evidência quando item é não aplicável (justificado)', () => {
+    const r = canSubmit([item({ evidenceRequired: true, evidenceCount: 0, status: 'not_applicable', notApplicableReason: 'Operação não comercializa este produto.' })]);
     expect(r.ok).toBe(true);
   });
 
@@ -50,5 +50,41 @@ describe('canSubmit (§6.1, §7.4)', () => {
 
   it('bloqueia avaliação sem itens', () => {
     expect(canSubmit([]).ok).toBe(false);
+  });
+});
+
+describe('portão de justificativa do não aplicável (Correção B)', () => {
+  const na = (reason?: string) => item({ status: 'not_applicable', notApplicableReason: reason });
+
+  it('justificativa válida passa', () => {
+    expect(canSubmit([na('O parceiro não opera este segmento.')]).ok).toBe(true);
+  });
+
+  it('vazia falha', () => {
+    const r = canSubmit([na('')]);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.message).toContain('Justifique');
+  });
+
+  it('ausente falha', () => {
+    expect(canSubmit([na(undefined)]).ok).toBe(false);
+  });
+
+  it('curta falha (menos de 10 caracteres úteis)', () => {
+    expect(canSubmit([na('curta')]).ok).toBe(false);
+  });
+
+  it('só espaços falham', () => {
+    expect(canSubmit([na('          ')]).ok).toBe(false);
+  });
+
+  it('pontuação vazia falha (pontos, hífens, sublinhados)', () => {
+    expect(canSubmit([na('.......... ---- ____')]).ok).toBe(false);
+  });
+
+  it('não quebra os três portões anteriores', () => {
+    expect(canSubmit([item({ status: 'not_evaluated' })]).ok).toBe(false); // completude
+    expect(canSubmit([item({ evidenceRequired: true, evidenceCount: 0 })]).ok).toBe(false); // evidência
+    expect(canSubmit([item({ status: 'red', hasActionPlan: false })]).ok).toBe(false); // vermelho
   });
 });
