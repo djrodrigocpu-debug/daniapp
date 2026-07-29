@@ -33,6 +33,7 @@ interface AdminContextValue {
   updateUserRole: (userId: string, role: UserRole) => Promise<AdminResult>;
   createIndicator: (code: string, name: string, version: NewVersion) => Promise<AdminResult>;
   addIndicatorVersion: (indicatorId: string, version: NewVersion) => Promise<AdminResult>;
+  updateIndicator: (indicatorId: string, code: string, name: string) => Promise<AdminResult>;
   deactivateIndicator: (indicatorId: string) => Promise<AdminResult>;
   removeIndicator: (indicatorId: string) => Promise<AdminResult>;
   createPartner: (input: PartnerInput) => Promise<AdminResult>;
@@ -137,6 +138,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       updateUserRole: (userId, role) => wrap(adminUsers.updateRole(userId, role)),
       createIndicator: (code, name, version) => wrap(adminIndicators.createDefinition(code, name, version)),
       addIndicatorVersion: (indicatorId, version) => wrap(adminIndicators.addVersion(indicatorId, version)),
+      updateIndicator: (indicatorId, code, name) => wrap(adminIndicators.updateDefinition(indicatorId, code, name)),
       deactivateIndicator: (indicatorId) => wrap(adminIndicators.deactivate(indicatorId)),
       removeIndicator: (indicatorId) => wrap(adminIndicators.remove(indicatorId)),
       createPartner: (input) => wrap(adminPartners.create(input)),

@@ -2204,6 +2204,10 @@ export type Database = {
         Args: { p_role: string; p_user_id: string }
         Returns: Json
       }
+      admin_update_indicator: {
+        Args: { p_code: string; p_indicator_id: string; p_name: string }
+        Returns: Json
+      }
       create_visit_report: {
         Args: { p_created_by: string; p_input: Json }
         Returns: Json
