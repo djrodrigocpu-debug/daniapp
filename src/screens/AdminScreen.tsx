@@ -226,9 +226,9 @@ function ContractFields({ draft, onChange }: { draft: ContractDraft; onChange: (
         ))}
       </View>
       <View style={[styles.inlineRow, styles.mt]}>
-        <TextInput value={draft.target} onChangeText={(v) => onChange({ target: v })} placeholder="Meta" placeholderTextColor={colors.neutral} keyboardType="numeric" style={[styles.input, styles.flex]} />
-        <TextInput value={draft.yellowTolerance} onChangeText={(v) => onChange({ yellowTolerance: v })} placeholder="Tolerância amarela (%)" placeholderTextColor={colors.neutral} keyboardType="numeric" style={[styles.input, styles.flex]} />
-        <TextInput value={draft.weight} onChangeText={(v) => onChange({ weight: v })} placeholder="Peso" placeholderTextColor={colors.neutral} keyboardType="numeric" style={[styles.input, styles.flex]} />
+        <TextInput value={draft.target} onChangeText={(v) => onChange({ target: v })} placeholder="Meta" placeholderTextColor={colors.neutral} keyboardType="numeric" style={[styles.input, styles.numField]} />
+        <TextInput value={draft.yellowTolerance} onChangeText={(v) => onChange({ yellowTolerance: v })} placeholder="Tolerância amarela (%)" placeholderTextColor={colors.neutral} keyboardType="numeric" style={[styles.input, styles.numField]} />
+        <TextInput value={draft.weight} onChangeText={(v) => onChange({ weight: v })} placeholder="Peso" placeholderTextColor={colors.neutral} keyboardType="numeric" style={[styles.input, styles.numField]} />
       </View>
     </>
   );
@@ -416,7 +416,11 @@ const styles = StyleSheet.create({
   card: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, marginBottom: spacing.md },
   cardTitle: { color: colors.ink, fontSize: 15, fontWeight: '900', marginBottom: spacing.md },
   input: { minHeight: 46, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: '#FAFAFB', paddingHorizontal: spacing.md, color: colors.ink, fontSize: 13, marginBottom: spacing.sm },
-  inlineRow: { flexDirection: 'row', gap: spacing.sm },
+  // Os três campos numéricos do contrato quebram em duas linhas no telefone. Com
+  // `flex: 1` puro eles se espremiam além do cartão e "Peso" saía inteiramente da
+  // tela em 375 px — o campo existia e não dava para alcançar.
+  inlineRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  numField: { flexGrow: 1, flexBasis: 120, minWidth: 120 },
   flex: { flex: 1 },
   fieldLabel: { color: colors.ink, fontSize: 12, fontWeight: '800', marginTop: spacing.sm, marginBottom: spacing.sm },
   hint: { color: colors.inkMuted, fontSize: 11, lineHeight: 16 },
