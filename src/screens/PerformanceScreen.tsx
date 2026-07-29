@@ -145,6 +145,10 @@ export function PerformanceScreen({ route }: NativeStackScreenProps<RootStackPar
           <Summary value={healthy.length} label="Na meta" color={colors.success} />
           <Summary value={openPlans.length} label="Ações" color={colors.info} />
         </View>
+        <Text style={styles.metricsNote}>
+          O Índice de excelência mede a auditoria dos processos. Os indicadores operacionais medem
+          resultados e não compõem esta nota.
+        </Text>
       </View>
 
       {previousReport && (
@@ -351,6 +355,7 @@ function ResultEntry({ definition, result, onCancel, onSave }: {
 
 const styles = StyleSheet.create({
   hero: { backgroundColor: colors.ink, borderRadius: radius.lg, padding: spacing.xl }, eyebrow: { color: '#FCA5A5', fontSize: 10, fontWeight: '900', letterSpacing: 1 }, title: { color: colors.white, fontSize: 24, fontWeight: '900', marginTop: 5 }, subtitle: { color: '#D1D5DB', fontSize: 12, marginTop: 4 },
+  metricsNote: { color: '#9CA3AF', fontSize: 10, lineHeight: 15, marginTop: spacing.md },
   summaryRow: { flexDirection: 'row', marginTop: spacing.xl, gap: spacing.sm }, summary: { flex: 1, backgroundColor: '#FFFFFF10', borderRadius: radius.md, padding: spacing.sm, alignItems: 'center' }, summaryValue: { fontSize: 22, fontWeight: '900' }, summaryLabel: { color: '#D1D5DB', fontSize: 9, marginTop: 2 },
   feedbackCard: { flexDirection: 'row', gap: spacing.md, backgroundColor: colors.infoSoft, borderRadius: radius.lg, padding: spacing.lg, marginTop: spacing.md }, feedbackTitle: { color: colors.info, fontSize: 13, fontWeight: '900' }, feedbackText: { color: colors.ink, fontSize: 11, lineHeight: 16, marginTop: 4 }, feedbackMeta: { color: colors.inkMuted, fontSize: 10, marginTop: 5 }, flex: { flex: 1 },
   objectiveCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.lg, marginTop: spacing.md }, label: { color: colors.ink, fontSize: 11, fontWeight: '800', marginBottom: 6 }, objectiveInput: { color: colors.ink, fontSize: 13, minHeight: 56, textAlignVertical: 'top' },

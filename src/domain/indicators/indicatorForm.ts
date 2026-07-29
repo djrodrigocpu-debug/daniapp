@@ -54,7 +54,29 @@ export function validateIndicatorVersionForm(form: IndicatorVersionForm): Indica
   if (yellowTolerance === null) return { ok: false, message: 'Informe a tolerância amarela (0 é válido).' };
   if (yellowTolerance < 0) return { ok: false, message: 'A tolerância amarela não pode ser negativa.' };
   const weight = parseDecimalInput(form.weight);
-  if (weight === null) return { ok: false, message: 'Informe o peso do indicador.' };
-  if (weight < 0) return { ok: false, message: 'O peso não pode ser negativo.' };
+  if (weight === null) return { ok: false, message: 'Informe a prioridade do indicador.' };
+  if (weight < 0) return { ok: false, message: 'A prioridade não pode ser negativa.' };
   return { ok: true, value: { unit: form.unit, direction: form.direction, target, yellowTolerance, weight } };
+}
+
+/**
+ * Prévia do limite amarelo (Correção D): a tolerância é uma PORCENTAGEM
+ * aplicada sobre a meta, não uma diferença absoluta. Mesma fórmula de
+ * calculateIndicatorStatus (src/data/performance.ts) — nada é alterado no
+ * cálculo, isto é apenas exibição.
+ *   higher_better: meta × (1 − tolerância/100)
+ *   lower_better:  meta × (1 + tolerância/100)
+ * Devolve null quando os campos ainda não são válidos.
+ */
+export function yellowLimitPreview(
+  direction: IndicatorDirection,
+  targetText: string,
+  toleranceText: string,
+): number | null {
+  const target = parseDecimalInput(targetText);
+  const tolerance = parseDecimalInput(toleranceText);
+  if (target === null || tolerance === null || tolerance < 0) return null;
+  return direction === 'higher_better'
+    ? target * (1 - tolerance / 100)
+    : target * (1 + tolerance / 100);
 }

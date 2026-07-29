@@ -8,7 +8,7 @@ import { EmptyState } from '../components/EmptyState';
 import { useAdmin } from '../context/AdminProvider';
 import { colors, radius, spacing } from '../theme';
 import { AdminIndicator, IndicatorDirection, IndicatorUnit, UserRole } from '../types';
-import { INDICATOR_DIRECTIONS, INDICATOR_UNITS, validateIndicatorVersionForm } from '../domain/indicators/indicatorForm';
+import { INDICATOR_DIRECTIONS, INDICATOR_UNITS, validateIndicatorVersionForm, yellowLimitPreview } from '../domain/indicators/indicatorForm';
 import { roleLabel } from '../utils/format';
 import { PartnersSection } from './admin/PartnersSection';
 import { UserImportFlow } from './admin/UserImportFlow';
@@ -207,6 +207,9 @@ const CONTRATO_VAZIO: ContractDraft = {
 const hoje = () => new Date().toISOString().slice(0, 10);
 
 function ContractFields({ draft, onChange }: { draft: ContractDraft; onChange: (patch: Partial<ContractDraft>) => void }) {
+  // Prévia do limite amarelo: exibição pura — a fórmula do semáforo não muda.
+  const yellowLimit = yellowLimitPreview(draft.direction, draft.target, draft.yellowTolerance);
+  const fmt = (value: number) => value.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
   return (
     <>
       <Text style={styles.fieldLabel}>Unidade</Text>
@@ -227,9 +230,19 @@ function ContractFields({ draft, onChange }: { draft: ContractDraft; onChange: (
       </View>
       <View style={[styles.inlineRow, styles.mt]}>
         <TextInput value={draft.target} onChangeText={(v) => onChange({ target: v })} placeholder="Meta" placeholderTextColor={colors.neutral} keyboardType="numeric" style={[styles.input, styles.numField]} />
-        <TextInput value={draft.yellowTolerance} onChangeText={(v) => onChange({ yellowTolerance: v })} placeholder="Tolerância amarela (%)" placeholderTextColor={colors.neutral} keyboardType="numeric" style={[styles.input, styles.numField]} />
-        <TextInput value={draft.weight} onChangeText={(v) => onChange({ weight: v })} placeholder="Peso" placeholderTextColor={colors.neutral} keyboardType="numeric" style={[styles.input, styles.numField]} />
+        <TextInput value={draft.yellowTolerance} onChangeText={(v) => onChange({ yellowTolerance: v })} placeholder="Tolerância amarela (% da meta)" placeholderTextColor={colors.neutral} keyboardType="numeric" style={[styles.input, styles.numField]} />
+        <TextInput value={draft.weight} onChangeText={(v) => onChange({ weight: v })} placeholder="Prioridade" placeholderTextColor={colors.neutral} keyboardType="numeric" style={[styles.input, styles.numField]} />
       </View>
+      <Text style={styles.hint}>
+        A tolerância amarela é uma porcentagem aplicada sobre a meta, não uma diferença absoluta.
+        {yellowLimit !== null && ` Prévia: ${draft.direction === 'higher_better'
+          ? `amarelo entre ${fmt(yellowLimit)} e a meta; abaixo de ${fmt(yellowLimit)}, vermelho.`
+          : `amarelo entre a meta e ${fmt(yellowLimit)}; acima de ${fmt(yellowLimit)}, vermelho.`}`}
+      </Text>
+      <Text style={styles.hint}>
+        A prioridade ordena os indicadores dentro da mesma situação do semáforo. Ela não altera o
+        semáforo e não entra no Índice de excelência.
+      </Text>
     </>
   );
 }
@@ -366,7 +379,7 @@ function IndicatorsSection() {
                 <Text style={[styles.statusToggleText, { color: ind.lifecycle === 'active' ? colors.success : colors.inkMuted }]}>{ind.lifecycle === 'active' ? 'Ativo' : 'Inativo'}</Text>
               </View>
             </View>
-            <Text style={styles.indMeta}>v{last?.versionNumber ?? 1} · {last?.unit} · {last?.direction === 'lower_better' ? 'menor é melhor' : 'maior é melhor'} · meta {last?.target} · tol. {last?.yellowTolerance}% · peso {last?.weight} · {ind.versions.length} versão(ões) · {ind.usageCount} uso(s)</Text>
+            <Text style={styles.indMeta}>v{last?.versionNumber ?? 1} · {last?.unit} · {last?.direction === 'lower_better' ? 'menor é melhor' : 'maior é melhor'} · meta {last?.target} · tol. {last?.yellowTolerance}% da meta · prioridade {last?.weight} · {ind.versions.length} versão(ões) · {ind.usageCount} uso(s)</Text>
             <View style={styles.indActions}>
               <AppButton title={versionOf === ind.id ? 'Cancelar versão' : 'Nova versão'} compact variant="secondary" onPress={() => (versionOf === ind.id ? setVersionOf(null) : openVersion(ind))} style={styles.flex} />
               <AppButton title={identityOf === ind.id ? 'Cancelar edição' : 'Editar'} compact variant="secondary" onPress={() => (identityOf === ind.id ? setIdentityOf(null) : openIdentity(ind))} style={styles.flex} />

@@ -3,6 +3,7 @@
  * escopo do usuário autenticado, dados via ActionsRepository (Local/Supabase).
  */
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { alertDialog } from '../utils/dialog';
 import { ActionPlan, Operation } from '../types';
 import { useRepositories } from '../data/repositories/RepositoryProvider';
 import { scopeFromUser } from '../data/repositories/OperationsRepository';
@@ -62,9 +63,25 @@ export function ActionsProvider({ children }: { children: React.ReactNode }) {
 
   const updateStatus = useCallback(
     (planId: string, status: ActionPlan['status']) => {
-      void repo.updateStatus(planId, status);
+      if (!user) return;
+      void (async () => {
+        const res = await repo.updateStatus(planId, status, {
+          userId: user.id,
+          role: user.role,
+          name: user.name,
+        });
+        if (!res.ok) {
+          // Recusa do servidor (transição/papel/segregação) precisa aparecer —
+          // antes o erro era engolido e a tela fingia sucesso.
+          alertDialog('Não foi possível atualizar', res.error.message);
+          return;
+        }
+        // Recarrega para refletir o que foi PERSISTIDO (status + trilha de
+        // validação), não o que a tela acha que aconteceu.
+        await load();
+      })();
     },
-    [repo],
+    [repo, user, load],
   );
   const getOperation = useCallback((id: string) => operations.find((o) => o.id === id), [operations]);
 

@@ -1,4 +1,5 @@
 import { ActionStatus, TrafficLight, UserRole } from '../types';
+import { actionStatusHumanLabel } from '../domain/workflow/actionPlanWorkflow';
 import { colors } from '../theme';
 
 export const trafficLightLabel: Record<TrafficLight, string> = {
@@ -25,15 +26,8 @@ export const trafficLightSoftColor: Record<TrafficLight, string> = {
   not_applicable: colors.infoSoft,
 };
 
-export const actionStatusLabel: Record<ActionStatus, string> = {
-  not_started: 'Não iniciado',
-  in_progress: 'Em andamento',
-  waiting_partner: 'Aguardando parceiro',
-  waiting_internal: 'Aguardando área interna',
-  completed: 'Concluído',
-  validated: 'Validado',
-  overdue: 'Vencido',
-};
+// Fonte única dos rótulos: domínio do workflow (o manual do GC é normativo).
+export const actionStatusLabel: Record<ActionStatus, string> = actionStatusHumanLabel;
 
 export const roleLabel: Record<UserRole, string> = {
   admin: 'Administrador',

@@ -189,6 +189,25 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
                   })}
                 </View>
 
+                {answer.status === 'not_applicable' && (
+                  <>
+                    <Text style={styles.fieldLabel}>Justificativa do “Não aplicável” *</Text>
+                    <TextInput
+                      value={answer.notApplicableReason ?? ''}
+                      editable={!readOnly}
+                      onChangeText={(value) => saveAnswer(evaluation.id, theme.id, { notApplicableReason: value })}
+                      placeholder="Explique por que o tema não se aplica a esta operação (mínimo 10 caracteres)."
+                      placeholderTextColor={colors.neutral}
+                      multiline
+                      style={[styles.input, styles.multiline, readOnly && styles.readOnlyInput]}
+                    />
+                    <Text style={styles.naHint}>
+                      Use “Não aplicável” somente quando o tema realmente não se aplica. Falta de
+                      documento ou evidência não torna o tema não aplicável.
+                    </Text>
+                  </>
+                )}
+
                 <Text style={styles.fieldLabel}>Resultado observado</Text>
                 <TextInput
                   value={answer.measuredValue}
@@ -254,7 +273,7 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
       {!readOnly && (
         <View style={styles.submitCard}>
           <Text style={styles.submitTitle}>Finalizar auditoria</Text>
-          <Text style={styles.submitText}>O envio exige todos os itens classificados, evidências obrigatórias e plano de ação para cada não conformidade.</Text>
+          <Text style={styles.submitText}>O envio exige todos os itens classificados, evidências obrigatórias, plano de ação para cada não conformidade e justificativa para cada item não aplicável.</Text>
           <AppButton title="Enviar para validação" onPress={() => void handleSubmit()} style={styles.submitButton} />
         </View>
       )}
@@ -310,6 +329,7 @@ const styles = StyleSheet.create({
   input: { minHeight: 46, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: '#FAFAFB', paddingHorizontal: spacing.md, color: colors.ink, fontSize: 13 },
   multiline: { minHeight: 92, paddingTop: spacing.md, textAlignVertical: 'top' },
   readOnlyInput: { backgroundColor: colors.background, color: colors.inkMuted },
+  naHint: { color: colors.inkMuted, fontSize: 10, lineHeight: 15, marginTop: spacing.sm },
   evidenceHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md, alignItems: 'flex-start', marginTop: spacing.lg },
   evidenceHint: { color: colors.inkMuted, fontSize: 10, lineHeight: 14, marginTop: 3, maxWidth: 270 },
   evidenceCount: { minWidth: 26, height: 26, borderRadius: 13, backgroundColor: colors.primarySoft, color: colors.primary, textAlign: 'center', textAlignVertical: 'center', fontSize: 11, fontWeight: '900', paddingTop: 5 },

@@ -39,12 +39,16 @@ export type Database = {
           status:
             | "open"
             | "in_progress"
+            | "waiting_partner"
             | "blocked"
             | "done"
+            | "validated"
             | "overdue"
             | "cancelled_justified"
           theme_code: string | null
           updated_at: string
+          validated_at: string | null
+          validated_by: string | null
         }
         Insert: {
           action_text?: string
@@ -70,12 +74,16 @@ export type Database = {
           status?:
             | "open"
             | "in_progress"
+            | "waiting_partner"
             | "blocked"
             | "done"
+            | "validated"
             | "overdue"
             | "cancelled_justified"
           theme_code?: string | null
           updated_at?: string
+          validated_at?: string | null
+          validated_by?: string | null
         }
         Update: {
           action_text?: string
@@ -101,12 +109,16 @@ export type Database = {
           status?:
             | "open"
             | "in_progress"
+            | "waiting_partner"
             | "blocked"
             | "done"
+            | "validated"
             | "overdue"
             | "cancelled_justified"
           theme_code?: string | null
           updated_at?: string
+          validated_at?: string | null
+          validated_by?: string | null
         }
         Relationships: [
           {
@@ -638,6 +650,7 @@ export type Database = {
           id: string
           item_id: string
           measured_value: string
+          not_applicable_reason: string
           observation: string
           status:
             | "green"
@@ -651,6 +664,7 @@ export type Database = {
           id?: string
           item_id: string
           measured_value?: string
+          not_applicable_reason?: string
           observation?: string
           status?:
             | "green"
@@ -664,6 +678,7 @@ export type Database = {
           id?: string
           item_id?: string
           measured_value?: string
+          not_applicable_reason?: string
           observation?: string
           status?:
             | "green"
@@ -1898,6 +1913,7 @@ export type Database = {
           action: string | null
           completionNote: string | null
           createdAt: string | null
+          createdBy: string | null
           dueDate: string | null
           evaluationId: string | null
           expectedEvidence: string | null
@@ -1910,11 +1926,14 @@ export type Database = {
           status: string | null
           themeId: string | null
           updatedAt: string | null
+          validatedAt: string | null
+          validatorName: string | null
         }
         Insert: {
           action?: never
           completionNote?: string | null
           createdAt?: string | null
+          createdBy?: string | null
           dueDate?: never
           evaluationId?: never
           expectedEvidence?: string | null
@@ -1927,11 +1946,14 @@ export type Database = {
           status?: never
           themeId?: never
           updatedAt?: string | null
+          validatedAt?: string | null
+          validatorName?: never
         }
         Update: {
           action?: never
           completionNote?: string | null
           createdAt?: string | null
+          createdBy?: string | null
           dueDate?: never
           evaluationId?: never
           expectedEvidence?: string | null
@@ -1944,6 +1966,8 @@ export type Database = {
           status?: never
           themeId?: never
           updatedAt?: string | null
+          validatedAt?: string | null
+          validatorName?: never
         }
         Relationships: [
           {

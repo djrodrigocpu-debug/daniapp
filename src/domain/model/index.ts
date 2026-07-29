@@ -80,7 +80,8 @@ export type VisitStatus =
 export type EvaluationStatus =
   | 'draft' | 'submitted' | 'returned' | 'approved' | 'superseded';
 export type ActionStatus =
-  | 'open' | 'in_progress' | 'blocked' | 'done' | 'overdue' | 'cancelled_justified';
+  | 'open' | 'in_progress' | 'waiting_partner' | 'blocked' | 'done' | 'validated'
+  | 'overdue' | 'cancelled_justified';
 export type EvidenceStatus =
   | 'local_pending' | 'uploading' | 'stored' | 'failed' | 'expired';
 export type IndicatorLifecycle = 'draft' | 'active' | 'inactive';
@@ -267,6 +268,9 @@ export interface ActionPlan {
   completionCriterion: string;
   status: ActionStatus;
   completionEvidenceId?: string;
+  /** Trilha da validação segregada (§7.8 do manual): quem validou e quando. */
+  validatedByUserId?: string | null;
+  validatedAt?: string | null;
   rowVersion: number;
   createdAt: string;
   updatedAt: string;
