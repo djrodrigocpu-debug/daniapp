@@ -79,15 +79,18 @@ export function assertNoPrivilegedSecrets(source: EnvSource): Result<true> {
  * Constrói a configuração a partir de uma fonte de ambiente (injetável para teste).
  * Em produção/homologação, a ausência de Supabase é erro; em desenvolvimento é
  * apenas um aviso (permite modo demonstração isolado).
+ *
+ * `appVersion` entra como PARÂMETRO, não como variável de ambiente: a versão
+ * exibida vem do manifesto do Expo (`config/appManifest`), fonte única desde a
+ * 1.3.1. Ver o cabeçalho daquele arquivo para o defeito que isso fecha (D-05).
  */
-export function loadConfig(source: EnvSource): Result<AppConfig> {
+export function loadConfig(source: EnvSource, appVersion: string): Result<AppConfig> {
   const guard = assertNoPrivilegedSecrets(source);
   if (!guard.ok) return guard;
 
   const environment = normalizeEnvironment(source.EXPO_PUBLIC_APP_ENV ?? source.APP_ENV);
   const rawUrl = source.EXPO_PUBLIC_SUPABASE_URL ?? null;
   const anonKey = source.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? null;
-  const appVersion = source.EXPO_PUBLIC_APP_VERSION ?? '0.0.0';
 
   const urlValid = rawUrl !== null && rawUrl !== '' && isValidUrl(rawUrl);
   const keyValid = anonKey !== null && anonKey !== '';
@@ -126,8 +129,11 @@ export function loadConfig(source: EnvSource): Result<AppConfig> {
 /**
  * Configuração efetiva do runtime, lida do `process.env` disponível no bundle
  * Expo. Falha crítica de segredo lança; ausência de backend em dev não lança.
+ *
+ * `appVersion` é recebida de fora (o manifesto do Expo) para que exista uma
+ * única fonte da versão exibida — ver `config/appManifest` e `config/runtime`.
  */
-export function getRuntimeConfig(): AppConfig {
+export function getRuntimeConfig(appVersion: string): AppConfig {
   // IMPORTANTE (bundle web): o Expo/Metro só faz o INLINE de `EXPO_PUBLIC_*` quando
   // há referência ESTÁTICA e DIRETA a `process.env.<NOME>`. Ler `process.env` de
   // forma indireta — spread, cast para Record, acesso por colchetes, destructuring
@@ -137,11 +143,10 @@ export function getRuntimeConfig(): AppConfig {
   // valor embutido. NÃO refatore para leitura dinâmica.
   const source: EnvSource = {
     EXPO_PUBLIC_APP_ENV: process.env.EXPO_PUBLIC_APP_ENV,
-    EXPO_PUBLIC_APP_VERSION: process.env.EXPO_PUBLIC_APP_VERSION,
     EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
     EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
   };
-  const result = loadConfig(source);
+  const result = loadConfig(source, appVersion);
   if (!result.ok) {
     if (result.error.severity === 'critical') throw result.error;
     // Fora de dev sem backend: degrada para modo não configurado, sem quebrar boot.
@@ -150,7 +155,7 @@ export function getRuntimeConfig(): AppConfig {
       supabaseUrl: null,
       supabaseAnonKey: null,
       isConfigured: false,
-      appVersion: source.EXPO_PUBLIC_APP_VERSION ?? '0.0.0',
+      appVersion,
     };
   }
   return result.value;
