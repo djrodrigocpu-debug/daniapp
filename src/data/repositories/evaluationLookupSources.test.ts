@@ -85,3 +85,44 @@ describe('10/11 — modo corporativo consulta as projeções, não o store', () 
     expect(calls[0].filters).toEqual([`evaluationId=${EVAL_UUID}`]);
   });
 });
+
+describe('O-04 — a recusa da guarda de estado chega à pessoa (0034)', () => {
+  /** Cliente mínimo de RPC: `remove_evidence` recusa, `evidence_path` responde. */
+  function clienteQueRecusaRemocao(mensagem: string) {
+    const chamadas: string[] = [];
+    const client = {
+      rpc: (nome: string) => {
+        chamadas.push(nome);
+        if (nome === 'evidence_path') return Promise.resolve({ data: 'T07/x.pdf', error: null });
+        return Promise.resolve({ data: null, error: { message: mensagem } });
+      },
+      storage: {
+        from: () => ({
+          remove: () => { chamadas.push('storage.remove'); return Promise.resolve({ error: null }); },
+        }),
+      },
+    } as never;
+    return { client, chamadas };
+  }
+
+  it('a mensagem empresarial do servidor é preservada, não trocada por texto genérico', async () => {
+    const MSG = 'Evidencias so podem ser removidas enquanto a avaliacao estiver em rascunho ou devolvida.';
+    const { client } = clienteQueRecusaRemocao(MSG);
+    const repo = new SupabaseEvaluationsRepository(client, new SupabaseEvidenceRepository(client));
+
+    const res = await repo.removeEvidence(EVAL_UUID, EVD_SINT.id);
+    expect(res.ok).toBe(false);
+    // A tela renderiza literalmente esta mensagem no alerta de falha.
+    expect(!res.ok && res.error.message).toBe(MSG);
+  });
+
+  it('recusada no banco, a remoção NÃO chega ao Storage — o arquivo fica onde está', async () => {
+    const { client, chamadas } = clienteQueRecusaRemocao('sem permissao');
+    const repo = new SupabaseEvaluationsRepository(client, new SupabaseEvidenceRepository(client));
+
+    await repo.removeEvidence(EVAL_UUID, EVD_SINT.id);
+    expect(chamadas).not.toContain('storage.remove');
+    // A ordem é banco → Storage; é isso que torna a guarda de estado efetiva.
+    expect(chamadas).toEqual(['evidence_path', 'remove_evidence']);
+  });
+});
