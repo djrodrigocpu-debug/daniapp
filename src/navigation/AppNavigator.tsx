@@ -22,6 +22,7 @@ import { ProfileScreen } from '../screens/ProfileScreen';
 import { OperationDetailScreen } from '../screens/OperationDetailScreen';
 import { EvaluationScreen } from '../screens/EvaluationScreen';
 import { PerformanceScreen } from '../screens/PerformanceScreen';
+import { PerformanceMatrixScreen } from '../screens/PerformanceMatrixScreen';
 import { colors } from '../theme';
 import { RootStackParamList } from '../types';
 
@@ -188,6 +189,7 @@ export function AppNavigator() {
         <Stack.Screen name="OperationDetail" component={OperationDetailScreen} options={{ title: 'Parceiro AACE' }} />
         <Stack.Screen name="Evaluation" component={EvaluationScreen} options={{ title: 'Auditoria' }} />
         <Stack.Screen name="Performance" component={PerformanceScreen} options={{ title: 'Visita produtiva' }} />
+        <Stack.Screen name="PerformanceMatrix" component={PerformanceMatrixScreen} options={{ title: 'Matriz de desempenho' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
