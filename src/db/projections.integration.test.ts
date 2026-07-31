@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createTestDb, TestDb } from './testing/harness';
-import { seedScenario, ID } from './testing/fixtures';
+import { seedScenario, anexarEvidencia, ID } from './testing/fixtures';
 
 async function makeScenario(): Promise<TestDb> {
   const db = await createTestDb(); // sem seed de catálogo: 1 template (templateV1)
@@ -126,10 +126,10 @@ describe('RPCs de auditoria: abrir, responder, travas de envio (§7.4)', () => {
     // (b) evidência obrigatória ausente
     await db.asUser(ID.uGcB, (tx) => tx.expectError(`select public.submit_evaluation($1)`, [draft.id]));
 
-    // anexa evidência
-    await db.asUser(ID.uGcB, (tx) =>
-      tx.query(`select public.add_evidence($1,$2,$3::jsonb)`,
-        [draft.id, 'I01', JSON.stringify({ name: 'foto.jpg', uri: 'file://x', mimeType: 'image/jpeg', type: 'photo', sizeBytes: 1024 })]));
+    // anexa evidência pelo fluxo oficial: reserva → upload → confirmação (0028)
+    await anexarEvidencia(db, {
+      userId: ID.uGcB, evaluationId: draft.id, themeId: 'I01', name: 'foto.jpg',
+    });
 
     // (c) item vermelho sem plano de ação
     await db.asUser(ID.uGcB, (tx) => tx.expectError(`select public.submit_evaluation($1)`, [draft.id]));

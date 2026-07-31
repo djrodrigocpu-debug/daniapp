@@ -17,6 +17,11 @@ export default defineConfig({
       '@react-native-async-storage/async-storage': fileURLToPath(
         new URL('./src/testing/asyncStorageMock.ts', import.meta.url),
       ),
+      // `expo-constants` (fonte única da versão exibida, D-05) não importa fora
+      // do bundler do Expo; o dublê lê o `app.json` real.
+      'expo-constants': fileURLToPath(
+        new URL('./src/testing/expoConstantsMock.ts', import.meta.url),
+      ),
     },
   },
   test: {

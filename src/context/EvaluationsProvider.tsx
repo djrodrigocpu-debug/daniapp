@@ -32,8 +32,14 @@ interface EvaluationsContextValue {
   getEvidences: (ids: string[]) => Evidence[];
   startEvaluation: (operationId: string, frequency: Frequency) => Promise<string | null>;
   saveAnswer: (evaluationId: string, themeId: string, patch: Partial<AssessmentAnswer>) => void;
-  addEvidence: (evaluationId: string, themeId: string, input: EvidenceInput) => void;
-  removeEvidence: (evaluationId: string, evidenceId: string) => void;
+  /** Só resolve depois de o arquivo estar realmente armazenado (D-02). */
+  addEvidence: (evaluationId: string, themeId: string, input: EvidenceInput) => Promise<SubmitResult>;
+  removeEvidence: (evaluationId: string, evidenceId: string) => Promise<SubmitResult>;
+  /**
+   * Endereço de leitura da evidência para quem tem acesso (D-03). No modo
+   * corporativo é URL assinada de curta duração; no local, a URI do arquivo.
+   */
+  getEvidenceUrl: (evidenceId: string) => Promise<{ ok: true; url: string } | { ok: false; message: string }>;
   saveActionPlan: (input: ActionPlanInput) => void;
   submit: (evaluationId: string) => Promise<SubmitResult>;
 }
@@ -41,7 +47,7 @@ interface EvaluationsContextValue {
 const EvaluationsContext = createContext<EvaluationsContextValue | undefined>(undefined);
 
 export function EvaluationsProvider({ children }: { children: React.ReactNode }) {
-  const { evaluations: repo, actions: actionsRepo, source } = useRepositories();
+  const { evaluations: repo, actions: actionsRepo, evidence: evidenceRepo, source } = useRepositories();
   const user = useOperationalUser();
   // Operação é entidade REAL, já buscada pela mesma fonte que preenche a
   // lista (§ correção do bug "Parceiro não existente").
@@ -143,17 +149,40 @@ export function EvaluationsProvider({ children }: { children: React.ReactNode })
   );
   // As três mutações recarregam: a tela relê getEvidences/getActionPlan em
   // seguida e precisa encontrar o que o servidor acabou de gravar.
+  /**
+   * Devolve o resultado em vez de engolir a falha. Antes era disparo e esquece:
+   * se o anexo falhava, a tela não dizia nada e o usuário seguia achando que a
+   * comprovação estava lá — no modo corporativo nem chegava a subir arquivo
+   * (D-02). Sucesso aqui significa arquivo no bucket, metadata e vínculo.
+   */
   const addEvidence = useCallback(
-    (evaluationId: string, themeId: string, input: EvidenceInput) => {
-      void repo.addEvidence(evaluationId, themeId, input).then(() => load());
+    async (evaluationId: string, themeId: string, input: EvidenceInput): Promise<SubmitResult> => {
+      const res = await repo.addEvidence(evaluationId, themeId, input);
+      await load();
+      return res.ok ? { ok: true } : { ok: false, message: res.error.message };
     },
     [repo, load],
   );
   const removeEvidence = useCallback(
-    (evaluationId: string, evidenceId: string) => {
-      void repo.removeEvidence(evaluationId, evidenceId).then(() => load());
+    async (evaluationId: string, evidenceId: string): Promise<SubmitResult> => {
+      const res = await repo.removeEvidence(evaluationId, evidenceId);
+      await load();
+      return res.ok ? { ok: true } : { ok: false, message: res.error.message };
     },
     [repo, load],
+  );
+  /**
+   * Não recarrega nada: é leitura. O endereço vem do repositório de evidências,
+   * que é quem fala com o Storage — a tela só recebe uma URL pronta e efêmera.
+   */
+  const getEvidenceUrl = useCallback(
+    async (evidenceId: string) => {
+      const res = await evidenceRepo.getUrl(evidenceId);
+      return res.ok
+        ? ({ ok: true, url: res.value } as const)
+        : ({ ok: false, message: res.error.message } as const);
+    },
+    [evidenceRepo],
   );
   const saveActionPlan = useCallback(
     (input: ActionPlanInput) => {
@@ -189,10 +218,11 @@ export function EvaluationsProvider({ children }: { children: React.ReactNode })
       saveAnswer,
       addEvidence,
       removeEvidence,
+      getEvidenceUrl,
       saveActionPlan,
       submit,
     }),
-    [loading, error, getEvaluation, getOperation, getUser, listByOperation, getCurrentDraft, getActionPlan, getEvidences, startEvaluation, saveAnswer, addEvidence, removeEvidence, saveActionPlan, submit],
+    [loading, error, getEvaluation, getOperation, getUser, listByOperation, getCurrentDraft, getActionPlan, getEvidences, startEvaluation, saveAnswer, addEvidence, removeEvidence, getEvidenceUrl, saveActionPlan, submit],
   );
 
   return <EvaluationsContext.Provider value={value}>{children}</EvaluationsContext.Provider>;

@@ -8,7 +8,7 @@
  * telas migram deste provider progressivamente; a autenticação já passa por aqui.
  */
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { getRuntimeConfig } from '../config/env';
+import { runtimeConfig } from '../config/runtime';
 import { parseAuthCallback } from '../domain/auth/callbackLink';
 import { OnboardingPhase, ProfileStatus, decidePhase } from '../domain/auth/onboardingFlow';
 import { cleanBrowserUrl, getInitialUrl, subscribeToLinks } from './authCallbackBridge';
@@ -63,7 +63,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const backend = useMemo(() => {
-    const config = getRuntimeConfig();
+    const config = runtimeConfig;
     const client = getSupabaseClient(config);
     // Em modo demo, o diretório de perfis é derivado do estado operacional VIVO
     // (não do seed) para que a sessão mapeie 1:1 no `User` operacional (§9.3) e
@@ -73,7 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // `getSupabaseClient` é singleton: devolve exatamente a mesma instância usada
   // pela fábrica acima, sem criar um segundo cliente. `null` em modo demo/local.
-  const supabaseAuth = useMemo(() => getSupabaseClient(getRuntimeConfig())?.auth ?? null, []);
+  const supabaseAuth = useMemo(() => getSupabaseClient(runtimeConfig)?.auth ?? null, []);
 
   // Liga o refresh do token com o app em foreground e desliga em background
   // (só no nativo — no web o bridge é um no-op).

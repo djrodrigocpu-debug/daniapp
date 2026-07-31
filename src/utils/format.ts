@@ -60,3 +60,14 @@ export function getMaturity(score: number): string {
   if (score >= 60) return 'Atenção';
   return 'Crítico';
 }
+
+/**
+ * Tamanho de arquivo legível, para a linha da evidência. Sem tamanho conhecido
+ * devolve travessão — nunca "0 KB", que faria parecer arquivo vazio.
+ */
+export function formatBytes(value?: number): string {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return '—';
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(0)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}

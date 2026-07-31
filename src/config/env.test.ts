@@ -26,7 +26,7 @@ describe('env.assertNoPrivilegedSecrets (Anexo D — T03)', () => {
 
 describe('env.loadConfig', () => {
   it('desenvolvimento sem backend degrada para não configurado (modo demo permitido)', () => {
-    const r = loadConfig({ EXPO_PUBLIC_APP_ENV: 'development' });
+    const r = loadConfig({ EXPO_PUBLIC_APP_ENV: 'development' }, '1.3.1');
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.value.isConfigured).toBe(false);
@@ -35,7 +35,7 @@ describe('env.loadConfig', () => {
   });
 
   it('produção sem backend é erro (não pode rodar demo em produção)', () => {
-    const r = loadConfig({ EXPO_PUBLIC_APP_ENV: 'production' });
+    const r = loadConfig({ EXPO_PUBLIC_APP_ENV: 'production' }, '1.3.1');
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error.code).toBe('config/missing-env');
   });
@@ -45,7 +45,7 @@ describe('env.loadConfig', () => {
       EXPO_PUBLIC_APP_ENV: 'homologation',
       EXPO_PUBLIC_SUPABASE_URL: 'https://proj.supabase.co',
       EXPO_PUBLIC_SUPABASE_ANON_KEY: 'anon-123',
-    });
+    }, '1.3.1');
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.value.isConfigured).toBe(true);
@@ -56,21 +56,25 @@ describe('env.loadConfig', () => {
   it('homologação configurada expõe ambiente, isConfigured e versão da config', () => {
     const r = loadConfig({
       EXPO_PUBLIC_APP_ENV: 'homologation',
-      EXPO_PUBLIC_APP_VERSION: '2.0.0',
       EXPO_PUBLIC_SUPABASE_URL: 'https://plnbgdabciwygsmnyddy.supabase.co',
       EXPO_PUBLIC_SUPABASE_ANON_KEY: 'anon-publishable',
-    });
+    }, '1.3.1');
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.value.environment).toBe('homologation');
       expect(r.value.isConfigured).toBe(true);
       expect(r.value.supabaseUrl).toBe('https://plnbgdabciwygsmnyddy.supabase.co');
-      expect(r.value.appVersion).toBe('2.0.0');
+      expect(r.value.appVersion).toBe('1.3.1');
     }
   });
 
-  it('a versão exibida vem da configuração (EXPO_PUBLIC_APP_VERSION)', () => {
-    const r = loadConfig({ EXPO_PUBLIC_APP_ENV: 'development', EXPO_PUBLIC_APP_VERSION: '9.9.9' });
+  it('a versão exibida vem do parâmetro (manifesto), não do ambiente — D-05', () => {
+    // Ainda que alguém redefina a variável antiga no ambiente, ela é ignorada:
+    // era exatamente essa segunda fonte que fazia o login anunciar "2.0.0".
+    const r = loadConfig(
+      { EXPO_PUBLIC_APP_ENV: 'development', EXPO_PUBLIC_APP_VERSION: '2.0.0' },
+      '9.9.9',
+    );
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.value.appVersion).toBe('9.9.9');
   });
@@ -80,7 +84,7 @@ describe('env.loadConfig', () => {
       EXPO_PUBLIC_APP_ENV: 'development',
       EXPO_PUBLIC_SUPABASE_URL: 'not-a-url',
       EXPO_PUBLIC_SUPABASE_ANON_KEY: 'anon',
-    });
+    }, '1.3.1');
     expect(r.ok).toBe(false);
   });
 
@@ -88,7 +92,7 @@ describe('env.loadConfig', () => {
     const r = loadConfig({
       EXPO_PUBLIC_APP_ENV: 'development',
       SUPABASE_SERVICE_ROLE_KEY: 'leak',
-    });
+    }, '1.3.1');
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error.severity).toBe('critical');
   });

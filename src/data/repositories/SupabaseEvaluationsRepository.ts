@@ -17,6 +17,7 @@ import {
   EvaluationsRepository,
   EvidenceInput,
 } from './EvaluationsRepository';
+import { SupabaseEvidenceRepository } from './EvidenceRepository';
 
 function fail(message: string, cause?: unknown): AppError {
   return new AppError('network/unavailable', message, { severity: 'high', cause });
@@ -29,7 +30,17 @@ function toResult<T>(data: T | null, error: unknown, message: string): Result<T>
 }
 
 export class SupabaseEvaluationsRepository implements EvaluationsRepository {
-  constructor(private readonly client: SupabaseClient) {}
+  /**
+   * O armazenamento da evidência é delegado ao repositório de evidências —
+   * mesmo desenho já usado no modo local. Antes da 1.3.1 esta classe chamava a
+   * RPC `add_evidence` direto, que criava metadata dizendo 'stored' sem que
+   * nenhum byte subisse: o repositório de upload existia e ficava fora do
+   * caminho da tela (D-02).
+   */
+  constructor(
+    private readonly client: SupabaseClient,
+    private readonly evidence: SupabaseEvidenceRepository,
+  ) {}
 
   /** A RLS restringe as linhas ao escopo do usuário autenticado. */
   async listVisible(): Promise<Result<Evaluation[]>> {
@@ -95,20 +106,39 @@ export class SupabaseEvaluationsRepository implements EvaluationsRepository {
   }
 
   async addEvidence(evaluationId: string, themeId: string, input: EvidenceInput): Promise<Result<Evidence>> {
-    const { data, error } = await this.client.rpc('add_evidence', {
-      p_evaluation_id: evaluationId,
-      p_theme_id: themeId,
-      p_input: input,
+    return this.evidence.attach(evaluationId, themeId, {
+      themeId,
+      name: input.name,
+      uri: input.uri,
+      mimeType: input.mimeType,
+      type: input.type,
+      sizeBytes: input.sizeBytes,
     });
-    return toResult(data as Evidence, error, 'Falha ao anexar a evidência.');
   }
 
+  /**
+   * Remove metadata, vínculo e TAMBÉM o binário. O caminho é obtido antes, pela
+   * `evidence_path` (verificada por escopo no servidor); a ordem é metadata →
+   * objeto, para que uma falha na segunda etapa deixe no máximo um objeto órfão,
+   * nunca um metadata apontando para arquivo inexistente.
+   */
   async removeEvidence(evaluationId: string, evidenceId: string): Promise<Result<true>> {
+    const caminho = await this.client.rpc('evidence_path', { p_evidence_id: evidenceId });
     const { error } = await this.client.rpc('remove_evidence', {
       p_evaluation_id: evaluationId,
       p_evidence_id: evidenceId,
     });
-    return error ? err(fail('Falha ao remover a evidência.', error)) : ok(true);
+    if (error) return err(fail('Falha ao remover a evidência.', error));
+
+    if (!caminho.error && typeof caminho.data === 'string') {
+      const limpeza = await this.client.storage.from('evidencias').remove([caminho.data]);
+      if (limpeza.error) {
+        return err(new AppError('network/unavailable',
+          'A evidência saiu da avaliação, mas o arquivo não pôde ser apagado do armazenamento.',
+          { severity: 'medium', cause: limpeza.error }));
+      }
+    }
+    return ok(true);
   }
 
   async saveActionPlan(input: ActionPlanInput): Promise<Result<ActionPlan>> {

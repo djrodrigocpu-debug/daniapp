@@ -115,3 +115,56 @@ export async function seedScenario(db: TestDb): Promise<Scenario> {
 
   return { id: q };
 }
+
+export interface EvidenciaAnexada {
+  reservationId: string;
+  evidenceId: string;
+  bucket: string;
+  path: string;
+}
+
+/**
+ * Anexa uma evidência pelo FLUXO OFICIAL completo (0028): reserva → upload →
+ * confirmação. O "upload" é o INSERT em `storage.objects` sob RLS, que é
+ * exatamente o que o cliente faz pela API do Storage — inclusive passando pela
+ * policy `evidencias_insert`, que exige reserva própria.
+ *
+ * Existe para que nenhum teste volte a fabricar evidência por atalho: antes da
+ * 1.3.1 bastava chamar `add_evidence` e o metadata nascia dizendo 'stored' sem
+ * arquivo nenhum (D-02).
+ */
+export async function anexarEvidencia(
+  db: TestDb,
+  opts: {
+    userId: string; evaluationId: string; themeId: string;
+    name?: string; mimeType?: string; sizeBytes?: number;
+  },
+): Promise<EvidenciaAnexada> {
+  const entrada = {
+    name: opts.name ?? 'comprovacao.jpg',
+    mimeType: opts.mimeType ?? 'image/jpeg',
+    type: 'photo',
+    sizeBytes: opts.sizeBytes ?? 1024,
+  };
+
+  const reserva = (await db.asUser(opts.userId, (tx) =>
+    tx.query<{ r: { reservationId: string; bucket: string; path: string } }>(
+      `select public.reserve_evidence_upload($1,$2,$3::jsonb) as r`,
+      [opts.evaluationId, opts.themeId, JSON.stringify(entrada)],
+    )))[0].r;
+
+  await db.asUser(opts.userId, (tx) =>
+    tx.query(`insert into storage.objects (bucket_id, name, owner) values ($1,$2,auth.uid())`,
+      [reserva.bucket, reserva.path]));
+
+  const evidencia = (await db.asUser(opts.userId, (tx) =>
+    tx.query<{ e: { id: string } }>(`select public.confirm_evidence_upload($1) as e`,
+      [reserva.reservationId])))[0].e;
+
+  return {
+    reservationId: reserva.reservationId,
+    evidenceId: evidencia.id,
+    bucket: reserva.bucket,
+    path: reserva.path,
+  };
+}

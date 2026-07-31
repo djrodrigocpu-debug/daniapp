@@ -14,7 +14,7 @@ const base = (env: AppConfig['environment'], configured: boolean): AppConfig => 
   supabaseUrl: configured ? 'https://x.supabase.co' : null,
   supabaseAnonKey: configured ? 'anon' : null,
   isConfigured: configured,
-  appVersion: '2.0.0',
+  appVersion: '1.3.1',
 });
 
 const fakeClient = {} as SupabaseClient;
