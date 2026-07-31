@@ -37,7 +37,7 @@ export interface PerformanceMatrix {
 
 export const QUADRANT_LABEL: Record<Quadrant, string> = {
   healthy: 'Saudável',
-  ineffective_routine: 'Processo cumprido, resultado ausente',
+  ineffective_routine: 'Processo cumprido, resultado insuficiente',
   result_without_process: 'Resultado sem processo',
   critical: 'Crítico',
 };

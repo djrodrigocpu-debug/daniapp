@@ -25,7 +25,7 @@ describe('computePerformanceMatrix', () => {
     expect(m.entries[0]).toMatchObject({ quadrant: 'healthy', result: 'on_target', exclusionReasons: [] });
   });
 
-  it('parceiro verde com 1 indicador vermelho -> Processo cumprido, resultado ausente', () => {
+  it('parceiro verde com 1 indicador vermelho -> Processo cumprido, resultado insuficiente', () => {
     const m = computePerformanceMatrix([op('O1', 'green')], [def('D1')], [result('O1', 'D1', 50)]);
     expect(m.entries[0]).toMatchObject({ quadrant: 'ineffective_routine', result: 'critical' });
   });
