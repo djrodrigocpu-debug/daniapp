@@ -35,6 +35,11 @@ interface EvaluationsContextValue {
   /** Só resolve depois de o arquivo estar realmente armazenado (D-02). */
   addEvidence: (evaluationId: string, themeId: string, input: EvidenceInput) => Promise<SubmitResult>;
   removeEvidence: (evaluationId: string, evidenceId: string) => Promise<SubmitResult>;
+  /**
+   * Endereço de leitura da evidência para quem tem acesso (D-03). No modo
+   * corporativo é URL assinada de curta duração; no local, a URI do arquivo.
+   */
+  getEvidenceUrl: (evidenceId: string) => Promise<{ ok: true; url: string } | { ok: false; message: string }>;
   saveActionPlan: (input: ActionPlanInput) => void;
   submit: (evaluationId: string) => Promise<SubmitResult>;
 }
@@ -42,7 +47,7 @@ interface EvaluationsContextValue {
 const EvaluationsContext = createContext<EvaluationsContextValue | undefined>(undefined);
 
 export function EvaluationsProvider({ children }: { children: React.ReactNode }) {
-  const { evaluations: repo, actions: actionsRepo, source } = useRepositories();
+  const { evaluations: repo, actions: actionsRepo, evidence: evidenceRepo, source } = useRepositories();
   const user = useOperationalUser();
   // Operação é entidade REAL, já buscada pela mesma fonte que preenche a
   // lista (§ correção do bug "Parceiro não existente").
@@ -166,6 +171,19 @@ export function EvaluationsProvider({ children }: { children: React.ReactNode })
     },
     [repo, load],
   );
+  /**
+   * Não recarrega nada: é leitura. O endereço vem do repositório de evidências,
+   * que é quem fala com o Storage — a tela só recebe uma URL pronta e efêmera.
+   */
+  const getEvidenceUrl = useCallback(
+    async (evidenceId: string) => {
+      const res = await evidenceRepo.getUrl(evidenceId);
+      return res.ok
+        ? ({ ok: true, url: res.value } as const)
+        : ({ ok: false, message: res.error.message } as const);
+    },
+    [evidenceRepo],
+  );
   const saveActionPlan = useCallback(
     (input: ActionPlanInput) => {
       // Autoria: no modo local o repositório grava o que vem daqui; no modo
@@ -200,10 +218,11 @@ export function EvaluationsProvider({ children }: { children: React.ReactNode })
       saveAnswer,
       addEvidence,
       removeEvidence,
+      getEvidenceUrl,
       saveActionPlan,
       submit,
     }),
-    [loading, error, getEvaluation, getOperation, getUser, listByOperation, getCurrentDraft, getActionPlan, getEvidences, startEvaluation, saveAnswer, addEvidence, removeEvidence, saveActionPlan, submit],
+    [loading, error, getEvaluation, getOperation, getUser, listByOperation, getCurrentDraft, getActionPlan, getEvidences, startEvaluation, saveAnswer, addEvidence, removeEvidence, getEvidenceUrl, saveActionPlan, submit],
   );
 
   return <EvaluationsContext.Provider value={value}>{children}</EvaluationsContext.Provider>;

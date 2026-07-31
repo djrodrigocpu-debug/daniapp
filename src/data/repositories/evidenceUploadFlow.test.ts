@@ -8,6 +8,8 @@
  * Estes testes fixam a ORDEM (reserva → upload → confirmação) e a COMPENSAÇÃO,
  * que é o que substitui a transação única que Storage e PostgreSQL não têm.
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SupabaseEvidenceRepository } from './EvidenceRepository';
@@ -171,5 +173,142 @@ describe('SupabaseEvidenceRepository.attach — ordem e compensação (D-02)', (
     const res = await new SupabaseEvidenceRepository(client, lerOk).store();
     expect(res.ok).toBe(false);
     expect(chamadas).toEqual([]);
+  });
+});
+
+/**
+ * Leitura da evidência pelo validador (D-03).
+ *
+ * A policy do bucket já autoriza quem tem escopo; o que estes testes fixam é o
+ * caminho do CLIENTE até o arquivo: endereço resolvido no servidor, assinatura
+ * de curta duração, e erro honesto quando falta permissão ou falta arquivo.
+ */
+interface RoteiroLeitura {
+  path?: { data: unknown; error: { message: string } | null };
+  signed?: { data: { signedUrl: string } | null; error: { message: string } | null };
+}
+
+function fakeClientLeitura(roteiro: RoteiroLeitura = {}) {
+  const chamadas: string[] = [];
+  const assinaturas: Array<{ path: string; ttl: number }> = [];
+  const client = {
+    rpc: async (nome: string) => {
+      chamadas.push(`rpc:${nome}`);
+      return roteiro.path ?? { data: RESERVA.path, error: null };
+    },
+    storage: {
+      from: (bucket: string) => ({
+        createSignedUrl: async (path: string, ttl: number) => {
+          chamadas.push(`assinar:${bucket}/${path}`);
+          assinaturas.push({ path, ttl });
+          return roteiro.signed ?? {
+            data: { signedUrl: `https://staging.exemplo/object/sign/${path}?token=efemero` },
+            error: null,
+          };
+        },
+        // Presente de propósito: se algum dia alguém chamar, o teste vê.
+        getPublicUrl: (path: string) => {
+          chamadas.push(`publica:${bucket}/${path}`);
+          return { data: { publicUrl: `https://staging.exemplo/public/${path}` } };
+        },
+      }),
+    },
+  } as unknown as SupabaseClient;
+  return { client, chamadas, assinaturas };
+}
+
+describe('SupabaseEvidenceRepository.getUrl — abertura pelo validador (D-03)', () => {
+  it('resolve o caminho no servidor e devolve URL ASSINADA de curta duração', async () => {
+    const { client, chamadas, assinaturas } = fakeClientLeitura();
+    const res = await new SupabaseEvidenceRepository(client, lerOk).getUrl('EVD-1');
+
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.value).toContain('/object/sign/');
+    expect(chamadas).toEqual(['rpc:evidence_path', `assinar:evidencias/${RESERVA.path}`]);
+    expect(assinaturas[0].ttl).toBeGreaterThan(0);
+    expect(assinaturas[0].ttl).toBeLessThanOrEqual(600); // curta duração, não link eterno
+  });
+
+  it('NUNCA gera URL pública permanente', async () => {
+    const { client, chamadas } = fakeClientLeitura();
+    await new SupabaseEvidenceRepository(client, lerOk).getUrl('EVD-1');
+    expect(chamadas.some((c) => c.startsWith('publica:'))).toBe(false);
+  });
+
+  it('fora do escopo: o servidor nega o caminho e nada é assinado', async () => {
+    const { client, chamadas } = fakeClientLeitura({
+      path: { data: null, error: { message: 'sem permissao' } },
+    });
+    const res = await new SupabaseEvidenceRepository(client, lerOk).getUrl('EVD-1');
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error.message).toBe('Esta evidência não está disponível para você.');
+    expect(chamadas).toEqual(['rpc:evidence_path']);
+  });
+
+  it('a recusa não revela se a evidência existe — mesma mensagem nos dois casos', async () => {
+    const repo = (r: RoteiroLeitura) => new SupabaseEvidenceRepository(fakeClientLeitura(r).client, lerOk);
+    const semPermissao = await repo({ path: { data: null, error: { message: 'sem permissao' } } }).getUrl('EVD-1');
+    const inexistente = await repo({ path: { data: null, error: { message: 'evidencia inexistente' } } }).getUrl('EVD-2');
+
+    expect(semPermissao.ok).toBe(false);
+    expect(inexistente.ok).toBe(false);
+    if (!semPermissao.ok && !inexistente.ok) {
+      expect(semPermissao.error.message).toBe(inexistente.error.message);
+    }
+  });
+
+  it('metadata sem objeto no bucket produz erro honesto, não silêncio', async () => {
+    // O escopo passou; o que falta é o arquivo. O usuário precisa saber disso.
+    const { client, chamadas } = fakeClientLeitura({
+      signed: { data: null, error: { message: 'Object not found' } },
+    });
+    const res = await new SupabaseEvidenceRepository(client, lerOk).getUrl('EVD-1');
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.error.message).toBe('O arquivo desta evidência não foi encontrado no armazenamento.');
+      expect(res.error.severity).toBe('high');
+    }
+    expect(chamadas).toContain('rpc:evidence_path'); // chegou até a assinatura
+  });
+});
+
+/**
+ * A ação existe na tela e está protegida (D-03, complementação visual).
+ *
+ * Complemento estrutural, não prova principal: o comportamento real é o smoke
+ * autenticado em staging. O que estes testes impedem é a regressão silenciosa
+ * de a ação sumir da tela ou perder a trava de toque duplo — foi a AUSÊNCIA
+ * dessa ação que deixou D-03 corrigido no banco e ainda quebrado para o usuário.
+ */
+describe('EvaluationScreen — ação de abrir a comprovação', () => {
+  const tela = readFileSync(join(__dirname, '../../screens/EvaluationScreen.tsx'), 'utf8');
+
+  it('a linha da evidência tem botão de abrir, com rótulo acessível', () => {
+    expect(tela).toContain('abrirEvidencia');
+    expect(tela).toMatch(/accessibilityLabel=\{`Abrir evidência \$\{evidence\.name\}`\}/);
+  });
+
+  it('abrir está disponível também em leitura — é o caso do validador', () => {
+    // O botão de remover é `{!readOnly && ...}`; o de abrir NÃO pode estar
+    // dentro dessa condição, senão o Coordenador volta a não ter o que tocar.
+    const inicio = tela.indexOf('accessibilityLabel={`Abrir evidência');
+    const trecho = tela.slice(Math.max(0, inicio - 400), inicio);
+    expect(trecho).not.toContain('!readOnly &&');
+  });
+
+  it('mostra tipo e tamanho ao lado do nome', () => {
+    expect(tela).toContain('formatBytes(evidence.sizeBytes)');
+  });
+
+  it('toque duplo não pede duas URLs nem abre duas abas', () => {
+    expect(tela).toMatch(/if \(abrindoEvidencia\) return;/);
+    expect(tela).toContain('disabled={abrindoEvidencia !== null}');
+  });
+
+  it('o endereço vem do provider, não é montado na tela', () => {
+    expect(tela).toContain('await getEvidenceUrl(evidenceId)');
+    expect(tela).not.toMatch(/supabase\.co\/storage/);
   });
 });

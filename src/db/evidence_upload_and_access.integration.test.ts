@@ -303,11 +303,91 @@ describe('D-03 — quem pode abrir a evidência no bucket', () => {
     expect(r[0].n).toBe(0);
   });
 
+  it('a evidência aparece na LISTA do validador, com nome e tamanho', async () => {
+    // Sem isto o Coordenador não teria em que tocar: a tela lista o que
+    // `ui_evidences` devolve sob a RLS de quem está olhando.
+    const doCoord = await db.asUser(ID.uCoord2, (tx) =>
+      tx.query<{ id: string; name: string; type: string; sizeBytes: number }>(
+        `select "id","name","type","sizeBytes" from public.ui_evidences where "id" = $1`, [evidenceId]));
+    expect(doCoord).toHaveLength(1);
+    expect(doCoord[0].name).toBe('comprovacao.jpg');
+    expect(doCoord[0].type).toBe('photo');
+    expect(doCoord[0].sizeBytes).toBe(1024);
+
+    // E o de fora do escopo não vê nem a linha.
+    const deFora = await db.asUser(ID.uCoord1, (tx) =>
+      tx.query<{ id: string }>(`select "id" from public.ui_evidences where "id" = $1`, [evidenceId]));
+    expect(deFora).toHaveLength(0);
+  });
+
   it('evidence_path concorda com a policy: mesmo escopo, mesma resposta', async () => {
     const doCoord = await db.asUser(ID.uCoord2, (tx) =>
       tx.query<{ p: string }>(`select public.evidence_path($1) as p`, [evidenceId]));
     expect(doCoord[0].p).toBe(caminho);
 
+    await db.asUser(ID.uCoord1, (tx) =>
+      tx.expectError(`select public.evidence_path($1)`, [evidenceId]));
+  });
+});
+
+/**
+ * Ator nulo nas RPCs de evidência (D-03) — migration 0030.
+ *
+ * Descoberto no smoke autenticado: sem sessão, `evidence_path` respondia 200 e
+ * devolvia o caminho interno do objeto. A guarda existia e não valia nada por
+ * lógica de três valores — `v_author = auth.uid()` com `auth.uid()` NULL é NULL,
+ * `not NULL` é NULL, e `if NULL then` não entra. `remove_evidence_file` tinha a
+ * mesma forma, e ela APAGA metadata.
+ */
+describe('RPCs de evidência recusam ator nulo (D-03 / 0030)', () => {
+  let db: TestDb;
+  let evidenceId: string;
+
+  beforeAll(async () => {
+    db = await createTestDb();
+    await seedScenario(db);
+    const evalId = await rascunhoRespondido(db);
+    evidenceId = (await anexarEvidencia(db, { userId: ID.uGcB, evaluationId: evalId, themeId: 'I01' })).evidenceId;
+  }, 30_000);
+  afterAll(async () => { await db.close(); });
+
+  // Camada 2 — sem EXECUTE, a chamada anônima nem chega ao corpo.
+  it('anônimo não obtém o caminho do objeto', async () => {
+    const erro = await db.asAnon((tx) =>
+      tx.expectError(`select public.evidence_path($1)`, [evidenceId]));
+    expect(erro.message).toMatch(/permission denied for function evidence_path/);
+  });
+
+  it('anônimo não apaga a evidência de ninguém', async () => {
+    const erro = await db.asAnon((tx) =>
+      tx.expectError(`select public.remove_evidence_file($1)`, [evidenceId]));
+    expect(erro.message).toMatch(/permission denied for function remove_evidence_file/);
+
+    const restou = await db.query<{ n: number }>(
+      `select count(*)::int n from public.evidence_files where id = $1`, [evidenceId]);
+    expect(restou[0].n).toBe(1);
+  });
+
+  // Camada 1 — a guarda do CORPO, exercitada por quem TEM execute mas não tem
+  // sessão. É esta que faltava: era o `if not (NULL) then`, que nunca entrava.
+  it('a guarda do corpo recusa ator nulo mesmo para quem pode executar', async () => {
+    await expect(db.query(`select public.evidence_path($1)`, [evidenceId]))
+      .rejects.toThrow(/autenticacao obrigatoria/);
+    await expect(db.query(`select public.remove_evidence_file($1)`, [evidenceId]))
+      .rejects.toThrow(/autenticacao obrigatoria/);
+
+    const restou = await db.query<{ n: number }>(
+      `select count(*)::int n from public.evidence_files where id = $1`, [evidenceId]);
+    expect(restou[0].n).toBe(1);
+  });
+
+  it('quem tem escopo continua obtendo o caminho — a regra não mudou', async () => {
+    const doCoord = await db.asUser(ID.uCoord2, (tx) =>
+      tx.query<{ p: string }>(`select public.evidence_path($1) as p`, [evidenceId]));
+    expect(doCoord[0].p).toContain('I01/');
+  });
+
+  it('autenticado fora do escopo continua recusado', async () => {
     await db.asUser(ID.uCoord1, (tx) =>
       tx.expectError(`select public.evidence_path($1)`, [evidenceId]));
   });

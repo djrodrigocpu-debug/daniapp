@@ -15,19 +15,22 @@ import { themes } from '../data/catalog';
 import { colors, radius, spacing } from '../theme';
 import { ActionPlan, AssessmentAnswer, RootStackParamList, Theme, TrafficLight } from '../types';
 import { completionRate } from '../utils/scoring';
-import { trafficLightColor, trafficLightLabel, trafficLightSoftColor } from '../utils/format';
+import { formatBytes, trafficLightColor, trafficLightLabel, trafficLightSoftColor } from '../utils/format';
+import { openExternalUrl } from '../utils/openExternal';
 
 const selectableStatuses: TrafficLight[] = ['green', 'yellow', 'red', 'not_applicable'];
 
 export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<RootStackParamList, 'Evaluation'>) {
   const {
-    loading, error, getEvaluation, getOperation, getActionPlan, getEvidences, saveAnswer, addEvidence, removeEvidence, saveActionPlan, submit,
+    loading, error, getEvaluation, getOperation, getActionPlan, getEvidences, saveAnswer, addEvidence, removeEvidence, getEvidenceUrl, saveActionPlan, submit,
   } = useEvaluations();
   const evaluation = route.params.evaluationId ? getEvaluation(route.params.evaluationId) : undefined;
   const operation = getOperation(route.params.operationId);
   const [selectedThemeId, setSelectedThemeId] = useState<string | null>(null);
   /** Tema cujo anexo está subindo agora — trava o item contra toque duplo. */
   const [enviandoTema, setEnviandoTema] = useState<string | null>(null);
+  /** Evidência cujo endereço está sendo resolvido — trava contra toque duplo. */
+  const [abrindoEvidencia, setAbrindoEvidencia] = useState<string | null>(null);
 
   const grouped = useMemo(() => {
     if (!evaluation) return [];
@@ -124,6 +127,32 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
   async function excluirEvidencia(evidenceId: string) {
     const resultado = await removeEvidence(activeEvaluation.id, evidenceId);
     if (!resultado.ok) alertDialog('A comprovação não foi removida', resultado.message);
+  }
+
+  /**
+   * Abre a comprovação para quem tem acesso (D-03). O endereço é resolvido no
+   * servidor e vem assinado, válido por poucos minutos — nunca há link público.
+   * `abrindoEvidencia` trava a lista inteira durante a resolução, para que dois
+   * toques não peçam duas URLs nem abram duas abas.
+   */
+  async function abrirEvidencia(evidenceId: string) {
+    if (abrindoEvidencia) return;
+    setAbrindoEvidencia(evidenceId);
+    try {
+      const resultado = await getEvidenceUrl(evidenceId);
+      if (!resultado.ok) {
+        alertDialog('Não foi possível abrir a comprovação', resultado.message);
+        return;
+      }
+      if (!(await openExternalUrl(resultado.url))) {
+        alertDialog(
+          'Não foi possível abrir a comprovação',
+          'O navegador bloqueou a abertura em nova aba. Libere pop-ups para este endereço e tente de novo.',
+        );
+      }
+    } finally {
+      setAbrindoEvidencia(null);
+    }
   }
 
   async function handleSubmit() {
@@ -273,11 +302,25 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
                 {evidenceItems.map((evidence) => evidence && (
                   <View key={evidence.id} style={styles.evidenceItem}>
                     <Ionicons name={evidence.type === 'photo' ? 'camera-outline' : 'document-attach-outline'} size={18} color={colors.primary} />
-                    <Text style={styles.evidenceName} numberOfLines={1}>{evidence.name}</Text>
+                    <View style={styles.evidenceInfo}>
+                      <Text style={styles.evidenceName} numberOfLines={1}>{evidence.name}</Text>
+                      <Text style={styles.evidenceMeta}>{evidence.type === 'photo' ? 'Imagem' : 'Documento'} · {formatBytes(evidence.sizeBytes)}</Text>
+                    </View>
                     <Text style={[styles.evidenceStatus, evidence.status === 'stored' ? styles.evidenceStored : styles.evidenceLocal]}>
                       {evidence.status === 'stored' ? 'enviado' : 'local'}
                     </Text>
-                    {!readOnly && <Pressable onPress={() => void excluirEvidencia(evidence.id)}><Ionicons name="trash-outline" size={18} color={colors.danger} /></Pressable>}
+                    {/* Abrir vale para o autor E para quem valida: é o que faltava
+                        para o Coordenador conferir a comprovação (D-03). */}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Abrir evidência ${evidence.name}`}
+                      disabled={abrindoEvidencia !== null}
+                      onPress={() => void abrirEvidencia(evidence.id)}
+                      style={styles.evidenceOpen}
+                    >
+                      <Text style={styles.evidenceOpenText}>{abrindoEvidencia === evidence.id ? 'Abrindo…' : 'Abrir'}</Text>
+                    </Pressable>
+                    {!readOnly && <Pressable accessibilityRole="button" accessibilityLabel={`Remover evidência ${evidence.name}`} onPress={() => void excluirEvidencia(evidence.id)}><Ionicons name="trash-outline" size={18} color={colors.danger} /></Pressable>}
                   </View>
                 ))}
 
@@ -362,7 +405,11 @@ const styles = StyleSheet.create({
   evidenceButtons: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   flexButton: { flex: 1 },
   evidenceItem: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
-  evidenceName: { flex: 1, color: colors.ink, fontSize: 11 },
+  evidenceInfo: { flex: 1 },
+  evidenceName: { color: colors.ink, fontSize: 11 },
+  evidenceMeta: { color: colors.inkMuted, fontSize: 9, marginTop: 1 },
+  evidenceOpen: { minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.sm },
+  evidenceOpenText: { color: colors.primary, fontSize: 11, fontWeight: '900' },
   evidenceStatus: { fontSize: 8, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.4, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, overflow: 'hidden' },
   evidenceLocal: { color: '#9A6B00', backgroundColor: '#FFF6E5' },
   evidenceStored: { color: colors.success, backgroundColor: colors.successSoft },

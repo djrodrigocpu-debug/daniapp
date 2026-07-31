@@ -207,12 +207,34 @@ export class SupabaseEvidenceRepository implements EvidenceRepository {
     return error ? err(new AppError('network/unavailable', 'Falha ao remover a evidência.', { cause: error })) : ok(true);
   }
 
+  /**
+   * URL de leitura da evidência: ASSINADA e de curta duração (§12, D-03).
+   *
+   * Dois portões independentes, e é de propósito que sejam dois. `evidence_path`
+   * decide pelo ESCOPO no servidor (autor, Administrador, ou quem tem acesso à
+   * operação da avaliação de origem) e nega a quem está fora. Depois, a emissão
+   * da URL passa pela policy do bucket, que decide de novo pelo metadata real.
+   * Quem está fora do escopo não passa nem no primeiro.
+   *
+   * NUNCA é gerada URL pública: o bucket é privado e o link expira em `ttlSeconds`.
+   */
   async getUrl(evidenceId: string, ttlSeconds = 300): Promise<Result<string>> {
-    // Resolve o path e emite URL assinada de curta duração (§12).
     const { data, error } = await this.client.rpc('evidence_path', { p_evidence_id: evidenceId });
-    if (error || !data) return err(new AppError('network/unavailable', 'Falha ao localizar a evidência.', { cause: error }));
+    if (error || !data) {
+      // Sem permissão e evidência inexistente chegam iguais aqui de propósito:
+      // dizer qual dos dois é confirmaria a existência de evidência alheia.
+      return err(new AppError('validation/invalid-input',
+        'Esta evidência não está disponível para você.', { cause: error }));
+    }
     const signed = await this.client.storage.from(BUCKET).createSignedUrl(String(data), ttlSeconds);
-    if (signed.error) return err(new AppError('network/unavailable', 'Falha ao gerar URL de acesso.', { cause: signed.error }));
+    if (signed.error) {
+      // Aqui o escopo JÁ foi aprovado: o que falta é o arquivo. Metadata sem
+      // objeto no bucket cai exatamente neste ramo, e o usuário merece saber
+      // que o registro existe mas o arquivo não está lá.
+      return err(new AppError('storage/invalid-file',
+        'O arquivo desta evidência não foi encontrado no armazenamento.',
+        { severity: 'high', cause: signed.error }));
+    }
     return ok(signed.data.signedUrl);
   }
 }
