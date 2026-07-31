@@ -36,13 +36,20 @@ const leitorPadrao: LeitorDeBytes = async (uri) => {
 /**
  * A mensagem do PostgreSQL é escrita para o usuário final ("tipo de arquivo nao
  * permitido: use imagem ou PDF"), então vale mais que um texto genérico. Sem
- * mensagem, cai num texto neutro — nunca expõe detalhe de infraestrutura.
+ * mensagem, cai no texto neutro do chamador — nunca expõe detalhe de
+ * infraestrutura.
+ *
+ * Exportada porque o caminho de REMOÇÃO precisa da mesma tradução: a guarda de
+ * estado da 0034 responde "Evidencias so podem ser removidas enquanto a
+ * avaliacao estiver em rascunho ou devolvida", e uma guarda cuja explicação não
+ * chega à pessoa é uma guarda que só produz um erro sem sentido na tela.
  */
-function mensagemDoServidor(error: { message?: string } | null): string {
+export function mensagemDoServidor(
+  error: { message?: string } | null,
+  padrao = 'Não foi possível anexar a evidência.',
+): string {
   const bruta = error?.message?.trim();
-  return bruta && bruta.length > 0 && bruta.length < 200
-    ? bruta
-    : 'Não foi possível anexar a evidência.';
+  return bruta && bruta.length > 0 && bruta.length < 200 ? bruta : padrao;
 }
 
 export type EvidenceStoreInput = {
