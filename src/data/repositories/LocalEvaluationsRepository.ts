@@ -17,6 +17,7 @@ import {
   EvaluationsRepository,
   EvidenceInput,
 } from './EvaluationsRepository';
+import type { ResultadoDosDados } from '../../domain/report/exportarRelatorioOficial';
 
 const OPEN_STATUSES: Evaluation['status'][] = ['draft', 'returned'];
 
@@ -212,5 +213,31 @@ export class LocalEvaluationsRepository implements EvaluationsRepository {
       }),
     }));
     return submitted ? ok(submitted) : err('validation/invalid-input', 'Falha ao enviar.');
+  }
+
+  /**
+   * O modo demonstração NÃO emite Relatório Oficial de Auditoria.
+   *
+   * O documento afirma reproduzir o snapshot oficial imutável, e snapshot
+   * oficial só existe no servidor: é gravado por `validate_evaluation` e
+   * protegido contra alteração e exclusão (0003/0033). Montar aqui um
+   * "relatório oficial" a partir do store local produziria um documento com
+   * código de integridade, aparência de oficial e nenhum lastro — exatamente o
+   * tipo de artefato que o produto não pode gerar.
+   *
+   * A recusa é explícita e diz o motivo, em vez de o botão sumir sem explicação.
+   */
+  async getOfficialReportData(): Promise<ResultadoDosDados> {
+    return {
+      ok: false,
+      motivo: 'sem-snapshot',
+      message: 'O relatório oficial só é emitido no modo corporativo, a partir do registro '
+        + 'oficial da auditoria no servidor. Esta sessão está em modo de demonstração.',
+    };
+  }
+
+  /** Sem exportação oficial no modo demonstração, não há o que registrar. */
+  async logReportExport(): Promise<boolean> {
+    return false;
   }
 }

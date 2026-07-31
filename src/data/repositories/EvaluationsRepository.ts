@@ -10,6 +10,7 @@
  */
 import { ActionPlan, AssessmentAnswer, Evaluation, Evidence, Frequency } from '../../types';
 import { Result } from '../../domain/errors/result';
+import type { ResultadoDosDados } from '../../domain/report/exportarRelatorioOficial';
 
 export type EvidenceInput = Omit<Evidence, 'id' | 'themeId' | 'createdAt'>;
 export type ActionPlanInput = Omit<ActionPlan, 'id' | 'createdAt' | 'updatedAt'> & { id?: string };
@@ -49,4 +50,22 @@ export interface EvaluationsRepository {
   listActionPlans(evaluationId: string): Promise<Result<ActionPlan[]>>;
   /** Envia para validação aplicando as travas (completo/evidência/plano vermelho). */
   submit(evaluationId: string): Promise<Result<Evaluation>>;
+
+  /**
+   * Dados autorizados do Relatório Oficial de Auditoria (RPC 0035).
+   *
+   * Devolve a CAUSA da recusa, não só a mensagem: "ainda não validada",
+   * "sem snapshot" e "fora do escopo" levam o usuário a ações diferentes, e a
+   * tela precisa distingui-las sem interpretar texto de servidor.
+   */
+  getOfficialReportData(evaluationId: string): Promise<ResultadoDosDados>;
+
+  /**
+   * Registra na trilha a exportação que já foi entregue ao usuário. Devolve
+   * `false` quando não registrou — nunca lança: a falha do registro não pode
+   * desfazer um download que já aconteceu.
+   */
+  logReportExport(dados: {
+    evaluationId: string; snapshotId: string; reportVersion: string; integrityCode: string;
+  }): Promise<boolean>;
 }

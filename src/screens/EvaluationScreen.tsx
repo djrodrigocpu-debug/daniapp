@@ -23,7 +23,7 @@ const selectableStatuses: TrafficLight[] = ['green', 'yellow', 'red', 'not_appli
 
 export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<RootStackParamList, 'Evaluation'>) {
   const {
-    loading, error, getEvaluation, getOperation, getActionPlan, getEvidences, saveAnswer, addEvidence, removeEvidence, getEvidenceUrl, saveActionPlan, submit,
+    loading, error, getEvaluation, getOperation, getActionPlan, getEvidences, saveAnswer, addEvidence, removeEvidence, getEvidenceUrl, saveActionPlan, submit, exportOfficialReport,
   } = useEvaluations();
   const evaluation = route.params.evaluationId ? getEvaluation(route.params.evaluationId) : undefined;
   const operation = getOperation(route.params.operationId);
@@ -34,6 +34,10 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
   const [abrindoEvidencia, setAbrindoEvidencia] = useState<string | null>(null);
   /** Trava SÍNCRONA do toque duplo — o estado do React chega tarde demais. */
   const abrindoRef = useRef(false);
+  /** Exportação do relatório oficial em andamento. */
+  const [exportando, setExportando] = useState(false);
+  /** Mesma razão do `abrindoRef`: dois toques rápidos leriam `false` os dois. */
+  const exportandoRef = useRef(false);
 
   const grouped = useMemo(() => {
     if (!evaluation) return [];
@@ -161,6 +165,39 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
     }
   }
 
+  /**
+   * Exporta o Relatório Oficial de Auditoria (1.3.3).
+   *
+   * A decisão de quem pode emitir é do SERVIDOR: a RPC exige sessão, deriva a
+   * operação da própria avaliação e confere o escopo antes de revelar qualquer
+   * estado. O botão só antecipa o que já é visível na tela — a auditoria está
+   * aberta, portanto validada e no escopo de quem a abriu.
+   *
+   * A trava é um `ref`, não o estado: dois toques rápidos leriam `false` os
+   * dois e gerariam dois documentos e duas linhas na trilha.
+   */
+  async function exportarRelatorio() {
+    if (exportandoRef.current) return;
+    exportandoRef.current = true;
+    setExportando(true);
+    try {
+      const resultado = await exportOfficialReport(activeEvaluation.id);
+      if (!resultado.ok) {
+        alertDialog('O relatório não foi gerado', resultado.message);
+        return;
+      }
+      // O registro na trilha é secundário: o documento já saiu, e dizer que
+      // falhou tudo seria falso.
+      if (!resultado.registrado) {
+        alertDialog('Relatório gerado',
+          'O download foi iniciado, mas a exportação não pôde ser registrada na trilha de auditoria.');
+      }
+    } finally {
+      exportandoRef.current = false;
+      setExportando(false);
+    }
+  }
+
   async function handleSubmit() {
     const result = await submit(activeEvaluation.id);
     if (!result.ok) {
@@ -203,6 +240,23 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
         </View>
         <ProgressBar value={progress} />
         {readOnly && <View style={styles.readOnly}><Ionicons name="lock-closed-outline" size={16} color={colors.info} /><Text style={styles.readOnlyText}>Avaliação enviada. O conteúdo está em modo de consulta.</Text></View>}
+
+        {/* Relatório oficial: só existe depois da validação, porque só então
+            existe o snapshot oficial que o documento reproduz. */}
+        {activeEvaluation.status === 'approved' && (
+          <View style={styles.reportBlock}>
+            <AppButton
+              title={exportando ? 'Gerando relatório…' : 'Exportar relatório em PDF'}
+              variant="secondary"
+              loading={exportando}
+              disabled={exportando}
+              onPress={() => void exportarRelatorio()}
+            />
+            <Text style={styles.reportHint}>
+              Documento oficial da auditoria, gerado a partir do registro imutável da validação.
+            </Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.legend}>
@@ -377,6 +431,8 @@ const styles = StyleSheet.create({
   alignRight: { alignItems: 'flex-end' },
   readOnly: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center', backgroundColor: colors.infoSoft, borderRadius: radius.md, padding: spacing.md, marginTop: spacing.md },
   readOnlyText: { color: colors.info, fontSize: 11, flex: 1, lineHeight: 16 },
+  reportBlock: { marginTop: spacing.md, gap: spacing.sm },
+  reportHint: { color: colors.inkMuted, fontSize: 10, lineHeight: 15 },
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginVertical: spacing.lg, paddingHorizontal: 2 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
