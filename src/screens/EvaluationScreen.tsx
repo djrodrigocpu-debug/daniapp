@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { alertDialog } from '../utils/dialog';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -16,7 +16,8 @@ import { colors, radius, spacing } from '../theme';
 import { ActionPlan, AssessmentAnswer, RootStackParamList, Theme, TrafficLight } from '../types';
 import { completionRate } from '../utils/scoring';
 import { formatBytes, trafficLightColor, trafficLightLabel, trafficLightSoftColor } from '../utils/format';
-import { openExternalUrl } from '../utils/openExternal';
+import { baixarArquivo, reservarAbertura, temDownloadAlternativo } from '../utils/openExternal';
+import { abrirEvidencia as abrirEvidenciaDomain } from '../domain/evidence/abrirEvidencia';
 
 const selectableStatuses: TrafficLight[] = ['green', 'yellow', 'red', 'not_applicable'];
 
@@ -31,6 +32,8 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
   const [enviandoTema, setEnviandoTema] = useState<string | null>(null);
   /** Evidência cujo endereço está sendo resolvido — trava contra toque duplo. */
   const [abrindoEvidencia, setAbrindoEvidencia] = useState<string | null>(null);
+  /** Trava SÍNCRONA do toque duplo — o estado do React chega tarde demais. */
+  const abrindoRef = useRef(false);
 
   const grouped = useMemo(() => {
     if (!evaluation) return [];
@@ -132,25 +135,28 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
   /**
    * Abre a comprovação para quem tem acesso (D-03). O endereço é resolvido no
    * servidor e vem assinado, válido por poucos minutos — nunca há link público.
-   * `abrindoEvidencia` trava a lista inteira durante a resolução, para que dois
-   * toques não peçam duas URLs nem abram duas abas.
+   *
+   * A ORDEM importa e é o que corrige o bloqueio de pop-up no Chrome: a aba é
+   * reservada de forma SÍNCRONA, ainda dentro do toque, e só então a URL é
+   * buscada. Ver `domain/evidence/abrirEvidencia` para a medição que mostrou a
+   * ativação do gesto expirando no `await`.
+   *
+   * A trava de toque duplo é um `ref`, não o estado: `setState` é assíncrono e
+   * dois toques rápidos leriam `null` os dois, reservando duas abas.
    */
-  async function abrirEvidencia(evidenceId: string) {
-    if (abrindoEvidencia) return;
-    setAbrindoEvidencia(evidenceId);
+  async function abrirEvidencia(evidence: { id: string; name: string }) {
+    if (abrindoRef.current) return;
+    abrindoRef.current = true;
+    setAbrindoEvidencia(evidence.id);
     try {
-      const resultado = await getEvidenceUrl(evidenceId);
-      if (!resultado.ok) {
-        alertDialog('Não foi possível abrir a comprovação', resultado.message);
-        return;
-      }
-      if (!(await openExternalUrl(resultado.url))) {
-        alertDialog(
-          'Não foi possível abrir a comprovação',
-          'O navegador bloqueou a abertura em nova aba. Libere pop-ups para este endereço e tente de novo.',
-        );
-      }
+      const resultado = await abrirEvidenciaDomain({
+        reservar: reservarAbertura,
+        obterUrl: () => getEvidenceUrl(evidence.id),
+        baixar: temDownloadAlternativo ? baixarArquivo(evidence.name) : undefined,
+      });
+      if (!resultado.ok) alertDialog('Não foi possível abrir a comprovação', resultado.message);
     } finally {
+      abrindoRef.current = false;
       setAbrindoEvidencia(null);
     }
   }
@@ -315,7 +321,7 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
                       accessibilityRole="button"
                       accessibilityLabel={`Abrir evidência ${evidence.name}`}
                       disabled={abrindoEvidencia !== null}
-                      onPress={() => void abrirEvidencia(evidence.id)}
+                      onPress={() => void abrirEvidencia(evidence)}
                       style={styles.evidenceOpen}
                     >
                       <Text style={styles.evidenceOpenText}>{abrindoEvidencia === evidence.id ? 'Abrindo…' : 'Abrir'}</Text>

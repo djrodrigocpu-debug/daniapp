@@ -302,13 +302,24 @@ describe('EvaluationScreen — ação de abrir a comprovação', () => {
     expect(tela).toContain('formatBytes(evidence.sizeBytes)');
   });
 
-  it('toque duplo não pede duas URLs nem abre duas abas', () => {
-    expect(tela).toMatch(/if \(abrindoEvidencia\) return;/);
+  it('toque duplo não abre duas abas — a trava é síncrona, não o estado', () => {
+    // `setState` é assíncrono: dois toques rápidos leriam `null` os dois e
+    // reservariam duas abas. O `ref` fecha isso no mesmo tick.
+    expect(tela).toMatch(/if \(abrindoRef\.current\) return;/);
+    expect(tela).toMatch(/abrindoRef\.current = true;/);
     expect(tela).toContain('disabled={abrindoEvidencia !== null}');
   });
 
-  it('o endereço vem do provider, não é montado na tela', () => {
-    expect(tela).toContain('await getEvidenceUrl(evidenceId)');
+  it('a aba é reservada no toque e a URL vem do provider, não da tela', () => {
+    // A ordem de verdade é garantida por `domain/evidence/abrirEvidencia`; aqui
+    // só se confere que a tela entrega a reserva e o obtentor de URL certos.
+    expect(tela).toContain('reservar: reservarAbertura');
+    expect(tela).toContain('obterUrl: () => getEvidenceUrl(evidence.id)');
     expect(tela).not.toMatch(/supabase\.co\/storage/);
+    expect(tela).not.toMatch(/window\.open/);
+  });
+
+  it('o web tem saída por download quando a aba é barrada', () => {
+    expect(tela).toContain('baixar: temDownloadAlternativo ? baixarArquivo(evidence.name)');
   });
 });
