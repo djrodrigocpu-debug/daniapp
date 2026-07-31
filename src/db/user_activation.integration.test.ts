@@ -50,10 +50,12 @@ describe('admin_import_users — semântica de ativação (0013)', () => {
       tx.query<{ r: Report }>(`select public.admin_import_users($1::jsonb, $2) as r`,
         [JSON.stringify(rows), commit])).then((res) => res[0].r);
 
-  const ativarConfirmados = () =>
+  /** 1.3.2: a ativação exige alvo nomeado — não existe mais "ativar todos". */
+  const ativarConfirmados = (ids: string[]) =>
     db.asUser(ID.uAdmin, (tx) =>
       tx.query<{ r: { promoted: number } }>(
-        `select public.admin_activate_confirmed_users() as r`)).then((res) => res[0].r);
+        `select public.admin_activate_confirmed_users($1::uuid[]) as r`, [ids]))
+      .then((res) => res[0].r);
 
   /** Identidade Auth criada pela Edge Function (createUser). */
   const criarIdentidade = (id: string, email: string, confirmada = false) =>
@@ -110,12 +112,12 @@ describe('admin_import_users — semântica de ativação (0013)', () => {
     expect((await escoposAtivos(EMAIL.a))[0].n).toBe(1);
 
     // Sem e-mail confirmado, a ativação não promove.
-    await ativarConfirmados();
+    await ativarConfirmados([AUTH.a]);
     expect((await perfil(EMAIL.a))[0].status).toBe('invited');
 
     // Com identidade confirmada (é o que createUser + email_confirm produz):
     await db.exec(`update auth.users set email_confirmed_at = now() where id = '${AUTH.a}';`);
-    const promo = await ativarConfirmados();
+    const promo = await ativarConfirmados([AUTH.a]);
     expect(promo.promoted).toBe(1);
     expect((await perfil(EMAIL.a))[0].status).toBe('active');
   });
@@ -131,7 +133,7 @@ describe('admin_import_users — semântica de ativação (0013)', () => {
     expect((await escoposAtivos(EMAIL.b))[0].n).toBe(0);
     expect((await escoposTotais(EMAIL.b))[0].n).toBe(0);
 
-    const promo = await ativarConfirmados();
+    const promo = await ativarConfirmados([AUTH.b]);
     expect(promo.promoted).toBe(0);
     expect((await perfil(EMAIL.b))[0].status).toBe('inactive');
   });
@@ -139,7 +141,7 @@ describe('admin_import_users — semântica de ativação (0013)', () => {
   it('4 — existente active → inactive: escopo encerrado e nenhum novo', async () => {
     await criarIdentidade(AUTH.a, EMAIL.a, true);
     await importAs(ID.uAdmin, [linhaGc(EMAIL.a, true, AUTH.a)], true);
-    await ativarConfirmados();
+    await ativarConfirmados([AUTH.a]);
     expect((await perfil(EMAIL.a))[0].status).toBe('active');
     expect((await escoposAtivos(EMAIL.a))[0].n).toBe(1);
 
@@ -166,7 +168,7 @@ describe('admin_import_users — semântica de ativação (0013)', () => {
     expect((await perfil(EMAIL.b))[0].status).toBe('invited');
     expect((await escoposAtivos(EMAIL.b))[0].n).toBe(1);
 
-    await ativarConfirmados();
+    await ativarConfirmados([AUTH.b]);
     expect((await perfil(EMAIL.b))[0].status).toBe('active');
   });
 

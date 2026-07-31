@@ -20,7 +20,7 @@
  *   2. índice paginado do Auth                 — quem já tem identidade
  *   3. createUser dos que faltam               — senha inicial, sem e-mail
  *   4. admin_import_users(rows+authUserId, commit=true) — transação única
- *   5. admin_activate_confirmed_users()        — invited → active
+ *   5. admin_activate_confirmed_users(ids DO LOTE)      — invited → active
  *
  * SENHA: entra por `rows[].initialPassword`, vive apenas no escopo desta
  * requisição e não sai em nenhuma saída — nem no relatório, nem em erro, nem em
@@ -109,8 +109,14 @@ export interface AuthAdminPort {
 export interface DbPort {
   /** `public.admin_import_users(p_rows, p_commit)`. */
   importUsers(rows: unknown[], commit: boolean): Promise<{ data?: unknown; error?: string }>;
-  /** `public.admin_activate_confirmed_users()`. */
-  activateConfirmedUsers(): Promise<{ data?: unknown; error?: string }>;
+  /**
+   * `public.admin_activate_confirmed_users(p_user_ids)`.
+   *
+   * A lista é OBRIGATÓRIA desde a 1.3.2 (migration 0032). Até a 1.3.1 esta RPC
+   * não recebia alvo e promovia todo `invited` confirmado do banco — inclusive
+   * quem nunca esteve neste lote.
+   */
+  activateConfirmedUsers(userIds: string[]): Promise<{ data?: unknown; error?: string }>;
   /** `public.admin_require_password_change(uuid[])`. */
   requirePasswordChange(userIds: string[]): Promise<{ data?: unknown; error?: string }>;
 }
@@ -434,7 +440,11 @@ export async function handleProvisionUsers(
   // 9) `email_confirm: true` no createUser já preencheu `email_confirmed_at`,
   //    que é a condição de `admin_activate_confirmed_users` — os novos perfis
   //    saem de `invited` para `active` sem nenhum clique do usuário.
-  const ativados = await deps.db.activateConfirmedUsers();
+  //
+  //    O ALVO É O LOTE, nominalmente: `idPorEmail` tem o UUID de cada linha
+  //    processada (criada ou preexistente). Ninguém de fora desta requisição é
+  //    tocado — antes da 1.3.2 a chamada não tinha alvo e alcançava todo o banco.
+  const ativados = await deps.db.activateConfirmedUsers([...idPorEmail.values()]);
   if (ativados.error) {
     throw new HandlerError(400, `Ativação recusada: ${ativados.error}`);
   }

@@ -91,8 +91,10 @@ describe('admin_bootstrap_organizational_structure (0018)', () => {
     db.exec(`insert into auth.users (id, email) values ('${id}','${email}') on conflict (id) do nothing;`);
   const confirmarEmail = (id: string) =>
     db.exec(`update auth.users set email_confirmed_at = now() where id = '${id}';`);
-  const ativarConfirmados = () =>
-    db.asUser(ID.uAdmin, (tx) => tx.query(`select public.admin_activate_confirmed_users()`));
+  /** 1.3.2: a ativação exige alvo nomeado — não existe mais "ativar todos". */
+  const ativarConfirmados = (ids: string[]) =>
+    db.asUser(ID.uAdmin, (tx) =>
+      tx.query(`select public.admin_activate_confirmed_users($1::uuid[])`, [ids]));
 
   interface PartnerReport {
     counters: { total: number; inserted: number; updated: number; errors: number };
@@ -279,7 +281,7 @@ describe('admin_bootstrap_organizational_structure (0018)', () => {
     // com "nao esta ativo", como qualquer conta 'invited' recusaria.
     await confirmarEmail(AUTH_COORD);
     await confirmarEmail(AUTH_GC);
-    await ativarConfirmados();
+    await ativarConfirmados([AUTH_COORD, AUTH_GC]);
 
     const antesEstrutura = await contagens();
     const r = await bootstrapPartners([{
@@ -330,7 +332,7 @@ describe('admin_bootstrap_organizational_structure (0018)', () => {
     ], true);
     await confirmarEmail(AUTH_COORD);
     await confirmarEmail(AUTH_GC);
-    await ativarConfirmados();
+    await ativarConfirmados([AUTH_COORD, AUTH_GC]);
 
     const simParceiro = await bootstrapPartners([{
       index: 1,
