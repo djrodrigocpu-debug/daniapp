@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -90,6 +90,20 @@ export function DashboardScreen() {
         <FocusRow icon="time-outline" title="Planos vencidos" value={`${metrics.overdueActionsCount}`} tone={colors.warning} />
         <FocusRow icon="shield-checkmark-outline" title="Validações pendentes" value={`${metrics.pendingValidationsCount}`} tone={colors.info} last />
       </View>
+
+      <SectionTitle title="Matriz de desempenho" subtitle="Cruza a conformidade da auditoria com o resultado dos indicadores, por Parceiro AACE." />
+      <Pressable
+        style={({ pressed }) => [styles.matrixCard, pressed && styles.matrixCardPressed]}
+        onPress={() => navigation.navigate('PerformanceMatrix')}
+        accessibilityRole="button"
+      >
+        <View style={styles.matrixIcon}><Ionicons name="grid-outline" size={22} color={colors.primary} /></View>
+        <View style={styles.matrixTextBlock}>
+          <Text style={styles.matrixTitle}>Ver a matriz de desempenho</Text>
+          <Text style={styles.matrixSubtitle}>Quatro quadrantes: conformidade × resultado, sem alterar nenhuma nota.</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={colors.inkMuted} />
+      </Pressable>
     </Screen>
   );
 }
@@ -129,4 +143,19 @@ const styles = StyleSheet.create({
   focusIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   focusTitle: { color: colors.ink, fontSize: 13, fontWeight: '700', flex: 1 },
   focusValue: { fontSize: 17, fontWeight: '900' },
+  matrixCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+  },
+  matrixCardPressed: { opacity: 0.85 },
+  matrixIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  matrixTextBlock: { flex: 1 },
+  matrixTitle: { color: colors.ink, fontSize: 14, fontWeight: '800' },
+  matrixSubtitle: { color: colors.inkMuted, fontSize: 12, marginTop: 2, lineHeight: 16 },
 });

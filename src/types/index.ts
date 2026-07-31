@@ -75,4 +75,5 @@ export type RootStackParamList = {
   OperationDetail: { operationId: string };
   Evaluation: { operationId: string; evaluationId?: string };
   Performance: { operationId: string };
+  PerformanceMatrix: undefined;
 };
