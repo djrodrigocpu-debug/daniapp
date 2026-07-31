@@ -32,8 +32,9 @@ interface EvaluationsContextValue {
   getEvidences: (ids: string[]) => Evidence[];
   startEvaluation: (operationId: string, frequency: Frequency) => Promise<string | null>;
   saveAnswer: (evaluationId: string, themeId: string, patch: Partial<AssessmentAnswer>) => void;
-  addEvidence: (evaluationId: string, themeId: string, input: EvidenceInput) => void;
-  removeEvidence: (evaluationId: string, evidenceId: string) => void;
+  /** Só resolve depois de o arquivo estar realmente armazenado (D-02). */
+  addEvidence: (evaluationId: string, themeId: string, input: EvidenceInput) => Promise<SubmitResult>;
+  removeEvidence: (evaluationId: string, evidenceId: string) => Promise<SubmitResult>;
   saveActionPlan: (input: ActionPlanInput) => void;
   submit: (evaluationId: string) => Promise<SubmitResult>;
 }
@@ -143,15 +144,25 @@ export function EvaluationsProvider({ children }: { children: React.ReactNode })
   );
   // As três mutações recarregam: a tela relê getEvidences/getActionPlan em
   // seguida e precisa encontrar o que o servidor acabou de gravar.
+  /**
+   * Devolve o resultado em vez de engolir a falha. Antes era disparo e esquece:
+   * se o anexo falhava, a tela não dizia nada e o usuário seguia achando que a
+   * comprovação estava lá — no modo corporativo nem chegava a subir arquivo
+   * (D-02). Sucesso aqui significa arquivo no bucket, metadata e vínculo.
+   */
   const addEvidence = useCallback(
-    (evaluationId: string, themeId: string, input: EvidenceInput) => {
-      void repo.addEvidence(evaluationId, themeId, input).then(() => load());
+    async (evaluationId: string, themeId: string, input: EvidenceInput): Promise<SubmitResult> => {
+      const res = await repo.addEvidence(evaluationId, themeId, input);
+      await load();
+      return res.ok ? { ok: true } : { ok: false, message: res.error.message };
     },
     [repo, load],
   );
   const removeEvidence = useCallback(
-    (evaluationId: string, evidenceId: string) => {
-      void repo.removeEvidence(evaluationId, evidenceId).then(() => load());
+    async (evaluationId: string, evidenceId: string): Promise<SubmitResult> => {
+      const res = await repo.removeEvidence(evaluationId, evidenceId);
+      await load();
+      return res.ok ? { ok: true } : { ok: false, message: res.error.message };
     },
     [repo, load],
   );

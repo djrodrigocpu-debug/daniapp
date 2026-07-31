@@ -12,7 +12,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createTestDb, TestDb } from './testing/harness';
-import { seedScenario, ID } from './testing/fixtures';
+import { seedScenario, anexarEvidencia, ID } from './testing/fixtures';
 
 interface EstadoEnvio {
   status: string;
@@ -43,19 +43,6 @@ async function limpar(db: TestDb, evalId: string): Promise<void> {
   `);
 }
 
-/**
- * Ponto ÚNICO de anexo de evidência nos testes de envio: a forma de anexar muda
- * com D-02 (upload físico), a regra de envio não.
- */
-async function anexarEvidencia(db: TestDb, evalId: string): Promise<void> {
-  await db.asUser(ID.uGcB, (tx) =>
-    tx.query(`select public.add_evidence($1,$2,$3::jsonb)`, [
-      evalId,
-      'I01',
-      JSON.stringify({ name: 'ok.jpg', mimeType: 'image/jpeg', type: 'photo', sizeBytes: 1024 }),
-    ]));
-}
-
 /** Avaliação de opB, autorada por uGcB, com todos os portões de envio satisfeitos. */
 async function avaliacaoPronta(db: TestDb): Promise<string> {
   const draft = (await db.asUser(ID.uGcB, (tx) =>
@@ -64,7 +51,8 @@ async function avaliacaoPronta(db: TestDb): Promise<string> {
   await db.asUser(ID.uGcB, (tx) =>
     tx.query(`select public.save_evaluation_answer($1,$2,$3::jsonb)`,
       [draft.id, 'I01', JSON.stringify({ status: 'green' })]));
-  await anexarEvidencia(db, draft.id);
+  // Evidência pelo fluxo oficial: reserva → upload → confirmação (0028).
+  await anexarEvidencia(db, { userId: ID.uGcB, evaluationId: draft.id, themeId: 'I01' });
   return draft.id;
 }
 

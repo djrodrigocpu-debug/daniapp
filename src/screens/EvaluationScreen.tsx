@@ -26,6 +26,8 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
   const evaluation = route.params.evaluationId ? getEvaluation(route.params.evaluationId) : undefined;
   const operation = getOperation(route.params.operationId);
   const [selectedThemeId, setSelectedThemeId] = useState<string | null>(null);
+  /** Tema cujo anexo está subindo agora — trava o item contra toque duplo. */
+  const [enviandoTema, setEnviandoTema] = useState<string | null>(null);
 
   const grouped = useMemo(() => {
     if (!evaluation) return [];
@@ -71,7 +73,25 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
   const progress = completionRate(activeEvaluation.answers);
   const existingPlan = selectedThemeId ? getActionPlan(activeEvaluation.id, selectedThemeId) : undefined;
 
+  /**
+   * Envia a comprovação e só então avisa. O anexo agora sobe o arquivo de fato
+   * (D-02), o que leva tempo e pode falhar: `enviandoTema` bloqueia os dois
+   * botões do item enquanto o envio corre — evita o toque duplo virar dois
+   * uploads — e a falha é dita em voz alta, em vez de sumir.
+   */
+  async function anexar(themeId: string, input: Parameters<typeof addEvidence>[2]) {
+    if (enviandoTema) return;
+    setEnviandoTema(themeId);
+    try {
+      const resultado = await addEvidence(activeEvaluation.id, themeId, input);
+      if (!resultado.ok) alertDialog('A comprovação não foi anexada', resultado.message);
+    } finally {
+      setEnviandoTema(null);
+    }
+  }
+
   async function takePhoto(themeId: string) {
+    if (enviandoTema) return;
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
       alertDialog('Permissão necessária', 'Autorize o acesso à câmera para registrar a comprovação.');
@@ -80,7 +100,7 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
     const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.72, allowsEditing: false });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
-    addEvidence(activeEvaluation.id, themeId, {
+    await anexar(themeId, {
       name: asset.fileName ?? `Foto_${themeId}_${Date.now()}.jpg`,
       uri: asset.uri,
       mimeType: asset.mimeType ?? 'image/jpeg',
@@ -89,15 +109,21 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
   }
 
   async function pickDocument(themeId: string) {
+    if (enviandoTema) return;
     const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
-    addEvidence(activeEvaluation.id, themeId, {
+    await anexar(themeId, {
       name: asset.name,
       uri: asset.uri,
       mimeType: asset.mimeType,
       type: 'document',
     });
+  }
+
+  async function excluirEvidencia(evidenceId: string) {
+    const resultado = await removeEvidence(activeEvaluation.id, evidenceId);
+    if (!resultado.ok) alertDialog('A comprovação não foi removida', resultado.message);
   }
 
   async function handleSubmit() {
@@ -239,8 +265,8 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
 
                 {!readOnly && (
                   <View style={styles.evidenceButtons}>
-                    <AppButton title="Tirar foto" compact variant="secondary" onPress={() => void takePhoto(theme.id)} style={styles.flexButton} />
-                    <AppButton title="Anexar arquivo" compact variant="secondary" onPress={() => void pickDocument(theme.id)} style={styles.flexButton} />
+                    <AppButton title="Tirar foto" compact variant="secondary" loading={enviandoTema === theme.id} disabled={enviandoTema !== null} onPress={() => void takePhoto(theme.id)} style={styles.flexButton} />
+                    <AppButton title="Anexar arquivo" compact variant="secondary" loading={enviandoTema === theme.id} disabled={enviandoTema !== null} onPress={() => void pickDocument(theme.id)} style={styles.flexButton} />
                   </View>
                 )}
 
@@ -251,7 +277,7 @@ export function EvaluationScreen({ route, navigation }: NativeStackScreenProps<R
                     <Text style={[styles.evidenceStatus, evidence.status === 'stored' ? styles.evidenceStored : styles.evidenceLocal]}>
                       {evidence.status === 'stored' ? 'enviado' : 'local'}
                     </Text>
-                    {!readOnly && <Pressable onPress={() => removeEvidence(evaluation.id, evidence.id)}><Ionicons name="trash-outline" size={18} color={colors.danger} /></Pressable>}
+                    {!readOnly && <Pressable onPress={() => void excluirEvidencia(evidence.id)}><Ionicons name="trash-outline" size={18} color={colors.danger} /></Pressable>}
                   </View>
                 ))}
 

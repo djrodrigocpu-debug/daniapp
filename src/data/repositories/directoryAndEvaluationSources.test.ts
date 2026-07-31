@@ -14,6 +14,7 @@ import { describe, it, expect } from 'vitest';
 import { LocalDirectoryRepository, SupabaseDirectoryRepository } from './DirectoryRepository';
 import { LocalEvaluationsRepository } from './LocalEvaluationsRepository';
 import { SupabaseEvaluationsRepository } from './SupabaseEvaluationsRepository';
+import { SupabaseEvidenceRepository } from './EvidenceRepository';
 import { LocalStore } from '../store/localStore';
 import { AppData, Evaluation, User } from '../../types';
 
@@ -99,20 +100,20 @@ describe('2/3 — avaliações por modo', () => {
 
   it('modo corporativo NÃO lê o store local: consulta a projeção ui_evaluations', async () => {
     const { client, calls } = fakeClient([E_SINT]);
-    const res = await new SupabaseEvaluationsRepository(client).listVisible();
+    const res = await new SupabaseEvaluationsRepository(client, new SupabaseEvidenceRepository(client)).listVisible();
     expect(calls.map((c) => c.table)).toEqual(['ui_evaluations']);
     expect(res.ok && res.value[0].id).toBe(E_SINT.id);
   });
 
   it('5/6 — a avaliação é recuperável por UUID canônico, não por nome ou posição', async () => {
     const { client, calls } = fakeClient([E_SINT]);
-    await new SupabaseEvaluationsRepository(client).getById(E_SINT.id);
+    await new SupabaseEvaluationsRepository(client, new SupabaseEvidenceRepository(client)).getById(E_SINT.id);
     expect(calls[0].filters).toEqual([`id=${E_SINT.id}`]);
   });
 
   it('12 — a lista de avaliações é UMA consulta para todo o escopo', async () => {
     const { client, calls } = fakeClient([E_SINT, E_SINT_ANTIGA]);
-    await new SupabaseEvaluationsRepository(client).listVisible();
+    await new SupabaseEvaluationsRepository(client, new SupabaseEvidenceRepository(client)).listVisible();
     expect(calls).toHaveLength(1);
   });
 });

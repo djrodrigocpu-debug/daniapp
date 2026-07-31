@@ -61,9 +61,12 @@ export interface Repositories {
 function buildRepositories(): Repositories {
   const client = runtimeConfig.isConfigured ? getSupabaseClient(runtimeConfig) : null;
   if (client) {
+    // Uma única instância de evidência, compartilhada: é ela que sobe o binário
+    // ao bucket, e o repositório de avaliações delega o anexo para ela (D-02).
+    const evidence = new SupabaseEvidenceRepository(client);
     return {
       operations: new SupabaseOperationsRepository(client),
-      evaluations: new SupabaseEvaluationsRepository(client),
+      evaluations: new SupabaseEvaluationsRepository(client, evidence),
       directory: new SupabaseDirectoryRepository(client),
       actions: new SupabaseActionsRepository(client),
       validations: new SupabaseValidationsRepository(client),
@@ -71,7 +74,7 @@ function buildRepositories(): Repositories {
       adminIndicators: new SupabaseAdminIndicatorsRepository(client),
       adminPartners: new SupabaseAdminPartnersRepository(client),
       performance: new SupabasePerformanceRepository(client),
-      evidence: new SupabaseEvidenceRepository(client),
+      evidence,
       source: 'supabase',
     };
   }

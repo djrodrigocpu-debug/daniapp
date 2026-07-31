@@ -24,6 +24,7 @@ drop view if exists
   cascade;
 
 drop table if exists
+  public.evidence_upload_reservations,
   public.visit_reports,
   public.indicator_results,
   public.sync_operations,

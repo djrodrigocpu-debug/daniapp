@@ -12,6 +12,7 @@
 import { describe, it, expect } from 'vitest';
 import { LocalEvaluationsRepository } from './LocalEvaluationsRepository';
 import { SupabaseEvaluationsRepository } from './SupabaseEvaluationsRepository';
+import { SupabaseEvidenceRepository } from './EvidenceRepository';
 import { LocalStore } from '../store/localStore';
 import { AppData, Evidence } from '../../types';
 
@@ -67,7 +68,7 @@ describe('12 — modo demonstração continua lendo o store local', () => {
 describe('10/11 — modo corporativo consulta as projeções, não o store', () => {
   it('14/20 — evidências vêm de ui_evidences em UMA consulta, sem o evaluationId extra', async () => {
     const { client, calls } = fakeClient([{ ...EVD_SINT, evaluationId: EVAL_UUID }]);
-    const res = await new SupabaseEvaluationsRepository(client).listVisibleEvidences();
+    const res = await new SupabaseEvaluationsRepository(client, new SupabaseEvidenceRepository(client)).listVisibleEvidences();
     expect(calls.map((c) => c.table)).toEqual(['ui_evidences']);
     expect(res.ok && res.value[0].id).toBe(EVD_SINT.id);
     // A forma devolvida é exatamente `Evidence` — a chave administrativa da
@@ -77,7 +78,7 @@ describe('10/11 — modo corporativo consulta as projeções, não o store', () 
 
   it('13/15 — planos por avaliação filtram pela coluna canônica "evaluationId" da view', async () => {
     const { client, calls } = fakeClient([]);
-    await new SupabaseEvaluationsRepository(client).listActionPlans(EVAL_UUID);
+    await new SupabaseEvaluationsRepository(client, new SupabaseEvidenceRepository(client)).listActionPlans(EVAL_UUID);
     expect(calls[0].table).toBe('ui_action_plans');
     // `evaluation_id` não existe em ui_action_plans: filtrar por ela derrubava
     // a consulta inteira.

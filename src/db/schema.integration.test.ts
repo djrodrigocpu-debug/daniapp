@@ -21,6 +21,9 @@ const REQUIRED_TABLES = [
   'audit_logs', 'sync_operations',
   // Extensão de domínio 0004 (Gestão Assistida): também sob RLS forçada.
   'indicator_results', 'visit_reports',
+  // 0028: reserva de upload de evidência — estado intermediário entre o caminho
+  // reservado e o arquivo confirmado no bucket (D-02).
+  'evidence_upload_reservations',
 ];
 
 describe('esquema aplicado em banco real (0001→0003)', () => {
