@@ -90,10 +90,14 @@ describe('resolução de PLANO DE AÇÃO e EVIDÊNCIA reais — sem seed de demo
   });
 
   it('13/14 — as mutações recarregam antes de a tela reler o estado', () => {
+    // Duas formas valem, e as duas recarregam: `.then(() => load())` para a
+    // mutação que não devolve resultado, e `await load()` para as de evidência,
+    // que desde a 1.3.1 devolvem sucesso ou falha ao chamador (D-02) e por isso
+    // precisam esperar a recarga antes de responder.
     for (const mutacao of ['addEvidence', 'saveActionPlan', 'removeEvidence']) {
       const inicio = arquivos.evaluations.indexOf(`const ${mutacao}`);
       const trecho = arquivos.evaluations.slice(inicio, inicio + 400);
-      expect(trecho).toContain('.then(() => load())');
+      expect(trecho, `${mutacao} não recarrega`).toMatch(/\.then\(\(\) => load\(\)\)|await load\(\)/);
     }
   });
 
