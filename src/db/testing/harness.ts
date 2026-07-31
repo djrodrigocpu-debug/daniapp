@@ -74,20 +74,34 @@ export interface RlsSession {
 
 async function applyBaseline(db: PGlite, opts: TestDbOptions): Promise<void> {
   await db.exec(read(COMPAT_FILE));
+
+  // Privilégios de tabela do Supabase — concedidos ANTES das migrations, como
+  // DEFAULT PRIVILEGES, porque é assim que o ambiente real funciona: cada objeto
+  // nasce já com o grant, e uma migration posterior que REVOGA um privilégio
+  // permanece revogada.
+  //
+  // Antes da 1.3.2 estes grants rodavam DEPOIS das migrations, com
+  // `grant ... on all tables`, e desfaziam silenciosamente todo revoke de tabela.
+  // O `revoke insert, update, delete on public.audit_logs` da 0029 nunca valeu
+  // dentro do harness — está anotado no próprio teste da trilha — e a
+  // imutabilidade de `official_snapshots` (0033) não teria onde ser provada.
+  //
+  // `all` reproduz o que o staging mostra no catálogo: `anon` e `authenticated`
+  // com `arwdDxtm` em toda tabela de `public`, e a RLS decidindo o resto. Quem
+  // nega o acesso passa a ser sempre a camada que nega no ambiente real.
+  await db.exec(`
+    alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+    alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
+  `);
+
   for (const f of MIGRATION_FILES) {
     await db.exec(read(f));
   }
-  // Concede às roles o acesso de tabela que o Supabase concede globalmente.
   // IMPORTANTE: NÃO concedemos `usage on schema app` a `authenticated` aqui — no
   // Supabase real um schema criado por migration não dá USAGE a authenticated por
   // padrão; quem concede é a migration 0008. Assim o harness reproduz fielmente o
   // ambiente remoto (e teria pego o bug "permission denied for schema app").
-  await db.exec(`
-    grant select, insert, update, delete on all tables in schema public to authenticated;
-    grant usage, select on all sequences in schema public to authenticated;
-    grant usage on schema app to anon, service_role;
-    grant select on all tables in schema public to anon;
-  `);
+  await db.exec(`grant usage on schema app to anon, service_role;`);
   if (opts.seed) {
     await db.exec(read(SEED_FILE));
   }
