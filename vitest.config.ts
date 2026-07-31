@@ -34,5 +34,18 @@ export default defineConfig({
     exclude: ['node_modules/**', 'dist/**', '.expo/**'],
     globals: false,
     reporters: ['default'],
+    /**
+     * Os testes de banco sobem um PostgreSQL em WASM (PGlite) e, em vários
+     * arquivos, o `beforeEach` chama `db.reset()` — que reaplica TODAS as
+     * migrations. Esse custo cresce a cada migration nova: com as 0031–0034 da
+     * 1.3.2 o reset passou a estourar, de forma intermitente e só sob a carga
+     * paralela da suíte inteira, o limite padrão de 10s do vitest. O sintoma era
+     * um arquivo inteiro pulado num rodar e verde no seguinte.
+     *
+     * O limite alto não esconde lentidão de teste: `testTimeout` continua no
+     * padrão, então só a PREPARAÇÃO ganha folga. Um hook realmente travado
+     * continua falhando — apenas mais tarde.
+     */
+    hookTimeout: 60_000,
   },
 });
