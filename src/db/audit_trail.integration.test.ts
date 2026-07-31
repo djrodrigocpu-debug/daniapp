@@ -282,25 +282,26 @@ describe('audit_logs — a trilha não aceita ser forjada nem apagada', () => {
     expect(criado[0].actor).toBe(ID.uGcB);
   });
 
-  // NOTA sobre estes dois: a `audit_logs` não tem policy de UPDATE nem de
-  // DELETE, então a tentativa do usuário não casa com linha nenhuma e o
-  // PostgreSQL não levanta erro — simplesmente nada acontece. O que precisa ser
-  // verdade, e é o que se verifica aqui, é que o log continua intacto. A 0029
-  // ainda REVOGA insert/update/delete de `authenticated` na tabela, o que
-  // produziria "permission denied"; esse reforço não aparece no harness porque
-  // ele reconcede privilégio de tabela DEPOIS das migrations (ver
-  // `testing/harness.ts`), e por isso é conferido direto no staging.
+  // NOTA sobre estes dois: até a 1.3.1 eles só podiam afirmar que o log
+  // continuava intacto. O `revoke insert, update, delete` que a 0029 aplica em
+  // `audit_logs` não valia dentro do harness, porque ele reconcedia privilégio
+  // de tabela DEPOIS das migrations, e a tentativa apenas não casava com linha
+  // nenhuma (a tabela não tem policy de UPDATE nem de DELETE). A 1.3.2 passou
+  // esses grants para DEFAULT PRIVILEGES antes das migrations — como no Supabase
+  // real —, então agora o revoke vale aqui também e a recusa é a de verdade.
   it('usuário comum não consegue alterar log existente', async () => {
-    await db.asUser(ID.uGcB, (tx) => tx.query(
+    const erro = await db.asUser(ID.uGcB, (tx) => tx.expectError(
       `update public.audit_logs set event = 'adulterado' where event = 'evaluation.created'`));
+    expect(erro.message).toMatch(/permission denied for table audit_logs/);
 
     expect(await logs(db, 'adulterado')).toHaveLength(0);
     expect(await logs(db, 'evaluation.created')).toHaveLength(1);
   });
 
   it('usuário comum não consegue apagar log existente', async () => {
-    await db.asUser(ID.uGcB, (tx) => tx.query(
+    const erro = await db.asUser(ID.uGcB, (tx) => tx.expectError(
       `delete from public.audit_logs where event = 'evaluation.created'`));
+    expect(erro.message).toMatch(/permission denied for table audit_logs/);
 
     expect(await logs(db, 'evaluation.created')).toHaveLength(1);
   });

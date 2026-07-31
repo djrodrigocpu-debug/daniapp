@@ -94,8 +94,10 @@ function dbPortFor(accessToken: string): DbPort {
       });
       return error ? { error: error.message } : { data };
     },
-    async activateConfirmedUsers() {
-      const { data, error } = await asCaller.rpc('admin_activate_confirmed_users');
+    async activateConfirmedUsers(userIds: string[]) {
+      const { data, error } = await asCaller.rpc('admin_activate_confirmed_users', {
+        p_user_ids: userIds,
+      });
       return error ? { error: error.message } : { data };
     },
   };

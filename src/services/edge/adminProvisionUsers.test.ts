@@ -54,6 +54,8 @@ function deps(options: FakeOptions = {}) {
   const senhasRecebidas: string[] = [];
   const chamadasImport: Array<{ rows: unknown[]; commit: boolean }> = [];
   const ativacoes: number[] = [];
+  /** Alvos NOMEADOS de cada ativação (1.3.2 / migration 0032). */
+  const alvosAtivacao: string[][] = [];
   const existentes = { ...(options.existentes ?? {}) };
 
   const auth: AuthAdminPort = {
@@ -95,9 +97,10 @@ function deps(options: FakeOptions = {}) {
         },
       };
     }),
-    activateConfirmedUsers: vi.fn(async () => {
+    activateConfirmedUsers: vi.fn(async (userIds: string[]) => {
       if (options.erroAtivacao) return { error: options.erroAtivacao };
       ativacoes.push(1);
+      alvosAtivacao.push([...userIds]);
       return { data: { promoted: options.promoted ?? 0, active: 0, stillInvited: 0 } };
     }),
     requirePasswordChange: vi.fn(async (ids: string[]) => {
@@ -126,6 +129,7 @@ function deps(options: FakeOptions = {}) {
     senhasRecebidas,
     chamadasImport,
     ativacoes,
+    alvosAtivacao,
     redefinidos,
     marcados,
   } satisfies HandlerDeps & Record<string, unknown>;
@@ -177,6 +181,25 @@ describe('admin-provision-users — criação sem e-mail', () => {
     expect(d.auth.createUser).toHaveBeenCalledWith('nova@sint.test', SENHA);
     expect(d.criados).toEqual(['nova@sint.test']);
     expect(d.ativacoes).toHaveLength(1);
+  });
+
+  it('a ativação NOMEIA o lote: ninguém de fora da requisição é alcançado (0032)', async () => {
+    // O-02. Até a 1.3.1 a chamada não recebia alvo e promovia todo `invited`
+    // confirmado do banco — inclusive pessoas que não estavam nesta planilha.
+    const d = deps({
+      pendingAuth: ['nova@sint.test'],
+      existentes: { 'antiga@sint.test': 'auth-antiga' },
+    });
+    const res = await call(
+      [linha({ email: 'nova@sint.test' }), linha({ email: 'antiga@sint.test' })],
+      ADMIN_TOKEN,
+      d,
+    );
+
+    expect(res.ok).toBe(true);
+    expect(d.alvosAtivacao).toHaveLength(1);
+    // Exatamente os UUIDs das duas linhas do lote: a criada e a preexistente.
+    expect([...d.alvosAtivacao[0]].sort()).toEqual(['auth-antiga', 'auth-nova@sint.test']);
   });
 
   it('a porta de Auth NÃO expõe convite — inviteUserByEmail não existe', () => {

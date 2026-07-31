@@ -267,13 +267,15 @@ describe('admin_import_users — onboarding transacional (0010)', () => {
 
     // Sem confirmação, a ativação não promove ninguém.
     const semConfirmar = await db.asUser(ID.uAdmin, (tx) =>
-      tx.query<{ r: { promoted: number } }>(`select public.admin_activate_confirmed_users() as r`));
+      tx.query<{ r: { promoted: number } }>(
+        `select public.admin_activate_confirmed_users($1::uuid[]) as r`, [[AUTH.novoGc]]));
     expect(semConfirmar[0].r.promoted).toBe(0);
     expect((await perfil('novo.gc@fic.example')).status).toBe('invited');
 
     await confirmarEmail(AUTH.novoGc);
     const depois = await db.asUser(ID.uAdmin, (tx) =>
-      tx.query<{ r: { promoted: number } }>(`select public.admin_activate_confirmed_users() as r`));
+      tx.query<{ r: { promoted: number } }>(
+        `select public.admin_activate_confirmed_users($1::uuid[]) as r`, [[AUTH.novoGc]]));
     expect(depois[0].r.promoted).toBe(1);
     expect((await perfil('novo.gc@fic.example')).status).toBe('active');
 
@@ -431,7 +433,7 @@ describe('admin_import_users — onboarding transacional (0010)', () => {
 
   it('18b — não-administrador não ativa usuários', async () => {
     const erro = await db.asUser(ID.uGcA, (tx) =>
-      tx.expectError(`select public.admin_activate_confirmed_users()`));
+      tx.expectError(`select public.admin_activate_confirmed_users($1::uuid[])`, [[AUTH.novoGc]]));
     expect(erro.message).toMatch(/apenas administrador/);
   });
 
@@ -453,7 +455,8 @@ describe('admin_import_users — onboarding transacional (0010)', () => {
 
     // 4. Ativação só após confirmação do e-mail.
     await confirmarEmail(AUTH.novoGc);
-    await db.asUser(ID.uAdmin, (tx) => tx.query(`select public.admin_activate_confirmed_users()`));
+    await db.asUser(ID.uAdmin, (tx) =>
+      tx.query(`select public.admin_activate_confirmed_users($1::uuid[])`, [[AUTH.novoGc]]));
     expect((await perfil('gc.importado@fic.example')).status).toBe('active');
 
     // 5/6. O parceiro resolve o GC recém-importado.

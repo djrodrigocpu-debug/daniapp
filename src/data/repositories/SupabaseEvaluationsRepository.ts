@@ -17,7 +17,7 @@ import {
   EvaluationsRepository,
   EvidenceInput,
 } from './EvaluationsRepository';
-import { SupabaseEvidenceRepository } from './EvidenceRepository';
+import { SupabaseEvidenceRepository, mensagemDoServidor } from './EvidenceRepository';
 
 function fail(message: string, cause?: unknown): AppError {
   return new AppError('network/unavailable', message, { severity: 'high', cause });
@@ -121,6 +121,10 @@ export class SupabaseEvaluationsRepository implements EvaluationsRepository {
    * `evidence_path` (verificada por escopo no servidor); a ordem é metadata →
    * objeto, para que uma falha na segunda etapa deixe no máximo um objeto órfão,
    * nunca um metadata apontando para arquivo inexistente.
+   *
+   * A ORDEM banco → Storage também é o que torna a guarda de estado da 0034
+   * efetiva: a recusa acontece antes de qualquer remoção física, então uma
+   * tentativa em avaliação enviada não chega a tocar o arquivo.
    */
   async removeEvidence(evaluationId: string, evidenceId: string): Promise<Result<true>> {
     const caminho = await this.client.rpc('evidence_path', { p_evidence_id: evidenceId });
@@ -128,7 +132,10 @@ export class SupabaseEvaluationsRepository implements EvaluationsRepository {
       p_evaluation_id: evaluationId,
       p_evidence_id: evidenceId,
     });
-    if (error) return err(fail('Falha ao remover a evidência.', error));
+    // A mensagem do servidor é escrita para o usuário final e explica POR QUE a
+    // remoção foi recusada. Trocá-la por um texto genérico deixaria a pessoa
+    // sem a única informação que resolve o problema dela: devolver a avaliação.
+    if (error) return err(fail(mensagemDoServidor(error, 'Falha ao remover a evidência.'), error));
 
     if (!caminho.error && typeof caminho.data === 'string') {
       const limpeza = await this.client.storage.from('evidencias').remove([caminho.data]);
