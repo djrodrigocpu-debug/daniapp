@@ -1,5 +1,5 @@
 /**
- * Matriz de desempenho (AAPEX v2): cruza conformidade (auditoria aprovada) com
+ * Matriz de Desempenho: cruza conformidade (auditoria aprovada) com
  * resultado (indicadores da Gestão Assistida), por Parceiro AACE. A tela NÃO
  * calcula nada — toda a regra mora em `domain/dashboard/performanceMatrix.ts`.
  *
