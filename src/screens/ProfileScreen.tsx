@@ -11,7 +11,7 @@ import { useOperations } from '../context/OperationsProvider';
 import { localStore } from '../data/store/localStore';
 import { colors, radius, spacing } from '../theme';
 import { roleLabel } from '../utils/format';
-import { appVersion, dataModeLabel } from '../domain/version/appVersion';
+import { appVersion, dataMode, dataModeLabel, dataModeNotice } from '../domain/version/appVersion';
 
 export function ProfileScreen() {
   const { signOut } = useAuth();
@@ -20,10 +20,15 @@ export function ProfileScreen() {
   const logout = signOut;
   const resetDemo = () => localStore.reset();
   const visibleOperations = operations;
+  // Ambiente e persistência são DERIVADOS do modo real (ver domain/version).
+  // A tela não afirma nada sobre versão nem sobre onde o dado mora.
+  const mode = dataMode();
+  const notice = dataModeNotice();
+  const isLocalData = mode !== 'corporate';
   if (!currentUser) return null;
 
   function confirmReset() {
-    alertDialog('Restaurar dados da demonstração?', 'Rascunhos, evidências e alterações locais serão substituídos pelos dados iniciais da versão 1.0.', [
+    alertDialog('Restaurar dados da demonstração?', 'Rascunhos, evidências e alterações locais serão substituídos pelos dados iniciais da demonstração.', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Restaurar', style: 'destructive', onPress: () => void resetDemo() },
     ]);
@@ -44,18 +49,20 @@ export function ProfileScreen() {
         <Info icon="map-outline" label="Área de atuação" value={currentUser.region} />
         <Info icon="business-outline" label="Parceiros AACE visíveis" value={`${visibleOperations.length}`} />
         <Info icon="phone-portrait-outline" label="Versão do aplicativo" value={appVersion()} />
-        <Info icon="cloud-offline-outline" label="Modo de dados" value={dataModeLabel()} last />
+        <Info icon={isLocalData ? 'phone-portrait-outline' : 'cloud-done-outline'} label="Modo de dados" value={dataModeLabel()} last />
       </View>
 
-      <View style={styles.notice}>
+      <View style={styles.notice} accessibilityRole="text" accessibilityLabel={`${notice.title}. ${notice.body}`}>
         <Ionicons name="information-circle-outline" size={22} color={colors.info} />
         <View style={styles.noticeText}>
-          <Text style={styles.noticeTitle}>Escopo da versão 1.2</Text>
-          <Text style={styles.noticeBody}>Gestão assistida com metas, resultado, semáforo automático, diagnóstico, plano de ação, retroalimentação e relatório local. Os dados permanecem no aparelho nesta versão.</Text>
+          <Text style={styles.noticeTitle}>{notice.title}</Text>
+          <Text style={styles.noticeBody}>{notice.body}</Text>
         </View>
       </View>
 
-      <AppButton title="Restaurar dados demonstrativos" variant="secondary" onPress={confirmReset} />
+      {/* Só existe dado demonstrativo para restaurar quando a fonte é o store
+          local; no ambiente corporativo o botão não altera nada que a tela mostra. */}
+      {isLocalData && <AppButton title="Restaurar dados demonstrativos" variant="secondary" onPress={confirmReset} />}
       <AppButton title="Sair" variant="ghost" onPress={() => void logout()} style={styles.logout} />
 
       <Text style={styles.footer}>AAPEx · Avaliar. Comprovar. Evoluir.</Text>
