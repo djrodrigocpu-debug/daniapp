@@ -15,6 +15,12 @@ import { localStore } from '../data/store/localStore';
 import { useOperationalUser } from './useOperationalUser';
 import { useOperations } from './OperationsProvider';
 import { useDirectory } from './DirectoryProvider';
+import {
+  exportarRelatorioOficial,
+  type ResultadoDaExportacao,
+} from '../domain/report/exportarRelatorioOficial';
+import { renderOfficialAuditReportPdf } from '../domain/report/pdf/renderOfficialAuditReport';
+import { entregarPdf } from '../utils/entregarPdf';
 
 export type SubmitResult = { ok: true } | { ok: false; message: string };
 
@@ -42,6 +48,11 @@ interface EvaluationsContextValue {
   getEvidenceUrl: (evidenceId: string) => Promise<{ ok: true; url: string } | { ok: false; message: string }>;
   saveActionPlan: (input: ActionPlanInput) => void;
   submit: (evaluationId: string) => Promise<SubmitResult>;
+  /**
+   * Gera e entrega o Relatório Oficial de Auditoria em PDF (1.3.3). Não
+   * recarrega nada: é leitura, e o documento sai do snapshot oficial.
+   */
+  exportOfficialReport: (evaluationId: string) => Promise<ResultadoDaExportacao>;
 }
 
 const EvaluationsContext = createContext<EvaluationsContextValue | undefined>(undefined);
@@ -202,6 +213,22 @@ export function EvaluationsProvider({ children }: { children: React.ReactNode })
     },
     [repo, load],
   );
+  /**
+   * A ORDEM da exportação vive no domínio puro; aqui só se ligam as peças:
+   * os dados vêm do repositório do modo vigente, o desenho é o renderizador de
+   * PDF e a entrega é a da plataforma. Nada é recarregado — exportar não muda
+   * estado nenhum.
+   */
+  const exportOfficialReport = useCallback(
+    (evaluationId: string) => exportarRelatorioOficial({
+      obterDados: () => repo.getOfficialReportData(evaluationId),
+      agora: () => new Date().toISOString(),
+      renderizar: (modelo) => renderOfficialAuditReportPdf(modelo),
+      entregar: entregarPdf(),
+      registrar: (dados) => repo.logReportExport(dados),
+    }),
+    [repo],
+  );
 
   const value = useMemo<EvaluationsContextValue>(
     () => ({
@@ -221,8 +248,9 @@ export function EvaluationsProvider({ children }: { children: React.ReactNode })
       getEvidenceUrl,
       saveActionPlan,
       submit,
+      exportOfficialReport,
     }),
-    [loading, error, getEvaluation, getOperation, getUser, listByOperation, getCurrentDraft, getActionPlan, getEvidences, startEvaluation, saveAnswer, addEvidence, removeEvidence, getEvidenceUrl, saveActionPlan, submit],
+    [loading, error, getEvaluation, getOperation, getUser, listByOperation, getCurrentDraft, getActionPlan, getEvidences, startEvaluation, saveAnswer, addEvidence, removeEvidence, getEvidenceUrl, saveActionPlan, submit, exportOfficialReport],
   );
 
   return <EvaluationsContext.Provider value={value}>{children}</EvaluationsContext.Provider>;

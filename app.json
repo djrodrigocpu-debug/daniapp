@@ -3,7 +3,7 @@
     "name": "AAPEx",
     "slug": "aace-excelencia",
     "scheme": "aaceexcelencia",
-    "version": "1.3.2",
+    "version": "1.3.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.aace.excelencia",
-      "buildNumber": "6",
+      "buildNumber": "7",
       "infoPlist": {
         "NSCameraUsageDescription": "O AAPEx utiliza a câmera para registrar evidências das avaliações realizadas nos Parceiros AACE.",
         "NSPhotoLibraryUsageDescription": "O AAPEx permite selecionar imagens para comprovar as avaliações realizadas."
@@ -24,7 +24,7 @@
     },
     "android": {
       "package": "com.aace.excelencia",
-      "versionCode": 6,
+      "versionCode": 7,
       "permissions": [
         "CAMERA"
       ],
@@ -57,11 +57,12 @@
         }
       ],
       "expo-document-picker",
-      "expo-font"
+      "expo-font",
+      "expo-sharing"
     ],
     "extra": {
-      "release": "1.3.2",
-      "releaseName": "Endurecimento de RPCs, autorização e imutabilidade"
+      "release": "1.3.3",
+      "releaseName": "Relatório Oficial de Auditoria em PDF"
     }
   }
 }

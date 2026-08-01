@@ -18,6 +18,12 @@ import {
   EvidenceInput,
 } from './EvaluationsRepository';
 import { SupabaseEvidenceRepository, mensagemDoServidor } from './EvidenceRepository';
+import {
+  MENSAGENS,
+  motivoDoErroDoServidor,
+  type ResultadoDosDados,
+} from '../../domain/report/exportarRelatorioOficial';
+import type { OfficialAuditReportInput } from '../../domain/report/officialAuditReport';
 
 function fail(message: string, cause?: unknown): AppError {
   return new AppError('network/unavailable', message, { severity: 'high', cause });
@@ -167,5 +173,42 @@ export class SupabaseEvaluationsRepository implements EvaluationsRepository {
     // A autoridade das travas de envio (§7.4) é o servidor; o cliente apenas dispara.
     const { data, error } = await this.client.rpc('submit_evaluation', { p_evaluation_id: evaluationId });
     return toResult(data as Evaluation, error, 'Falha ao enviar para validação.');
+  }
+
+  /**
+   * Relatório Oficial de Auditoria (RPC 0035). Quem autoriza é o servidor: a
+   * RPC exige `auth.uid()`, deriva a operação da própria avaliação, confere o
+   * escopo e só então revela estado. Aqui a recusa é apenas CLASSIFICADA, para
+   * que a tela escolha a mensagem certa — a mensagem crua do servidor nunca
+   * chega ao usuário.
+   */
+  async getOfficialReportData(evaluationId: string): Promise<ResultadoDosDados> {
+    const { data, error } = await this.client.rpc('get_official_audit_report_data', {
+      p_evaluation_id: evaluationId,
+    });
+    if (error) {
+      const motivo = motivoDoErroDoServidor(error.message ?? '');
+      return { ok: false, motivo, message: MENSAGENS[motivo] };
+    }
+    if (!data) return { ok: false, motivo: 'dados', message: MENSAGENS.dados };
+    return { ok: true, value: data as OfficialAuditReportInput };
+  }
+
+  /**
+   * Trilha da exportação. O ator NUNCA é enviado daqui — a RPC o toma de
+   * `auth.uid()`. Só o identificador da avaliação, o snapshot conferido pelo
+   * servidor, a versão do relatório e o código de integridade.
+   */
+  async logReportExport(dados: {
+    evaluationId: string; snapshotId: string; reportVersion: string; integrityCode: string;
+  }): Promise<boolean> {
+    const { data, error } = await this.client.rpc('log_official_audit_report_export', {
+      p_evaluation_id: dados.evaluationId,
+      p_snapshot_id: dados.snapshotId,
+      p_report_version: dados.reportVersion,
+      p_integrity_code: dados.integrityCode,
+    });
+    if (error) return false;
+    return (data as { logged?: boolean } | null)?.logged === true;
   }
 }
