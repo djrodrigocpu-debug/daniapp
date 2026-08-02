@@ -3,7 +3,7 @@
 Copiar o bloco abaixo para abrir a próxima sessão.
 
 > **Antes de colar:** conferir que a branch `aapex-1.3.5-assisted-management-monthly-audit` aponta
-> para `ed5e12f` local **e remoto**, e que a árvore está limpa.
+> para `7b98532` local **e remoto**, e que a árvore está limpa.
 
 > **Fase 3 é mesmo a próxima.** A **Fase 2 (critérios de processo) foi ABSORVIDA pela Fase 1**, não
 > pulada: a decisão **D-A** do ADR-135-001 ancorou os critérios na configuração regional, e isso
@@ -46,8 +46,8 @@ C:\Users\Asus\Documents\dani app\Nova pasta\AACE_Excelencia_Mobile_v1.3.0
 GitHub: djrodrigocpu-debug/daniapp
 
 Estado esperado (VERIFICAR, não presumir):
-  branch  aapex-1.3.5-assisted-management-monthly-audit em ed5e12f
-  remoto  origin/aapex-1.3.5-... no MESMO ed5e12f (upstream configurado)
+  branch  aapex-1.3.5-assisted-management-monthly-audit em 7b98532
+  remoto  origin/aapex-1.3.5-... no MESMO 7b98532 (upstream configurado)
   main    8ffc49a, intacta
   versão  1.3.4 (NÃO fazer bump)
   migrations 0001-0038; PRÓXIMO NÚMERO LIVRE: 0039
@@ -99,7 +99,15 @@ node_modules por junção para a árvore principal (package-lock idêntico).
   - a árvore de trabalho continua sendo a principal, na branch 1.3.5.
 
 Reiniciar o servidor de revisão (de dentro do worktree):
-  npx.cmd expo start --web --lan --port 8102
+  npx.cmd expo start --web --lan --port 8103
+
+A porta 8103 foi usada porque a 8102 estava ocupada por um servidor de
+outra sessão, que NÃO foi derrubado. Depois de liberar a 8102, trocar o
+número no comando acima.
+
+ATENÇÃO: as portas 8100, 8101 e 8102 servem a ÁRVORE PRINCIPAL, ou seja,
+a 1.3.5 — não a 1.3.4. Para revisar a fixture na interface histórica
+correta, use a porta do worktree.
 
 4c. DÍVIDA DE VERIFICAÇÃO HERDADA
 
@@ -225,7 +233,7 @@ Continue a AAPEx 1.3.5 — Fase 3 (Gestão Assistida semanal idempotente).
 A Fase 1 está pronta: migrations 0036-0038 criaram o catálogo com escopo
 global/regional e a configuração operacional regional versionada. A-08 e
 A-09 estão RESOLVIDAS (docs/architecture/ADR-135-001). Próximo número de
-migration livre: 0039. Branch em ed5e12f, ja empurrada para origin; main
+migration livre: 0039. Branch em 7b98532, ja empurrada para origin; main
 intacta em 8ffc49a, sem merge.
 
 A meta NÃO vem de indicator_versions: vem da versão publicada e vigente
