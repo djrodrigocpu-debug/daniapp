@@ -33,6 +33,10 @@ const REQUIRED_TABLES = [
   // 0039 (Fase 3): domínio PRÓPRIO da Gestão Assistida semanal — D1 proíbe
   // sobrecarregar `evaluations` com um segundo significado.
   'assisted_cycles', 'assisted_cycle_entries',
+  // 0042 (Fase 5): Auditoria Mensal materializada. `evaluations` continua sendo
+  // o agregado; o que muda é de que ela é feita (ADR-135-003).
+  'evaluation_criteria', 'evaluation_criterion_answers',
+  'evaluation_criterion_answer_evidence',
 ];
 
 describe('esquema aplicado em banco real (0001→0003)', () => {

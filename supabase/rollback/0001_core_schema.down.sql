@@ -51,6 +51,12 @@ drop view if exists
   cascade;
 
 drop table if exists
+  -- Auditoria Mensal materializada (0042). Mesmo motivo da Gestão Assistida
+  -- abaixo: sem listar aqui, a tabela sobrevive ao teardown e perde as colunas
+  -- tipadas por enum de `app`, e o `create table if not exists` não as recria.
+  public.evaluation_criterion_answer_evidence,
+  public.evaluation_criterion_answers,
+  public.evaluation_criteria,
   -- Gestão Assistida antes do catálogo: aponta para configuração regional,
   -- temas e operações, e `action_plans` aponta para ela.
   --
@@ -110,5 +116,6 @@ drop type if exists
   app.indicator_lifecycle, app.traffic_light, app.indicator_direction,
   app.calendar_exception, app.validation_decision,
   app.scope_kind, app.catalog_status,
-  app.assisted_cycle_status, app.assisted_status, app.action_source
+  app.assisted_cycle_status, app.assisted_status, app.action_source,
+  app.evaluation_model, app.criterion_answer_status
   cascade;
