@@ -56,6 +56,11 @@ import {
   UnavailableMonthlyAuditRepository,
 } from './MonthlyAuditRepository';
 import type { MonthlyAuditRepository } from '../../domain/repositories/monthlyAudit';
+import {
+  SupabaseDashboardRepository,
+  UnavailableDashboardRepository,
+} from './DashboardRepository';
+import type { DashboardRepository } from '../../domain/repositories/dashboard';
 
 export interface Repositories {
   operations: OperationsRepository;
@@ -88,6 +93,14 @@ export interface Repositories {
    * são do servidor.
    */
   monthlyAudit: MonthlyAuditRepository;
+  /**
+   * Painel gerencial, Matriz e ponderação regional (AAPEx 1.3.5, D10). Mesma
+   * escolha das três anteriores: sem backend corporativo o adapter RECUSA tudo.
+   * Um painel local produziria NÚMEROS — e é justamente o número que não pode
+   * ser inventado: escopo por papel, ponderação publicada, quadrante e a
+   * distinção entre "zero" e "sem dado" são do servidor.
+   */
+  dashboard: DashboardRepository;
   /** Origem efetiva dos dados operacionais. */
   source: 'supabase' | 'local';
 }
@@ -112,6 +125,7 @@ function buildRepositories(): Repositories {
       catalog: new SupabaseCatalogRepository(client),
       assisted: new SupabaseAssistedRepository(client),
       monthlyAudit: new SupabaseMonthlyAuditRepository(client, evidence),
+      dashboard: new SupabaseDashboardRepository(client),
       source: 'supabase',
     };
   }
@@ -130,6 +144,7 @@ function buildRepositories(): Repositories {
     catalog: new UnavailableCatalogRepository(),
     assisted: new UnavailableAssistedRepository(),
     monthlyAudit: new UnavailableMonthlyAuditRepository(),
+    dashboard: new UnavailableDashboardRepository(),
     source: 'local',
   };
 }
