@@ -156,11 +156,15 @@ Função proposta: `app.can_manage_catalog(target_region_id uuid)`.
 **Isso é mudança de modelo de autorização, não um `if` a mais.** Cada RPC de catálogo precisa saber
 **a que região o objeto pertence** — e temas e indicadores hoje **não têm região**.
 
-> ⚠️ **Consequência de modelagem não resolvida:** se temas e indicadores são globais, um regional
-> editando afeta todas as regiões — o que contraria *"dentro da própria região"*. Duas saídas
-> possíveis, **nenhuma decidida**: (a) tema/indicador ganha `region_id` anulável, onde nulo = global
-> e só ADMIN edita; (b) a autoridade regional recai apenas sobre **critérios e ponderação**, e o
-> catálogo de indicadores permanece global. **Pendência A-08.**
+> ✅ **A-08 RESOLVIDA em 01/08/2026 — modelo híbrido.** Ver
+> [ADR-135-001](ADR-135-001-ESCOPO-GLOBAL-REGIONAL.md). Nem (a) nem (b) isoladas: tema e indicador
+> ganham **escopo** (`global` com região nula, administrado só pelo ADMIN; `regional` com região
+> obrigatória, administrado pelo ADMIN ou pelo Regional da própria região) **e** toda operação passa
+> por uma **configuração regional versionada** — é ela que carrega tema, meta, tolerância, peso,
+> ordem, flags de módulo e critérios. Assim `app.can_manage_catalog(target_region_id)` sempre tem a
+> que região perguntar: a do objeto regional, ou a da configuração.
+>
+> Leitura de objeto regional é restrita à própria região por `app.reaches_region(region_id)`.
 
 ## 8. Testes negativos obrigatórios
 
@@ -192,6 +196,6 @@ Acrescentam-se aos 18 já existentes, no mesmo formato
 
 | # | Pendência |
 |---|---|
-| **A-07** | A autoridade regional se resolve apenas por `user_scopes.region_id`? |
-| **A-08** | Temas e indicadores são globais ou por região? Sem isso, *“gestão dentro da própria região”* não é implementável |
+| **A-07** | A autoridade regional se resolve apenas por `user_scopes.region_id`? A Fase 1 usa `app.scoped_region_ids()`, que já devolve conjunto, e por isso **não depende** da resposta |
+| ~~**A-08**~~ ✅ | **Resolvida** — modelo híbrido, [ADR-135-001](ADR-135-001-ESCOPO-GLOBAL-REGIONAL.md) |
 | **O-11** | Teste dirigido: plano em `completed`, criador tenta validar |

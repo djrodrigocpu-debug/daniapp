@@ -327,5 +327,5 @@ Enums novos: `app.assisted_cycle_status`, `app.assisted_status`, `app.action_sou
 | **A-04** | Pesos de `region_weightings` — nenhuma linha semeada |
 | **A-06** | Colunas exatas da aba `Resumo` da exportação |
 | **A-07** | Se a autoridade regional se resolve apenas por `user_scopes.region_id` |
-| **A-08** 🔴 | **Temas e indicadores são globais ou por região?** Se forem por região, `themes` e `indicator_definitions` precisam de `region_id` — mudança estrutural que **deve entrar já na 0036/0037**, não depois |
-| **A-09** | Confirmar a colocação das flags de módulo na **versão** do indicador (§3) |
+| ~~**A-08**~~ ✅ | **Resolvida em 01/08/2026 — modelo híbrido.** Ver [ADR-135-001](ADR-135-001-ESCOPO-GLOBAL-REGIONAL.md). §2, §3 e §6 deste documento foram escritos **antes** da decisão e ficam **superados** naquilo que o ADR §4 substitui: critérios pendem da configuração regional (D-A), e tema/meta/tolerância/peso/ordem/flags moram na versão da configuração regional, não em `indicator_versions` (D-B) |
+| ~~**A-09**~~ ✅ | **Resolvida por consequência de A-08** — as flags ficam na versão da configuração regional |

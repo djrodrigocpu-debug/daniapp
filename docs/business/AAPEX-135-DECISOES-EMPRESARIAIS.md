@@ -222,10 +222,34 @@ Registradas para não serem inventadas depois.
 | **A-05** | **Nova `REPORT_FORMAT_VERSION`** | Só após o contrato canônico do novo PDF ser congelado |
 | **A-06** | **Escopo do “Resumo” na exportação** | As abas estão nomeadas; o conteúdo do Resumo não foi especificado |
 | **A-07** | **Definição operacional de “região” do Gerente Regional** | `user_scopes.region_id` existe; falta confirmar se a autoridade regional se resolve só por ele |
-| **A-08** 🔴 | **Temas e indicadores são globais ou por região?** | **Bloqueia a Fase 1.** D7 dá ao Regional gestão *“dentro da própria região”*, mas temas e indicadores **não têm região** no modelo. Se são globais, um regional editando afeta todas as regiões — o contrário do que D7 diz. Ver [Matriz de Permissões](../architecture/AAPEX-135-MATRIZ-DE-PERMISSOES.md) §7.3 |
-| **A-09** | **Confirmar as flags de módulo na *versão* do indicador** | Derivação técnica de D3, não decisão literal do proprietário. Ver [Contratos de Dados](../architecture/AAPEX-135-CONTRATOS-DE-DADOS.md) §3 |
+| ~~**A-08**~~ ✅ | ~~Temas e indicadores são globais ou por região?~~ | **RESOLVIDA em 01/08/2026** — modelo híbrido. Ver §6 |
+| ~~**A-09**~~ ✅ | ~~Confirmar as flags de módulo na *versão* do indicador~~ | **RESOLVIDA por consequência de A-08** — ficam na versão da **configuração regional**. Ver §6 |
 
-Nenhuma destas foi preenchida por inferência.
+Nenhuma das que permanecem abertas foi preenchida por inferência.
 
-> **A-08 é o único bloqueio que impede iniciar a fundação técnica.** Os demais permitem avançar com
-> o comportamento conservador já especificado (falhar explicitamente, não calcular, manter inerte).
+## 6. Decisões tomadas depois da consolidação
+
+### A-08 ✅ **APROVADA** — temas e indicadores: modelo híbrido
+
+**Data:** 01/08/2026 · **canônica** · registrada em
+[ADR-135-001](../architecture/ADR-135-001-ESCOPO-GLOBAL-REGIONAL.md).
+
+```
+CATÁLOGO GLOBAL  +  CONFIGURAÇÃO REGIONAL VERSIONADA  +  CONTEÚDO EXCLUSIVAMENTE REGIONAL
+```
+
+- **Tema e indicador globais** — do ADMIN; disponíveis a qualquer região; o Regional não os edita.
+- **Tema e indicador regionais** — do ADMIN ou do Regional da própria região; invisíveis e
+  inutilizáveis pelas demais.
+- **Configuração operacional regional versionada** — cada região decide, por indicador que adote:
+  tema, meta, tolerância, peso, ordem, ativo, participação na Gestão Assistida, participação na
+  Auditoria Mensal e critérios. **A configuração de uma região não alcança outra.**
+- **Nada é operado sem configuração regional publicada** — indicador global não fica ativo em região
+  alguma só por existir.
+
+**A-09 fica resolvida por consequência:** as flags de módulo **não** vão para a versão do indicador;
+vão para a **versão da configuração regional**, junto com meta, tolerância, peso, tema e ordem — são
+operação da região, não semântica do indicador. Ver ADR-135-001 §4, decisão D-B.
+
+> **Não havia mais bloqueio de entrada para a Fase 1.** As demais pendências permitem avançar com o
+> comportamento conservador já especificado (falhar explicitamente, não calcular, manter inerte).

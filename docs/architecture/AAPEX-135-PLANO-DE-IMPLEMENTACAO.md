@@ -55,8 +55,11 @@ estendida.
 - [ ] testes negativos **19, 20, 21, 22, 25, 26** verdes;
 - [ ] **40 códigos de integridade reproduzidos idênticos**.
 
-> ⚠️ **Bloqueio de entrada:** pendência **A-08** — temas e indicadores são globais ou por região?
-> Sem isso, *“gestão dentro da própria região”* (D7) não é implementável. Ver §4.
+> ✅ **Bloqueio de entrada levantado.** **A-08** foi aprovada em 01/08/2026 — modelo híbrido,
+> [ADR-135-001](ADR-135-001-ESCOPO-GLOBAL-REGIONAL.md). A entrega da Fase 1 cresce em relação ao que
+> está escrito acima: além de temas e indicadores versionados, entram **escopo global/regional**,
+> **configuração operacional regional versionada** e **critérios por região** — porque o ADR ancora
+> critérios e flags de módulo na configuração regional (D-A, D-B), e não em `indicator_versions`.
 
 ---
 
@@ -234,7 +237,7 @@ prontas** — autorização se aplica sobre superfície existente.
 
 | # | Bloqueio | Bloqueia | Como sair |
 |---|---|---|---|
-| **A-08** | Temas e indicadores são globais ou por região? | **Fase 1** e **Fase 6** | Decisão do proprietário. Sem ela, D7 não é implementável para o regional |
+| ~~**A-08**~~ ✅ | ~~Temas e indicadores são globais ou por região?~~ | ~~Fase 1 e Fase 6~~ | **RESOLVIDA em 01/08/2026** — modelo híbrido, [ADR-135-001](ADR-135-001-ESCOPO-GLOBAL-REGIONAL.md). Bloqueio levantado |
 | **A-01** | Regra de status para `target_band` | Fase 3 (parcial) | Fase 3 pode entregar com falha explícita; a regra fica pendente |
 | **A-04** | Pesos por região | Fase 8 (parcial) | Fase 8 entrega o mecanismo; sem pesos, “Ponderação não configurada” |
 | **A-03** | Decisão nominal dos 4 drafts de produção | Ativação do cutover | Decisão individual, registrada na trilha |
