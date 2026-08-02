@@ -44,6 +44,9 @@ drop function if exists
   public.get_dashboard_aggregates(jsonb),
   public.get_matrix_dataset(jsonb);
 
+-- Exportação CSV/XLSX (AAPEx 1.3.5, migration 0049).
+drop function if exists public.export_dataset(text, jsonb);
+
 -- Gestão Assistida semanal (AAPEx 1.3.5, migrations 0039–0041). Mesmo motivo.
 drop function if exists
   public.open_assisted_cycle(uuid, date),
