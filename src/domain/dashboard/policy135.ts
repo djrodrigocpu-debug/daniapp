@@ -46,11 +46,21 @@ export const PROCESS_AXIS_LABEL: Record<ProcessAxis, string> = {
   red: 'Não conforme',
   not_evaluated: 'Sem auditoria aprovada',
   no_audit: 'Sem auditoria aprovada',
+  // A auditoria existe e foi aprovada — o que não existe é critério aplicável.
+  // Dizer "sem auditoria" aqui seria falso, e dizer "0" seria pior.
+  no_score: 'Sem critério aplicável',
 };
 
+/**
+ * Cada motivo se resolve de um jeito diferente, e é por isso que a interface
+ * nomeia o motivo em vez de dizer apenas "insuficiente".
+ */
 export const SUFFICIENCY_REASON_LABEL: Record<SufficiencyReason, string> = {
   missing_audit: 'falta Auditoria Mensal aprovada no período',
   missing_measurement: 'falta registro de Gestão Assistida no período',
+  incomplete_measurement: 'há indicador sem dado no período',
+  weight_sum_not_positive: 'a soma dos pesos dos indicadores não é positiva',
+  no_applicable_criteria: 'a auditoria aprovada não teve critério aplicável',
 };
 
 /** Ordem de exibição dos quadrantes. Estável, e independente dos dados. */
@@ -93,20 +103,24 @@ export function weightedIndexUnavailableReason(entry: MatrixEntry): string | nul
 }
 
 /**
- * A frase que acompanha TODO índice exibido. Não é adorno: A-10 e A-11 estão
- * abertas, e as duas notas são proporção simples.
+ * A frase que acompanha TODO índice exibido.
+ *
+ * Deixou de anunciar provisoriedade na Fase 10 — A-10 e A-11 foram congeladas.
+ * O que ela continua dizendo, e precisa continuar dizendo, é que **o índice não
+ * é o Índice de Excelência**: D10 é expressa em que ele é informação adicional
+ * e não substitui a Matriz.
  */
-export function provisionalNotice(p: RuleProvenance): string {
-  const pendentes = p.openDecisions.filter((d) => d !== 'A-04');
-  return 'Índice provisório: a regra de pontuação aguarda decisão empresarial '
-    + `(${pendentes.join(', ')}). Não é o Índice de Excelência.`;
+export function ruleVersionNotice(p: RuleProvenance): string {
+  return 'Índice consolidado pelas regras '
+    + `${p.performanceScoreRule} e ${p.monthlyScoreRule}. `
+    + 'É informação adicional e não substitui a Matriz; não é o Índice de Excelência.';
 }
 
 /** Texto acessível de um índice — usado como `accessibilityLabel`. */
 export function weightedIndexAccessibleLabel(
   entry: MatrixEntry, index: WeightedIndexResult,
 ): string {
-  return `${entry.partnerName}: índice ponderado provisório ${index.value.toFixed(2)}, `
+  return `${entry.partnerName}: índice consolidado ${index.value.toFixed(2)}, `
     + `composto por desempenho ${index.assistedComponent.toFixed(2)} e `
     + `processo ${index.auditComponent.toFixed(2)}, `
     + `com pesos ${entry.weighting.assistedWeight}% e ${entry.weighting.auditWeight}%.`;

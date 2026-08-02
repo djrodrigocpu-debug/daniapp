@@ -60,7 +60,7 @@ const MATRIZ = {
       quadrant: 'ineffective_routine',
       dataSufficiency: { sufficient: true, reasons: [] },
       weighting: { configured: true, regionId: 'reg-1', assistedWeight: '60', auditWeight: '40', versionNumber: 1, id: 'w-1' },
-      weightedIndex: { value: '60', assistedComponent: '33.33', auditComponent: '100', weightingVersionId: 'w-1', provisional: true, provisionalReason: 'x' },
+      weightedIndex: { value: '70', assistedComponent: '50', auditComponent: '100', weightingVersionId: 'w-1', performanceRule: 'desempenho-ponderado-status/1.3.5', processRule: 'conformidade-simples-processo/1.3.5' },
     },
     {
       // Parceiro SEM os dois eixos: `score` nulo, quadrante nulo, índice nulo.
@@ -157,9 +157,13 @@ describe('SupabaseDashboardRepository — só RPC, nunca tabela', () => {
     if (!r.ok) throw new Error('esperava sucesso');
 
     const a = r.value.entries[0];
+    // ATUALIZADO PELA FASE 10: o índice deixou de carregar `provisional` e
+    // passou a carregar a VERSÃO das duas regras que o produziram.
     expect(a.weightedIndex).toEqual({
-      value: 60, assistedComponent: 33.33, auditComponent: 100,
-      weightingVersionId: 'w-1', provisional: true, provisionalReason: 'x',
+      value: 70, assistedComponent: 50, auditComponent: 100,
+      weightingVersionId: 'w-1',
+      performanceRule: 'desempenho-ponderado-status/1.3.5',
+      processRule: 'conformidade-simples-processo/1.3.5',
     });
     expect(a.weighting.assistedWeight).toBe(60);
     expect(a.weighting.auditWeight).toBe(40);

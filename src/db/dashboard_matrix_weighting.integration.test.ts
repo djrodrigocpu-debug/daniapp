@@ -463,11 +463,15 @@ describe('Fase 8 — ponderação, agregações e Matriz (0048)', () => {
     it('com ponderação e os dois módulos, o índice é a soma ponderada — sem arredondar a fonte', async () => {
       const m = await matriz(ID.uAdmin);
       const a = m.entries.find((e) => e.operationId === ID.opA)!;
-      // Desempenho: 1 conforme de 3 avaliados = 33,33. Processo: nota 100.
-      expect(a.performance.score).toBeCloseTo(33.33, 2);
+      // ATUALIZADO PELA FASE 10 (A-11 congelada em 02/08/2026, migration 0050).
+      // Era 33,33 — proporção simples, com `atencao` valendo zero. A regra
+      // definitiva é 100/50/0 ponderada pelo peso materializado, e aqui os três
+      // pesos deste cenário são 1: (100 + 50 + 0) / 3 = 50,00.
+      // O número mudou porque a REGRA mudou, não porque a asserção afrouxou.
+      expect(a.performance.score).toBeCloseTo(50, 2);
       expect(a.process.score).toBe(100);
-      expect(a.weightedIndex!.value).toBeCloseTo(33.33 * 0.6 + 100 * 0.4, 1);
-      expect(a.weightedIndex!.assistedComponent).toBeCloseTo(33.33, 2);
+      expect(a.weightedIndex!.value).toBeCloseTo(50 * 0.6 + 100 * 0.4, 1);
+      expect(a.weightedIndex!.assistedComponent).toBeCloseTo(50, 2);
       expect(a.weightedIndex!.auditComponent).toBe(100);
     });
 
@@ -482,15 +486,19 @@ describe('Fase 8 — ponderação, agregações e Matriz (0048)', () => {
       expect(a.weighting.auditWeight).toBe(40);
     });
 
-    it('o índice é marcado como PROVISÓRIO, e a proveniência nomeia A-10 e A-11', async () => {
+    it('o índice NÃO é mais provisório, e a proveniência é definitiva', async () => {
+      // ATUALIZADO PELA FASE 10. A-10 e A-11 foram congeladas em 02/08/2026, e
+      // este caso passa a medir o contrato NOVO em vez de registrar a pendência.
+      // A-04 continua aberta, e continua sendo a única — decidir COMO ponderar
+      // não é decidir COM QUANTO.
       const m = await matriz(ID.uAdmin);
       const a = m.entries.find((e) => e.operationId === ID.opA)!;
-      expect(a.weightedIndex!.provisional).toBe(true);
-      expect(m.ruleProvenance.monthlyScoreRule).toBe('proporcao-simples/A-10-pendente');
-      expect(m.ruleProvenance.performanceScoreRule).toBe('proporcao-simples-desempenho/A-11-pendente');
-      expect(m.ruleProvenance.monthlyProvisional).toBe(true);
-      expect(m.ruleProvenance.performanceProvisional).toBe(true);
-      expect(m.ruleProvenance.openDecisions).toEqual(['A-04', 'A-10', 'A-11']);
+      expect(JSON.stringify(a.weightedIndex)).not.toMatch(/provisional/i);
+      expect(m.ruleProvenance.monthlyScoreRule).toBe('conformidade-simples-processo/1.3.5');
+      expect(m.ruleProvenance.performanceScoreRule).toBe('desempenho-ponderado-status/1.3.5');
+      expect(m.ruleProvenance.monthlyProvisional).toBe(false);
+      expect(m.ruleProvenance.performanceProvisional).toBe(false);
+      expect(m.ruleProvenance.openDecisions).toEqual(['A-04']);
     });
 
     it('MÓDULO AUSENTE: sem auditoria mensal não há índice, e o peso NÃO é renormalizado', async () => {
@@ -741,9 +749,14 @@ describe('Fase 8 — ponderação, agregações e Matriz (0048)', () => {
     });
 
     it('a proveniência das regras viaja em TODA resposta do dashboard', async () => {
+      // ATUALIZADO PELA FASE 10: a proveniência continua viajando — o que mudou
+      // é que ela agora nomeia regras DEFINITIVAS. A asserção ganhou os dois
+      // identificadores, em vez de só o par de booleanos.
       const a = await agregados(ID.uAdmin);
-      expect(a.ruleProvenance.monthlyProvisional).toBe(true);
-      expect(a.ruleProvenance.performanceProvisional).toBe(true);
+      expect(a.ruleProvenance.monthlyProvisional).toBe(false);
+      expect(a.ruleProvenance.performanceProvisional).toBe(false);
+      expect(a.ruleProvenance.monthlyScoreRule).toBe('conformidade-simples-processo/1.3.5');
+      expect(a.ruleProvenance.performanceScoreRule).toBe('desempenho-ponderado-status/1.3.5');
       expect(a.contractVersion).toBe('1.3.5-dashboard-1');
     });
   });

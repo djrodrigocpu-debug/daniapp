@@ -362,9 +362,11 @@ describe('Fase 10 — regras empresariais definitivas: A-10, A-11 e A-06 (0050)'
       expect(antes.performance.score).toBeCloseTo(70, 2);
 
       // Peso vivo da configuração regional E da versão legada do indicador.
+      // 100 é o teto do CHECK de 0037, e é um valor que NÃO passa despercebido:
+      // se a nota lesse o peso vivo, opA daria (100*100 + 50 + 0) / 102 = 98,53.
       await db.exec(`
-        update public.indicator_regional_config_versions set weight = 999 where id = '${F10.cfgv1}';
-        update public.indicator_versions set weight = 999 where id = '${F10.d1v}';`);
+        update public.indicator_regional_config_versions set weight = 100 where id = '${F10.cfgv1}';
+        update public.indicator_versions set weight = 100 where id = '${F10.d1v}';`);
       const depois = await entrada(ID.uAdmin, ID.opA);
       expect(depois.performance.score).toBeCloseTo(70, 2);
       expect(depois.performance.weightSum).toBeCloseTo(5, 2);

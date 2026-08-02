@@ -132,15 +132,24 @@ function toMatrixEntry(raw: Record<string, any>): MatrixEntry {
     performance: {
       axis: raw.performance?.axis,
       // `null` PRECISA sobreviver: é a diferença entre "sem dado" e "nota zero".
+      // `Number(null)` é 0, e é por isso que este adapter nunca usa `Number`
+      // direto numa nota (lição L-04).
       score: numOrNull(raw.performance?.score),
+      sufficient: Boolean(raw.performance?.sufficient),
+      insufficiencyReasons: raw.performance?.insufficiencyReasons ?? [],
+      weightSum: int(raw.performance?.weightSum),
       conforme: int(raw.performance?.conforme), atencao: int(raw.performance?.atencao),
       naoConforme: int(raw.performance?.naoConforme), semDado: int(raw.performance?.semDado),
+      rule: raw.performance?.rule,
     },
     process: {
       axis: raw.process?.axis,
       score: numOrNull(raw.process?.score),
+      sufficient: Boolean(raw.process?.sufficient),
+      insufficiencyReasons: raw.process?.insufficiencyReasons ?? [],
       trafficLight: raw.process?.trafficLight,
       auditsConsidered: int(raw.process?.auditsConsidered),
+      rule: raw.process?.rule,
     },
     quadrant: raw.quadrant ?? null,
     dataSufficiency: {
@@ -164,8 +173,8 @@ function toMatrixEntry(raw: Record<string, any>): MatrixEntry {
           assistedComponent: Number(raw.weightedIndex.assistedComponent),
           auditComponent: Number(raw.weightedIndex.auditComponent),
           weightingVersionId: raw.weightedIndex.weightingVersionId,
-          provisional: Boolean(raw.weightedIndex.provisional),
-          provisionalReason: raw.weightedIndex.provisionalReason,
+          performanceRule: raw.weightedIndex.performanceRule,
+          processRule: raw.weightedIndex.processRule,
         }
       : null,
   };

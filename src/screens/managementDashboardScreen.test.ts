@@ -136,9 +136,12 @@ describe('a tela não recalcula regra de negócio', () => {
   });
 });
 
-describe('o provisório é dito em voz alta', () => {
-  it('o aviso de A-10 e A-11 está na tela, com papel de alerta', () => {
-    expect(tela).toMatch(/provisionalNotice\(matrix\.ruleProvenance\)/);
+describe('a proveniência das regras é dita em voz alta', () => {
+  // ATUALIZADO PELA FASE 10: A-10 e A-11 congeladas em 02/08/2026. O aviso
+  // deixou de anunciar provisoriedade e passou a nomear a VERSÃO de cada regra.
+  // A propriedade medida — "o número não aparece sem procedência" — é a mesma.
+  it('o aviso de versão das regras está na tela, com papel de alerta', () => {
+    expect(tela).toMatch(/ruleVersionNotice\(matrix\.ruleProvenance\)/);
     expect(tela).toMatch(/accessibilityRole="alert"/);
   });
 
@@ -148,8 +151,20 @@ describe('o provisório é dito em voz alta', () => {
     expect(tela).toMatch(/ruleProvenance\.quadrantRule/);
   });
 
-  it('a seção da Auditoria Mensal avisa que a pontuação é provisória', () => {
-    expect(tela).toMatch(/PROVISÓRIA e aguarda decisão empresarial \(A-10\)/);
+  it('a seção da Auditoria Mensal EXPLICA a regra em vez de avisar pendência', () => {
+    expect(tela).toMatch(/Conformes sobre conformes mais não conformes/);
+    expect(tela).toMatch(/`Não aplicável` fica fora dos dois lados/);
+  });
+
+  it('a seção da Gestão Assistida diz os três valores e o que `Sem dado` faz', () => {
+    expect(tela).toMatch(/`Conforme` vale 100/);
+    expect(tela).toMatch(/`Atenção` vale 50/);
+    expect(tela).toMatch(/torna o eixo insuficiente/);
+  });
+
+  it('nenhuma pendência fechada continua anunciada na tela', () => {
+    expect(tela).not.toMatch(/A-10|A-11/);
+    expect(tela).not.toMatch(/PROVISÓRI/);
   });
 
   it('quando não há índice, a tela diz POR QUE não há', () => {
@@ -196,11 +211,15 @@ describe('exportação — o fluxo mínimo da Fase 9', () => {
     expect(tela).toMatch(/csvBytes\(r\.value\)/);
   });
 
-  it('a tela declara as cinco abas e avisa que o Resumo é provisório (A-06)', () => {
+  it('a tela declara as cinco abas e o CONTEÚDO definitivo do Resumo (A-06)', () => {
     expect(tela).toMatch(/Gestao_Assistida, Auditoria_Mensal, Planos, Resumo e/);
     expect(tela).toMatch(/Filtros_Aplicados/);
     expect(tela).toMatch(/sem fórmula alguma/);
-    expect(tela).toMatch(/resumo técnico provisório[\s\S]{0,120}A-06/);
+    // ATUALIZADO PELA FASE 10: em vez de anunciar pendência, a tela enumera o
+    // que a aba contém — e é o contrato de A-06, item por item.
+    expect(tela).toMatch(/índice consolidado quando permitido/);
+    expect(tela).toMatch(/versões das regras utilizadas/);
+    expect(tela).not.toMatch(/A-06/);
   });
 
   it('a exportação não consulta o Supabase direto nem gera dado local', () => {

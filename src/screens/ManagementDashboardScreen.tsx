@@ -16,10 +16,11 @@
  *      `accessibilityLabel` repete o que a cor diria;
  *   3. **"sem dado" nunca vira zero.** Uma barra só é desenhada quando há total;
  *      sem total, a tela diz "sem dado no período" em palavras;
- *   4. **índice provisório é anunciado como provisório**, com A-10 e A-11
- *      nomeadas — em texto, não em nota de rodapé.
- *
- * O acabamento visual completo é da Fase 10. Isto é o mínimo FUNCIONAL.
+ *   4. **todo índice carrega a versão da regra que o produziu.** Até a Fase 9
+ *      esta linha anunciava provisoriedade; desde a Fase 10 as duas regras
+ *      estão congeladas, e o que ela anuncia é a IDENTIDADE VERSIONADA de cada
+ *      uma — em texto, não em nota de rodapé. O que NÃO mudou é a negação
+ *      central: o índice não é o Índice de Excelência (D10).
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -37,7 +38,7 @@ import {
 import {
   NO_QUADRANT_LABEL, PERFORMANCE_AXIS_LABEL, PROCESS_AXIS_LABEL, QUADRANT_LABEL_135,
   QUADRANT_ORDER, SUFFICIENCY_REASON_LABEL, countQuadrants, filtersSummary,
-  proportion, provisionalNotice, quadrantAccessibleLabel, weightedIndexAccessibleLabel,
+  proportion, ruleVersionNotice, quadrantAccessibleLabel, weightedIndexAccessibleLabel,
   weightingLabel, weightedIndexUnavailableReason,
 } from '../domain/dashboard/policy135';
 import {
@@ -227,7 +228,7 @@ export function ManagementDashboardScreen() {
       {/* ---------------------------------------------------------------- */}
       <SectionTitle
         title="Gestão Assistida"
-        subtitle="Eixo de desempenho. `Sem dado` não é não conformidade: é ausência de registro."
+        subtitle="Eixo de desempenho. `Conforme` vale 100, `Atenção` vale 50 e `Não conforme` vale 0, ponderados pelo peso do indicador. `Sem dado` não é não conformidade nem zero: torna o eixo insuficiente."
       />
       <Grafico titulo="Situação dos indicadores da semana" descricao={resumo} linhas={assistidas} />
 
@@ -236,7 +237,7 @@ export function ManagementDashboardScreen() {
       {/* ---------------------------------------------------------------- */}
       <SectionTitle
         title="Auditoria Mensal"
-        subtitle="Eixo de processo. A regra de pontuação é PROVISÓRIA e aguarda decisão empresarial (A-10)."
+        subtitle="Eixo de processo. Conformes sobre conformes mais não conformes; `Não aplicável` fica fora dos dois lados."
       />
       <Grafico titulo="Respostas aos critérios de processo" descricao={resumo} linhas={mensais} />
 
@@ -290,7 +291,7 @@ export function ManagementDashboardScreen() {
       )}
 
       <View style={styles.aviso} accessibilityRole="alert">
-        <Text style={styles.avisoTexto}>{provisionalNotice(matrix.ruleProvenance)}</Text>
+        <Text style={styles.avisoTexto}>{ruleVersionNotice(matrix.ruleProvenance)}</Text>
         <Text style={styles.avisoDetalhe}>
           Desempenho: {matrix.ruleProvenance.performanceScoreRule} ·
           Processo: {matrix.ruleProvenance.monthlyScoreRule} ·
@@ -412,8 +413,10 @@ function BlocoExportacao({ filtros, resumo }: { filtros: DashboardFilters; resum
 
       <Text style={styles.avisoDetalhe}>
         O XLSX traz as abas Gestao_Assistida, Auditoria_Mensal, Planos, Resumo e
-        Filtros_Aplicados, nesta ordem, sem fórmula alguma. A aba Resumo é um
-        resumo técnico provisório — a composição empresarial final continua pendente (A-06).
+        Filtros_Aplicados, nesta ordem, sem fórmula alguma. A aba Resumo traz período,
+        filtros aplicados, parceiros, cobertura dos dois módulos, os dois eixos, planos
+        por estado, suficiência, ponderação, índice consolidado quando permitido e as
+        versões das regras utilizadas.
       </Text>
     </View>
   );

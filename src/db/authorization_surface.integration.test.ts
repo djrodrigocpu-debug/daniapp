@@ -363,11 +363,18 @@ describe('Fase 6 — autorização server-side sobre a superfície inteira (0036
           from pg_proc p join pg_namespace n on n.oid=p.pronamespace
          where n.nspname='app' and p.proname like '%\\_legacy'
          order by 1`);
-      // Cinco: os dois da 0044, mais `remove_evidence` e
-      // `reserve_evidence_upload` (0046, para fechar o O-18) e
-      // `start_evaluation` (0047, para a guarda de cutover). Em todos, o corpo
-      // legado foi MOVIDO por `pg_get_functiondef`, nunca copiado.
+      // SEIS: os dois da 0044, mais `remove_evidence` e
+      // `reserve_evidence_upload` (0046, para fechar o O-18), `start_evaluation`
+      // (0047, para a guarda de cutover) e `export_dataset` (0050, para o Resumo
+      // definitivo da A-06). Em todos, o corpo foi MOVIDO por
+      // `pg_get_functiondef`, nunca copiado.
+      //
+      // A sexta camada é o RT-15 se materializando de novo, e ela respeita o
+      // O-16 da forma mais forte possível: o wrapper de `export_dataset`
+      // DELEGA PRIMEIRO e só depois pós-processa o módulo `summary` — não há
+      // uma linha executada antes da autorização da função movida.
       expect(r.map((x) => x.n)).toEqual([
+        'export_dataset_legacy',
         'official_audit_report_legacy',
         'remove_evidence_legacy',
         'reserve_evidence_upload_legacy',

@@ -278,11 +278,16 @@ describe('Fase 9 — export_dataset: escopo e filtros no servidor (0049)', () =>
       expect(d.requestedBy).not.toMatch(/@|-[0-9a-f]{4}-/);
     });
 
-    it('a proveniência das regras viaja junto, com as pendências nomeadas', async () => {
+    it('a proveniência das regras viaja junto, agora com as regras DEFINITIVAS', async () => {
+      // ATUALIZADO PELA FASE 10 (A-10 e A-11 congeladas em 02/08/2026, 0050).
+      // A propriedade medida é a mesma — a proveniência viaja no arquivo. O que
+      // mudou é o que ela diz. A asserção GANHOU a exigência de que nenhum
+      // identificador ainda anuncie pendência.
       const d = await exportar(ID.uAdmin, 'summary');
-      expect(d.ruleProvenance.monthlyScoreRule).toBe('proporcao-simples/A-10-pendente');
-      expect(d.ruleProvenance.performanceScoreRule).toBe('proporcao-simples-desempenho/A-11-pendente');
-      expect(d.ruleProvenance.openDecisions).toEqual(['A-04', 'A-10', 'A-11']);
+      expect(d.ruleProvenance.monthlyScoreRule).toBe('conformidade-simples-processo/1.3.5');
+      expect(d.ruleProvenance.performanceScoreRule).toBe('desempenho-ponderado-status/1.3.5');
+      expect(d.ruleProvenance.openDecisions).toEqual(['A-04']);
+      expect(JSON.stringify(d.ruleProvenance)).not.toMatch(/pendente/i);
     });
   });
 
@@ -320,12 +325,21 @@ describe('Fase 9 — export_dataset: escopo e filtros no servidor (0049)', () =>
       expect(gravado[0].st).not.toBe('overdue');
     });
 
-    it('Resumo é TÉCNICO e PROVISÓRIO, e A-06 continua nomeada como pendente', async () => {
+    it('Resumo é DEFINITIVO: perdeu o rótulo provisório e ganhou os doze itens', async () => {
+      // ATUALIZADO PELA FASE 10 (A-06 congelada em 02/08/2026, 0050). Este caso
+      // registrava a pendência; passa a medir o contrato. `a06` e `plansOverdue`
+      // saíram do bloco — o primeiro porque a pendência fechou, o segundo porque
+      // `plansByStatus` já é o item 8 do contrato e um total à parte seria
+      // fórmula adicional, que o contrato proíbe.
       const d = await exportar(ID.uAdmin, 'summary');
-      expect(d.summary!.label).toBe('Resumo tecnico provisorio');
-      expect(String(d.summary!.a06)).toContain('A-06');
+      expect(d.summary!.label).toBe('Resumo');
+      expect(JSON.stringify(d.summary)).not.toMatch(/provisor/i);
       expect(Number(d.summary!.partners)).toBe(3);
-      expect(Number(d.summary!.plansOverdue)).toBe(1);
+      for (const k of ['period', 'appliedFilters', 'partners', 'assistedCoverage',
+        'monthlyAuditCoverage', 'performanceAxis', 'processAxis', 'plansByStatus',
+        'dataSufficiency', 'weighting', 'consolidatedIndex', 'ruleVersions']) {
+        expect(`${k}: ${Object.prototype.hasOwnProperty.call(d.summary, k)}`).toBe(`${k}: true`);
+      }
     });
 
     it('o Resumo NÃO inventa ranking, meta, KPI novo nem coluna financeira', async () => {
@@ -344,7 +358,8 @@ describe('Fase 9 — export_dataset: escopo e filtros no servidor (0049)', () =>
       expect(a.processAxis).toBe(mA.process.axis);
       expect(a.weightingConfigured).toBe(mA.weighting.configured);
       // Sem ponderação publicada, o índice não existe em nenhum dos dois.
-      expect(a.weightedIndex).toBeNull();
+      // A chave passou a se chamar `consolidatedIndex` (A-06, 0050).
+      expect(a.consolidatedIndex).toBeNull();
       expect(mA.weightedIndex).toBeNull();
     });
 

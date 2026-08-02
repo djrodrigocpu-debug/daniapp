@@ -42,15 +42,49 @@ export interface ExportColumn {
 export type ExportValue = string | number | boolean | null;
 export type ExportRow = Record<string, ExportValue>;
 
-/** O bloco agregado da aba Resumo. **Técnico e provisório — A-06 aberta.** */
+/**
+ * O bloco agregado da aba Resumo — **contrato DEFINITIVO da decisão A-06**,
+ * congelada em 02/08/2026 (ADR-135-004 §5).
+ *
+ * Doze itens, e nada além. O que ficou de FORA é tão contratual quanto o que
+ * ficou dentro: ranking, meta empresarial inventada, semáforo executivo novo,
+ * projeção financeira, KPI não aprovado, fórmula adicional e comparação fora do
+ * escopo do ator.
+ *
+ * A proibição de RANKING não é estética. O Resumo é recortado no servidor por
+ * `app.dashboard_operations`; posição relativa dentro de um conjunto que o ator
+ * não enxerga inteiro **revela o tamanho** do conjunto oculto.
+ */
 export interface ExportSummaryBlock {
   label: string;
-  a06: string;
+  /** 1 · o recorte temporal. `null` em qualquer das pontas significa "sem limite". */
+  period: { from: string | null; to: string | null };
+  /** 2 · os filtros como o SERVIDOR os resolveu, não como foram pedidos. */
+  appliedFilters: Record<string, unknown>;
+  /** 3 · parceiros abrangidos. */
   partners: number;
-  partnersWithAssisted: number;
-  partnersWithMonthlyAudit: number;
+  /** 4 · cobertura da Gestão Assistida. */
+  assistedCoverage: { partnersWithData: number; partners: number };
+  /** 5 · cobertura da Auditoria Mensal. */
+  monthlyAuditCoverage: { partnersWithData: number; partnersApproved: number; partners: number };
+  /** 6 · eixo de desempenho, pela MESMA função que alimenta a Matriz. */
+  performanceAxis: Record<string, unknown>;
+  /** 7 · eixo de processo, por CONTAGEM de respostas — nunca por média de médias. */
+  processAxis: Record<string, unknown>;
+  /** 8 · planos por estado. */
   plansByStatus: Record<string, number>;
-  plansOverdue: number;
+  /** 9 · suficiência dos dados. */
+  dataSufficiency: {
+    partnersSufficient: number;
+    partnersInsufficient: number;
+    performanceSufficient: boolean;
+  };
+  /** 10 · a ponderação utilizada, uma entrada por região alcançada. */
+  weighting: Array<{ regionId: string; weighting: Record<string, unknown> }>;
+  /** 11 · índice consolidado — quantos parceiros o têm, e quantos não. */
+  consolidatedIndex: { partnersWithIndex: number; partnersWithout: number; note: string };
+  /** 12 · as versões das regras que produziram cada número acima. */
+  ruleVersions: Record<string, unknown>;
 }
 
 export interface ExportDataset {

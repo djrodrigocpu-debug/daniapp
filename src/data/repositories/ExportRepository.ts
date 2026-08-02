@@ -68,18 +68,45 @@ export class SupabaseExportRepository implements ExportRepository {
       columns,
       rowCount: Number(raw.rowCount ?? 0),
       rows: ((raw.rows ?? []) as Array<Record<string, unknown>>).map((r) => coerce(r, columns)),
+      // O bloco DEFINITIVO da A-06. `Number(null)` é 0, e é por isso que aqui
+      // nenhuma contagem passa por `??` sobre um valor que possa ser ausente
+      // com significado — as doze chaves são todas contagens ou objetos.
       ...(raw.summary
         ? {
             summary: {
               label: raw.summary.label,
-              a06: raw.summary.a06,
+              period: {
+                from: raw.summary.period?.from ?? null,
+                to: raw.summary.period?.to ?? null,
+              },
+              appliedFilters: raw.summary.appliedFilters ?? {},
               partners: Number(raw.summary.partners ?? 0),
-              partnersWithAssisted: Number(raw.summary.partnersWithAssisted ?? 0),
-              partnersWithMonthlyAudit: Number(raw.summary.partnersWithMonthlyAudit ?? 0),
+              assistedCoverage: {
+                partnersWithData: Number(raw.summary.assistedCoverage?.partnersWithData ?? 0),
+                partners: Number(raw.summary.assistedCoverage?.partners ?? 0),
+              },
+              monthlyAuditCoverage: {
+                partnersWithData: Number(raw.summary.monthlyAuditCoverage?.partnersWithData ?? 0),
+                partnersApproved: Number(raw.summary.monthlyAuditCoverage?.partnersApproved ?? 0),
+                partners: Number(raw.summary.monthlyAuditCoverage?.partners ?? 0),
+              },
+              performanceAxis: raw.summary.performanceAxis ?? {},
+              processAxis: raw.summary.processAxis ?? {},
               plansByStatus: Object.fromEntries(
                 Object.entries(raw.summary.plansByStatus ?? {}).map(([k, v]) => [k, Number(v)]),
               ),
-              plansOverdue: Number(raw.summary.plansOverdue ?? 0),
+              dataSufficiency: {
+                partnersSufficient: Number(raw.summary.dataSufficiency?.partnersSufficient ?? 0),
+                partnersInsufficient: Number(raw.summary.dataSufficiency?.partnersInsufficient ?? 0),
+                performanceSufficient: Boolean(raw.summary.dataSufficiency?.performanceSufficient),
+              },
+              weighting: raw.summary.weighting ?? [],
+              consolidatedIndex: {
+                partnersWithIndex: Number(raw.summary.consolidatedIndex?.partnersWithIndex ?? 0),
+                partnersWithout: Number(raw.summary.consolidatedIndex?.partnersWithout ?? 0),
+                note: raw.summary.consolidatedIndex?.note ?? '',
+              },
+              ruleVersions: raw.summary.ruleVersions ?? {},
             },
           }
         : {}),

@@ -31,11 +31,22 @@ const RESPOSTA = {
     { partnerName: 'Parceiro A', performanceScore: '33.33', dataSufficient: true, dueDate: '2026-07-06' },
     { partnerName: 'Parceiro B', performanceScore: null, dataSufficient: false, dueDate: null },
   ],
+  // O servidor devolve contagens como STRING (numeric do PostgreSQL). O adapter
+  // precisa coagir sem transformar ausência em zero — é a lição L-04.
   summary: {
-    label: 'Resumo tecnico provisorio',
-    a06: 'A composicao empresarial final da aba Resumo continua pendente (A-06).',
-    partners: '2', partnersWithAssisted: '2', partnersWithMonthlyAudit: '1',
-    plansByStatus: { not_started: '1' }, plansOverdue: '1',
+    label: 'Resumo',
+    period: { from: '2026-07-01', to: null },
+    appliedFilters: { operationIds: [] },
+    partners: '2',
+    assistedCoverage: { partnersWithData: '2', partners: '2' },
+    monthlyAuditCoverage: { partnersWithData: '1', partnersApproved: '1', partners: '2' },
+    performanceAxis: { score: 70, sufficient: true },
+    processAxis: { conforme: '2' },
+    plansByStatus: { not_started: '1' },
+    dataSufficiency: { partnersSufficient: '1', partnersInsufficient: '1', performanceSufficient: true },
+    weighting: [],
+    consolidatedIndex: { partnersWithIndex: '1', partnersWithout: '1', note: 'sem renormalizacao' },
+    ruleVersions: { performanceScoreRule: 'desempenho-ponderado-status/1.3.5' },
   },
 };
 
@@ -79,16 +90,27 @@ describe('SupabaseExportRepository', () => {
     expect(r.value.rows[1].dataSufficient).toBe(false);
   });
 
-  it('o bloco do Resumo chega tipado, com A-06 nomeada', async () => {
+  it('o bloco DEFINITIVO do Resumo chega tipado, com os doze itens', async () => {
     const { client } = clienteFalso(RESPOSTA);
     const repo = new SupabaseExportRepository(client as never);
     const r = await repo.getDataset('summary');
     if (!r.ok) throw new Error('esperava sucesso');
     expect(r.value.summary).toEqual({
-      label: 'Resumo tecnico provisorio',
-      a06: 'A composicao empresarial final da aba Resumo continua pendente (A-06).',
-      partners: 2, partnersWithAssisted: 2, partnersWithMonthlyAudit: 1,
-      plansByStatus: { not_started: 1 }, plansOverdue: 1,
+      label: 'Resumo',
+      // A ponta ausente do período sobrevive como `null`: "sem limite final"
+      // não é "hoje", e o arquivo não pode inventar a data que faltou.
+      period: { from: '2026-07-01', to: null },
+      appliedFilters: { operationIds: [] },
+      partners: 2,
+      assistedCoverage: { partnersWithData: 2, partners: 2 },
+      monthlyAuditCoverage: { partnersWithData: 1, partnersApproved: 1, partners: 2 },
+      performanceAxis: { score: 70, sufficient: true },
+      processAxis: { conforme: '2' },
+      plansByStatus: { not_started: 1 },
+      dataSufficiency: { partnersSufficient: 1, partnersInsufficient: 1, performanceSufficient: true },
+      weighting: [],
+      consolidatedIndex: { partnersWithIndex: 1, partnersWithout: 1, note: 'sem renormalizacao' },
+      ruleVersions: { performanceScoreRule: 'desempenho-ponderado-status/1.3.5' },
     });
   });
 

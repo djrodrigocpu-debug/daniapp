@@ -7,35 +7,48 @@
 import { describe, it, expect } from 'vitest';
 import {
   NO_QUADRANT_LABEL, QUADRANT_LABEL_135, QUADRANT_ORDER, SUFFICIENCY_REASON_LABEL,
-  countQuadrants, filtersSummary, normalizeFilters, proportion, provisionalNotice,
+  countQuadrants, filtersSummary, normalizeFilters, proportion, ruleVersionNotice,
   quadrantAccessibleLabel, weightedIndexAccessibleLabel, weightedIndexUnavailableReason,
   weightingLabel,
 } from './policy135';
 import { MatrixEntry, RuleProvenance } from './types135';
 
+// ATUALIZADO PELA FASE 10: A-10 e A-11 congeladas em 02/08/2026 (migration 0050).
 const PROVENANCIA: RuleProvenance = {
   assistedStatusRule: 'assisted/1',
-  performanceScoreRule: 'proporcao-simples-desempenho/A-11-pendente',
-  performanceProvisional: true,
-  monthlyScoreRule: 'proporcao-simples/A-10-pendente',
-  monthlyProvisional: true,
+  performanceScoreRule: 'desempenho-ponderado-status/1.3.5',
+  performanceProvisional: false,
+  monthlyScoreRule: 'conformidade-simples-processo/1.3.5',
+  monthlyProvisional: false,
+  weightingRule: 'ponderacao-regional-publicada/1.3.5',
   quadrantRule: '1.3.4-quadrants-1',
   trafficLightRule: 'app.score_traffic_light/0004',
-  openDecisions: ['A-04', 'A-10', 'A-11'],
+  openDecisions: ['A-04'],
 };
 
 const entrada = (over: Partial<MatrixEntry> = {}): MatrixEntry => ({
   operationId: 'op-1',
   partnerName: 'Parceiro A',
   regionId: 'reg-1',
-  performance: { axis: 'critical', score: 33.33, conforme: 1, atencao: 1, naoConforme: 1, semDado: 0 },
-  process: { axis: 'green', score: 100, trafficLight: 'green', auditsConsidered: 1 },
+  // 100x1 + 50x1 + 0x1, pesos 1 => 50,00 pela regra definitiva (A-11).
+  performance: {
+    axis: 'critical', score: 50, sufficient: true, insufficiencyReasons: [], weightSum: 3,
+    conforme: 1, atencao: 1, naoConforme: 1, semDado: 0,
+    rule: 'desempenho-ponderado-status/1.3.5',
+  },
+  process: {
+    axis: 'green', score: 100, sufficient: true, insufficiencyReasons: [],
+    trafficLight: 'green', auditsConsidered: 1,
+    rule: 'conformidade-simples-processo/1.3.5',
+  },
   quadrant: 'ineffective_routine',
   dataSufficiency: { sufficient: true, reasons: [] },
   weighting: { configured: true, regionId: 'reg-1', assistedWeight: 60, auditWeight: 40, versionNumber: 1, id: 'w-1' },
   weightedIndex: {
-    value: 60, assistedComponent: 33.33, auditComponent: 100,
-    weightingVersionId: 'w-1', provisional: true, provisionalReason: 'A-10 e A-11 abertas',
+    value: 70, assistedComponent: 50, auditComponent: 100,
+    weightingVersionId: 'w-1',
+    performanceRule: 'desempenho-ponderado-status/1.3.5',
+    processRule: 'conformidade-simples-processo/1.3.5',
   },
   ...over,
 });
@@ -96,24 +109,27 @@ describe('por que o índice não existe — e os dois motivos são diferentes', 
   });
 });
 
-describe('todo índice exibido é anunciado como provisório', () => {
-  it('a frase cita A-10 e A-11, e nega ser o Índice de Excelência', () => {
-    const aviso = provisionalNotice(PROVENANCIA);
-    expect(aviso).toContain('A-10');
-    expect(aviso).toContain('A-11');
-    expect(aviso).toContain('Não é o Índice de Excelência');
-    // A-04 é sobre PESOS, não sobre a regra de pontuação: fica de fora da frase.
-    expect(aviso).not.toContain('A-04');
+describe('todo índice exibido carrega a versão das regras que o produziram', () => {
+  it('a frase nomeia as DUAS regras e continua negando ser o Índice de Excelência', () => {
+    // ATUALIZADO PELA FASE 10. A frase parou de anunciar provisoriedade — as
+    // regras foram congeladas —, mas a negação central PERMANECE: D10 diz que o
+    // índice é informação adicional e não substitui a Matriz.
+    const aviso = ruleVersionNotice(PROVENANCIA);
+    expect(aviso).toContain('desempenho-ponderado-status/1.3.5');
+    expect(aviso).toContain('conformidade-simples-processo/1.3.5');
+    expect(aviso).toContain('não é o Índice de Excelência');
+    expect(aviso).not.toMatch(/provisór/i);
   });
 
   it('o texto acessível do índice diz o valor, as duas partes e os dois pesos', () => {
     const e = entrada();
     const t = weightedIndexAccessibleLabel(e, e.weightedIndex!);
-    expect(t).toContain('provisório 60.00');
-    expect(t).toContain('desempenho 33.33');
+    expect(t).toContain('índice consolidado 70.00');
+    expect(t).toContain('desempenho 50.00');
     expect(t).toContain('processo 100.00');
     expect(t).toContain('60%');
     expect(t).toContain('40%');
+    expect(t).not.toMatch(/provisór/i);
   });
 });
 
