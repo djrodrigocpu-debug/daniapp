@@ -25,6 +25,7 @@ import { MonthlyAuditScreen } from '../screens/MonthlyAuditScreen';
 import { EvaluationScreen } from '../screens/EvaluationScreen';
 import { PerformanceScreen } from '../screens/PerformanceScreen';
 import { PerformanceMatrixScreen } from '../screens/PerformanceMatrixScreen';
+import { ManagementDashboardScreen } from '../screens/ManagementDashboardScreen';
 import { colors } from '../theme';
 import { RootStackParamList } from '../types';
 
@@ -194,6 +195,7 @@ export function AppNavigator() {
         <Stack.Screen name="AssistedCycle" component={AssistedCycleScreen} options={{ title: 'Gestão Assistida' }} />
         <Stack.Screen name="MonthlyAudit" component={MonthlyAuditScreen} options={{ title: 'Auditoria Mensal' }} />
         <Stack.Screen name="PerformanceMatrix" component={PerformanceMatrixScreen} options={{ title: 'Matriz de desempenho' }} />
+        <Stack.Screen name="ManagementDashboard" component={ManagementDashboardScreen} options={{ title: 'Painel gerencial' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

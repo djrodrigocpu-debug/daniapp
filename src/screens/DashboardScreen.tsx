@@ -104,6 +104,28 @@ export function DashboardScreen() {
         </View>
         <Ionicons name="chevron-forward" size={20} color={colors.inkMuted} />
       </Pressable>
+
+      <SectionTitle
+        title="Painel gerencial (1.3.5)"
+        subtitle="Agregações server-side dos dois módulos novos, com filtros, ponderação regional e alternativa tabular em cada gráfico."
+      />
+      <Pressable
+        style={({ pressed }) => [styles.matrixCard, pressed && styles.matrixCardPressed]}
+        onPress={() => navigation.navigate('ManagementDashboard')}
+        accessibilityRole="button"
+        accessibilityLabel="Abrir o painel gerencial da Gestão Assistida e da Auditoria Mensal"
+        // `tabIndex` é o que dá foco por teclado no web — a lição do O-13.
+        tabIndex={0}
+      >
+        <View style={styles.matrixIcon}><Ionicons name="stats-chart-outline" size={22} color={colors.primary} /></View>
+        <View style={styles.matrixTextBlock}>
+          <Text style={styles.matrixTitle}>Abrir o painel gerencial</Text>
+          <Text style={styles.matrixSubtitle}>
+            Gestão Assistida × Auditoria Mensal, cobertura, planos e o índice ponderado — quando houver ponderação publicada.
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={colors.inkMuted} />
+      </Pressable>
     </Screen>
   );
 }

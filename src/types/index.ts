@@ -89,4 +89,10 @@ export type RootStackParamList = {
    */
   MonthlyAudit: { operationId: string; competence?: string };
   PerformanceMatrix: undefined;
+  /**
+   * Painel gerencial e Matriz da 1.3.5 (D10). Sem parâmetro: o escopo é do
+   * servidor, e os filtros são estado da própria tela — passá-los por rota
+   * abriria caminho para um link pedir mais do que o papel alcança.
+   */
+  ManagementDashboard: undefined;
 };
