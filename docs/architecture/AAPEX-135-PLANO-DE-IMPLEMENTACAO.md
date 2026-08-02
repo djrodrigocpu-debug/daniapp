@@ -267,17 +267,45 @@ PDF para a Auditoria Mensal, e explica a ausência em texto.
 
 ---
 
-### Fase 6 — Autorização server-side com escopo regional
+### Fase 6 — Autorização server-side com escopo regional ✅ **CONCLUÍDA** (02/08/2026)
 
-**Entrega:** `app.can_manage_catalog(target_region_id)` · aplicação em todas as RPCs de catálogo ·
-bateria de testes negativos ampliada.
+> **Entregue como AUDITORIA, não como construção.** `app.can_manage_catalog` já existia desde a
+> Fase 1 e já guardava as 14 RPCs de catálogo. O que faltava era **provar** — sobre a superfície
+> inteira, e do lado do banco.
 
-**Critério de saída**
-- [ ] **testes negativos 19–36 todos verdes**, com mensagem literal do servidor registrada;
-- [ ] ordem de verificação respeitada: ator → papel → escopo → estado → efeito;
-- [ ] regional editando fora da própria região → **fora do escopo** (testes 23, 24);
-- [ ] zero vazamento de escopo nos quatro papéis;
-- [ ] **os 18 testes originais continuam verdes**.
+**Entregue de fato:** inventário extraído do **catálogo de um PostgreSQL real** (`pg_proc`,
+`pg_class`, `pg_policies`, `information_schema`), não do texto das migrations · 83 casos novos em
+`src/db/authorization_surface.integration.test.ts` · migration **0045** com a correção mínima de
+dois defeitos reais · **1901 testes verdes** (eram 1818).
+
+**Três achados, nenhum vindo de leitura de documentação — os três nasceram como teste vermelho:**
+
+| # | Achado | Estado |
+|---|---|---|
+| **O-16** | os *wrappers* de 0044 (`submit_evaluation`, `get_official_audit_report_data`) liam `evaluation_model` **antes** de verificar escopo. Varrer UUIDs distinguia inexistente de auditoria mensal alheia, revelando existência **e** modelo | ✅ **0045** |
+| **O-17** | `authenticated` retinha `REFERENCES` e `TRIGGER` nas seis tabelas de catálogo (0036–0038, que revogaram por lista em vez de `revoke all`). **Medido:** um GC cria gatilho em `public.themes` | ✅ **0045** |
+| **O-18** | `submit_evaluation`/`remove_evidence`/`reserve_evidence_upload` distinguem `avaliacao inexistente` de `sem permissao` | ⚠️ **herdado de 0006/0025/0027/0028, registrado, NÃO corrigido** |
+
+**Critério de saída — verificado**
+
+- [x] **testes negativos 19–36 verdes**, com mensagem literal registrada — Matriz §8;
+- [x] ordem `ator → papel → escopo → estado → efeito` conferida nas 25 RPCs novas — **duas violações
+      encontradas e corrigidas** (O-16);
+- [x] regional editando fora da própria região → fora do escopo (testes 23, 24), e editando
+      **dentro** dela → permitido: a recusa não é indiscriminada;
+- [x] zero vazamento de escopo nos quatro papéis, em **duas regiões espelhadas** — com um catálogo
+      só, *"não vazou"* seria indistinguível de *"não havia o que vazar"*;
+- [x] nenhuma `security definer` sem `search_path` fixo — **121 verificadas, zero exceções**;
+- [x] nenhuma RPC nova executável por `anon` ou `PUBLIC`; nenhuma tabela nova com grant de `anon`;
+- [x] **escrita direta recusada** nas onze tabelas novas, no próprio escopo e para o ADMIN;
+- [x] **zero efeito lateral**: cada recusa comparada contra um retrato de 30 campos do banco;
+- [x] **os 18 testes originais continuam verdes** — 34 arquivos de banco, 751 casos;
+- [x] typecheck limpo; export web sem erro, bundle em 1.3.4 e sem segredo privilegiado.
+
+**Ressalva nomeada.** O **teste 35** só foi medido na forma disponível: `export_dataset` é da Fase 9
+e **não existe**. O que foi provado é que as RPCs de listagem recusam operação fora do escopo e que
+a leitura direta sob RLS devolve conjunto vazio. **A forma canônica do teste 35 continua devida à
+Fase 9.**
 
 ---
 

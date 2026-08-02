@@ -33,10 +33,11 @@ por si.
 | ~~0042~~ ✅ | `monthly_audit_model` | **APLICADA LOCALMENTE.** `app.evaluation_model` e `app.criterion_answer_status`; discriminador em `evaluations` e `official_snapshots` com CHECK **mais forte** que o `not null` que substitui; `evaluation_criteria`, `evaluation_criterion_answers`, `evaluation_criterion_answer_evidence`; `evidence_upload_reservations` com dois destinos; `app.monthly_audit_score` (provisória, A-10) | 0038 |
 | ~~0043~~ ✅ | `action_plan_monthly_source` | **APLICADA LOCALMENTE.** `monthly_criterion_answer_id` (**não** `monthly_audit_id` — ver ADR-135-003, D-Q), CHECK com as três origens, gatilho de coerência, `save_action_plan` estendida | 0042 |
 | ~~0044~~ ✅ | `monthly_audit_rpcs` | **APLICADA LOCALMENTE.** `start_monthly_audit` com **período por parâmetro** (fecha O-06), respostas, evidências, submissão, `validate_evaluation` com ramo mensal, consulta e as duas fronteiras legadas | 0043 |
-| **0045** | `system_settings_and_cutover` | `system_settings`; semente `weekly_audit_cutover_date = null`; guarda **inerte** em `start_evaluation` | 0044 |
-| **0046** | `region_weightings` | tabela com CHECK `soma = 100`; **nenhuma linha semeada** | 0036 |
-| **0047** | `dashboard_and_export_rpcs` | agregações e datasets de exportação, todos com escopo server-side | 0039–0046 |
-| **0048** | `ui_projections_135` | novas views `ui_*` e colunas nas existentes | 0047 |
+| ~~0045~~ ✅ | `authorization_hardening` | **APLICADA LOCALMENTE.** Correção mínima de dois defeitos reais achados pela auditoria da Fase 6: os *wrappers* `submit_evaluation` e `get_official_audit_report_data` passam a verificar escopo **antes** da fronteira de modelo (**O-16**); e as seis tabelas de catálogo de 0036–0038 passam a ter `authenticated` com **exatamente `SELECT`** (**O-17**). **Não cria tabela, coluna, tipo, gatilho, policy nem índice** | 0044 |
+| **0046** | `system_settings_and_cutover` | `system_settings`; semente `weekly_audit_cutover_date = null`; guarda **inerte** em `start_evaluation` | 0045 |
+| **0047** | `region_weightings` | tabela com CHECK `soma = 100`; **nenhuma linha semeada** | 0036 |
+| **0048** | `dashboard_and_export_rpcs` | agregações e datasets de exportação, todos com escopo server-side | 0039–0047 |
+| **0049** | `ui_projections_135` | novas views `ui_*` e colunas nas existentes | 0048 |
 
 > **Os quatro últimos foram RENUMERADOS**, e só eles: a Auditoria Mensal consumiu três migrations
 > em vez de uma, porque o modelo precisou de tabelas de resposta e de vínculo de evidência que os
@@ -45,8 +46,22 @@ por si.
 > Números são **propostos**, não reservados. A ordem real será confirmada na sessão de
 > implementação, conforme o [Plano de Implementação](AAPEX-135-PLANO-DE-IMPLEMENTACAO.md).
 
-> **Estado real em 02/08/2026:** 0036–0044 escritas e aplicadas **somente em PGlite local**.
-> Nenhuma foi enviada a staging ou produção. Próximo número livre: **0045**.
+> **Estado real em 02/08/2026:** 0036–0045 escritas e aplicadas **somente em PGlite local**.
+> Nenhuma foi enviada a staging ou produção. Próximo número livre: **0046**.
+>
+> **Duas armadilhas novas, descobertas pela auditoria da Fase 6.**
+>
+> 1. **O wrapper roda antes da guarda.** A técnica de `pg_get_functiondef` preserva o corpo legado —
+>    e por isso mesmo a fronteira nova escrita no wrapper passa à frente da autorização que mora
+>    dentro da função legada. Foi o achado **O-16**: `submit_evaluation` e
+>    `get_official_audit_report_data` diziam o **modelo** de uma auditoria a quem não alcançava a
+>    operação. Todo wrapper futuro precisa verificar ator e escopo — ou delegar — **antes** de dizer
+>    qualquer coisa sobre o objeto.
+> 2. **Revogar por lista é antipadrão.** `revoke insert, update, delete, truncate … from
+>    authenticated` deixa `REFERENCES` e `TRIGGER`, que o ambiente real concede a toda tabela nova
+>    (O-10). Foi o achado **O-17**, e o efeito medido é um Gerente de Canal criando gatilho em
+>    `public.themes`. O padrão correto, de 0039 em diante, é
+>    `revoke all … from anon, public, authenticated` seguido de `grant select to authenticated`.
 >
 > **Técnica nova, e obrigatória daqui para a frente.** Estender função legada **copiando o corpo
 > é proibido**: a primeira versão da 0044 reescreveu `submit_evaluation` a partir da 0025 e perdeu,

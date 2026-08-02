@@ -103,8 +103,19 @@ Não precisa ser construído:
 | RPC | Mudança | Risco |
 |---|---|---|
 | `start_evaluation` | guarda de cutover: recusa `weekly` **se** a data existir e tiver passado. Enquanto nula, comportamento idêntico | baixo — enquanto o cutover não for ativado, nada muda |
-| `get_official_audit_report_data` | ✅ **vira WRAPPER (0044)**: a função vigente é renomeada para `app.official_audit_report_legacy` **sem uma linha alterada**, e a nova só **recusa** o modelo `monthly_criteria`, citando A-05 | **baixo** — o corpo legado é literalmente o mesmo objeto, não uma cópia. Ver ADR-135-003, D-S |
+| `get_official_audit_report_data` | ✅ **vira WRAPPER (0044)**: a função vigente é renomeada para `app.official_audit_report_legacy` **sem uma linha alterada**, e a nova só **recusa** o modelo `monthly_criteria`, citando A-05. ⚠️ **Corrigida pela 0045**: a fronteira de modelo vinha **antes** da verificação de escopo, e virava oráculo de existência (achado O-16) | **baixo** — o corpo legado é literalmente o mesmo objeto, não uma cópia. Ver ADR-135-003, D-S |
+| `submit_evaluation` | ✅ **vira WRAPPER (0044)** pela mesma técnica. ⚠️ **Corrigida pela 0045** pelo mesmo motivo (O-16) | baixo |
 | `save_action_plan` | aceita e valida a nova origem | baixo |
+
+### 3.1b A lição dos wrappers — RF6-02
+
+A técnica de `pg_get_functiondef` + renomear + wrapper resolve o problema que se propôs a resolver:
+o corpo legado deixa de ser promessa e vira propriedade do comando. **Mas ela cria um risco próprio,
+descoberto na Fase 6:** o wrapper roda **antes** da função que carrega a autorização, e uma fronteira
+nova colocada nele passa naturalmente à frente da guarda antiga.
+
+Foi exatamente o que aconteceu na 0044, e é o achado **O-16**. **Todo wrapper futuro precisa
+verificar ator e escopo — ou delegar — antes de dizer qualquer coisa sobre o objeto.**
 
 ### 3.2 Novas (nomes propostos)
 
@@ -150,7 +161,8 @@ Projeções novas: `ui_assisted_cycles`, `ui_assisted_entries`, `ui_audit_criter
 | # | Risco | Severidade | Mitigação |
 |---|---|---|---|
 | **RT-01** | Alterar `get_official_audit_report_data` **quebra o determinismo já provado** (40/40 códigos, 40 distintos) | 🔴 alta | Auditorias sem critérios materializados devem percorrer **exatamente o caminho antigo**. Teste de regressão obrigatório: recalcular os 40 códigos conhecidos e exigir igualdade |
-| **RT-02** | Tabelas novas **herdam os grants amplos de `anon`** (achado O-10) | 🟡 média | `revoke` explícito na própria migration; RLS habilitada **e forçada**; teste negativo por tabela nova |
+| **RT-02** | Tabelas novas **herdam os grants amplos de `anon`** (achado O-10) | 🟡 média | ✅ **MITIGADO, e completado pela 0045.** `anon` e `PUBLIC` estavam zerados desde a migration de origem nas onze tabelas novas — mas 0036–0038 revogaram de `authenticated` **por lista** (`insert, update, delete, truncate`) em vez de `revoke all`, e no ambiente real o que a lista não revoga permanece: `REFERENCES` e `TRIGGER` sobraram nas seis de catálogo (achado **O-17**, medido — um GC criava gatilho em `public.themes`). A 0045 alinha as seis ao padrão de 0039–0044. **Revogar por lista é o antipadrão; `revoke all` + `grant select` é o padrão** |
+| **RT-13** | Função de gatilho de `app` com `EXECUTE` de `PUBLIC` (ACL padrão nunca revogada, desde 0001) | 🟡 média | ⚠️ **ABERTO, e é o habilitador do O-17**: sozinho é inofensivo — chamar função de gatilho fora de gatilho falha —, mas qualquer tabela cujo `authenticated` tenha `TRIGGER` passa a ter material para anexar. Fechado na superfície nova pela remoção do `TRIGGER`; nas 37 tabelas legadas continua sendo O-10 |
 | **RT-03** | `target_band` sem regra (A-01) | 🟡 média | ✅ **MITIGADO** — `app.assisted_status_of` falha citando A-01, no banco e no espelho de domínio. A-01 **continua aberta** |
 | **RT-04** | Semana ISO vs. `week_start_date` divergindo por timezone | 🟡 média | ✅ **MITIGADO** — `app.assisted_week_start(date)` é `immutable` e opera sobre dia de calendário; o fuso entra só em `app.assisted_today()`. CHECK garante segunda-feira. O relógio do cliente nunca decide a semana |
 | **RT-12** | Teardown do harness desconhecer tabela nova com coluna de enum de `app` | 🟡 média | ✅ **MITIGADO nesta fase, mas RECORRENTE** — `drop schema app cascade` derruba a coluna e o `create table if not exists` não a recria. Toda migration nova com esse formato precisa entrar em `supabase/rollback/0001_core_schema.down.sql` |

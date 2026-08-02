@@ -183,34 +183,61 @@ Função proposta: `app.can_manage_catalog(target_region_id uuid)`.
 
 ## 8. Testes negativos obrigatórios
 
+> ✅ **TODOS VERDES em 02/08/2026** (Fase 6), em `src/db/authorization_surface.integration.test.ts`,
+> contra PGlite com as migrations 0001–0045. Cada um acompanhado da comparação de um **retrato de
+> 30 campos** do banco, tirado imediatamente antes e depois da recusa — receber exceção não é prova
+> de que nada aconteceu.
+
 Acrescentam-se aos 18 já existentes, no mesmo formato
 (`[RECUSADO] ação / esperado / mensagem literal do servidor`):
 
-| # | Tentativa | Esperado |
-|---|---|---|
-| 19 | GC cria tema | sem permissão |
-| 20 | GC edita meta de indicador | sem permissão |
-| 21 | GC marca `include_in_monthly_audit` | sem permissão |
-| 22 | Coordenador cria indicador | sem permissão |
-| 23 | Regional edita tema **de outra região** | fora do escopo |
-| 24 | Regional configura ponderação **de outra região** | fora do escopo |
-| 25 | Excluir tema com histórico | recusado por gatilho |
-| 26 | Excluir indicador com histórico | recusado por gatilho |
-| 27 | Publicar indicador auditável **sem critério ativo** | recusado |
-| ~~28~~ ✅ | Abrir 2º ciclo semanal na mesma semana | recusado pela unicidade — **verde** |
-| ~~29~~ ✅ | Fechar ciclo com desvio **sem** diagnóstico/plano | recusado — **verde** |
-| ~~30~~ ✅ | GC abre ciclo em parceiro de outro GC | fora do escopo — **verde** |
-| ~~31~~ ✅ | GC valida o **próprio** plano concluído | **recusado por regra de ator** — **FECHADO em 02/08/2026** |
-| 32 | Alterar critério materializado de auditoria criada | recusado |
-| 33 | `anon` em cada RPC nova | HTTP 401 |
-| 34 | `anon` em cada tabela nova | conjunto vazio |
-| 35 | Exportar fora do escopo | só o permitido |
-| 36 | Gravar `overdue` manualmente | recusado |
+| # | Tentativa | Esperado | Mensagem literal do servidor |
+|---|---|---|---|
+| 19 ✅ | GC cria tema | sem permissão | `sem permissao para administrar o catalogo desta regiao` |
+| 20 ✅ | GC edita meta de indicador | sem permissão | idem |
+| 21 ✅ | GC marca `include_in_monthly_audit` | sem permissão | idem |
+| 22 ✅ | Coordenador cria indicador | sem permissão | idem |
+| 23 ✅ | Regional edita tema **de outra região** | fora do escopo | `tema inexistente ou fora do escopo` |
+| 24 ✅ | Regional configura indicador **de outra região** | fora do escopo | `sem permissao para administrar o catalogo desta regiao` |
+| 25 ✅ | Excluir tema com histórico | recusado por gatilho | `tema TEMA-… em uso por configuracao regional: inative em vez de excluir` |
+| 26 ✅ | Excluir indicador com histórico | recusado por gatilho | `indicador IND-… configurado por alguma regiao: inative em vez de excluir` |
+| 27 ✅ | Publicar indicador auditável **sem critério ativo** | recusado | `auditoria mensal exige ao menos um criterio publicado e ativo para este indicador na regiao` |
+| 28 ✅ | Abrir 2º ciclo semanal na mesma semana | recusado pela unicidade | `duplicate key value violates unique constraint "assisted_cycles_week_uk"` |
+| 29 ✅ | Fechar ciclo com desvio **sem** diagnóstico/plano | recusado | recusa nomeando o indicador |
+| 30 ✅ | GC abre ciclo em parceiro de outro GC | fora do escopo | `operacao fora do escopo` |
+| 31 ✅ | GC valida o **próprio** plano concluído | recusado por regra de ator | `quem criou o plano nao pode valida-lo` |
+| 32 ✅ | Alterar critério materializado de auditoria criada | recusado | `permission denied for table evaluation_criteria` (grant) · `auditoria aprovada nao aceita alteracao` (gatilho) |
+| 33 ✅ | `anon` em cada uma das **25 RPCs novas** | recusa antes do corpo | `permission denied for function <nome>` |
+| 34 ✅ | `anon` em cada uma das **11 tabelas novas** | sem privilégio | `permission denied for table <nome>` |
+| 35 ⚠️ | Exportar fora do escopo | só o permitido | **medido na forma disponível**: `operacao fora do escopo` nas RPCs de listagem, **conjunto vazio** na leitura direta. `export_dataset` é da **Fase 9 e não existe** — a forma canônica continua devida |
+| 36 ✅ | Gravar `overdue` manualmente | recusado | `vencido e derivado da data, nao e escolha manual` — pela RPC **e** pela escrita direta |
+
+### 8.1 Ordem de verificação — conferida, e um defeito encontrado
+
+A ordem `ator → papel → escopo → estado → efeito` foi conferida nas 25 RPCs novas. **Duas funções a
+violavam**, e não eram novas: os *wrappers* que a 0044 criou para `submit_evaluation` e
+`get_official_audit_report_data` liam `evaluation_model` e recusavam com mensagem própria **antes**
+de a função legada verificar o alcance do chamador. Varrer UUIDs distinguia um UUID inexistente de
+uma auditoria mensal de outra região.
+
+Achado **O-16**, corrigido pela migration **0045**: o wrapper só fala do modelo para quem
+atravessaria a autorização da própria função legada; nos demais casos delega, e a recusa é a de
+sempre. `app.submit_evaluation_legacy` e `app.official_audit_report_legacy` **não foram tocadas**.
+
+### 8.2 Escrita direta — as onze tabelas novas são RPC-only, e isso foi medido
+
+`INSERT`, `UPDATE`, `DELETE` e `TRUNCATE` diretos são recusados nas onze — **inclusive dentro do
+próprio escopo do ator, e inclusive para o ADMIN**. *"A UI não chama diretamente"* não foi aceito
+como controle em nenhum ponto.
 
 ## 9. Pendências
 
 | # | Pendência |
 |---|---|
-| **A-07** | A autoridade regional se resolve apenas por `user_scopes.region_id`? A Fase 1 usa `app.scoped_region_ids()`, que já devolve conjunto, e por isso **não depende** da resposta |
+| **A-07** | A autoridade regional se resolve apenas por `user_scopes.region_id`? A Fase 1 usa `app.scoped_region_ids()`, que já devolve conjunto, e por isso **não depende** da resposta. A Fase 6 provou o isolamento entre duas regiões com um regional em cada |
 | ~~**A-08**~~ ✅ | **Resolvida** — modelo híbrido, [ADR-135-001](ADR-135-001-ESCOPO-GLOBAL-REGIONAL.md) |
-| **O-11** | Teste dirigido: plano em `completed`, criador tenta validar |
+| ~~**O-11**~~ ✅ | **Fechado** na Fase 5 e **reprovado** na Fase 6 |
+| ~~**O-16**~~ ✅ | **Fechado pela 0045** — fronteira de modelo antes da de escopo nos dois wrappers |
+| ~~**O-17**~~ ✅ | **Fechado pela 0045** — `authenticated` retinha `REFERENCES` e `TRIGGER` nas seis tabelas de catálogo de 0036–0038, e criava gatilho em `public.themes`. Medido, não presumido |
+| **O-18** ⚠️ | **NOVO, aberto.** `submit_evaluation`, `remove_evidence` e `reserve_evidence_upload` distinguem `avaliacao inexistente` de `sem permissao`. É de 0006/0025/0027/0028, **anterior à 1.3.5**, e corrigi-lo exige tocar corpo legado e atualizar testes que hoje afirmam essas frases. A 0045 garantiu o que cabia a esta fase: o **wrapper não acrescenta informação** |
+| **A-10** ⭐ | **Bloqueio de homologação.** A pontuação mensal é provisória. Não impede concluir a autorização |
