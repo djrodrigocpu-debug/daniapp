@@ -217,11 +217,11 @@ describe('H-01b — remove_evidence decide por booleano fechado (0031)', () => {
     expect(await contagens(anexo.evidenceId)).toEqual({ meta: 1, vinculo: 1 });
   });
 
-  it('quem está fora do escopo é recusado', async () => {
+  it('quem está fora do escopo é recusado — e desde a 0046 sem dizer se o objeto existe', async () => {
     const { evalId, anexo } = await rascunhoComEvidencia();
     const erro = await db.asUser(ID.uGcA, (tx) =>
       tx.expectError(`select public.remove_evidence($1,$2)`, [evalId, anexo.evidenceId]));
-    expect(erro.message).toMatch(/sem permissao/);
+    expect(erro.message).toBe('avaliacao inexistente ou fora do escopo');
     expect(await contagens(anexo.evidenceId)).toEqual({ meta: 1, vinculo: 1 });
   });
 
@@ -233,13 +233,19 @@ describe('H-01b — remove_evidence decide por booleano fechado (0031)', () => {
     expect(await contagens(anexo.evidenceId)).toEqual({ meta: 1, vinculo: 1 });
   });
 
-  it('avaliação inexistente é recusada sem tocar em nada', async () => {
-    const { anexo } = await rascunhoComEvidencia();
+  it('avaliação inexistente é recusada sem tocar em nada, com a MESMA frase do fora do escopo', async () => {
+    const { evalId, anexo } = await rascunhoComEvidencia();
     const erro = await db.asUser(ID.uGcB, (tx) => tx.expectError(
       `select public.remove_evidence($1,$2)`,
       ['00000000-0000-0000-0000-0000000000fe', anexo.evidenceId]));
-    expect(erro.message).toMatch(/avaliacao inexistente/);
+    expect(erro.message).toBe('avaliacao inexistente ou fora do escopo');
     expect(await contagens(anexo.evidenceId)).toEqual({ meta: 1, vinculo: 1 });
+
+    // O outro lado da comparação: um objeto que EXISTE, fora do alcance de quem
+    // pergunta. Desde a 0046 (O-18) os dois são indistinguíveis.
+    const foraDoEscopo = await db.asUser(ID.uGcA, (tx) => tx.expectError(
+      `select public.remove_evidence($1,$2)`, [evalId, anexo.evidenceId]));
+    expect(foraDoEscopo.message).toBe(erro.message);
   });
 });
 

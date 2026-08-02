@@ -351,7 +351,14 @@ describe('Fase 6 — autorização server-side sobre a superfície inteira (0036
           from pg_proc p join pg_namespace n on n.oid=p.pronamespace
          where n.nspname='app' and p.proname like '%\\_legacy'
          order by 1`);
-      expect(r.map((x) => x.n)).toEqual(['official_audit_report_legacy', 'submit_evaluation_legacy']);
+      // Quatro desde a 0046: `remove_evidence` e `reserve_evidence_upload`
+      // também viraram wrapper, para fechar o O-18 sem copiar corpo legado.
+      expect(r.map((x) => x.n)).toEqual([
+        'official_audit_report_legacy',
+        'remove_evidence_legacy',
+        'reserve_evidence_upload_legacy',
+        'submit_evaluation_legacy',
+      ]);
       for (const x of r) expect(`${x.n}=${x.a}${x.b}${x.c}`).toBe(`${x.n}=falsefalsefalse`);
     });
 
@@ -1045,19 +1052,18 @@ describe('Fase 6 — autorização server-side sobre a superfície inteira (0036
       expect(mensalAlheia).not.toContain('criterios');
     });
 
-    it('O-18 · a distinção herdada entre inexistente e sem permissão fica REGISTRADA, não corrigida', async () => {
-      // Registro explícito do que continua aberto, medido e não escondido: nas
-      // RPCs de 0006/0025/0027/0028 a frase muda entre um UUID que não existe e
-      // um que existe fora do alcance. É comportamento anterior à 1.3.5, coberto
-      // por testes próprios (`rpc_security_hardening.integration.test.ts`), e a
-      // correção pertence a uma decisão sobre o caminho legado — não a esta fase.
+    it('O-18 · a distinção herdada entre inexistente e sem permissão está FECHADA (0046)', async () => {
+      // Este caso nasceu na Fase 6 registrando o defeito: as RPCs de
+      // 0006/0025/0027/0028 respondiam `avaliacao inexistente` a um UUID que não
+      // existe e `sem permissao` a um que existe fora do alcance. A migration
+      // 0046 uniformizou as três, e o caso passa a medir o contrato novo.
+      // A bateria dedicada é `src/db/legacy_error_uniformity.integration.test.ts`.
       const inexistente = await recusaSemEfeito(() =>
         rpc(ID.uGcB, `select public.submit_evaluation($1) as r`, [NADA]));
       const foraDoEscopo = await recusaSemEfeito(() =>
         rpc(ID.uGcB, `select public.submit_evaluation($1) as r`, [ID.evalA]));
-      expect(inexistente).toBe('avaliacao inexistente');
-      expect(foraDoEscopo).toBe('sem permissao');
-      expect(inexistente).not.toBe(foraDoEscopo);
+      expect(inexistente).toBe('avaliacao inexistente ou fora do escopo');
+      expect(foraDoEscopo).toBe(inexistente);
     });
 
     it('a fronteira de modelo continua valendo para quem ALCANÇA o objeto', async () => {
