@@ -158,6 +158,58 @@ describe('o provisório é dito em voz alta', () => {
   });
 });
 
+describe('exportação — o fluxo mínimo da Fase 9', () => {
+  it('os quatro módulos são oferecidos, e os dois formatos têm botão real', () => {
+    expect(tela).toMatch(/EXPORT_MODULES\.map/);
+    expect(tela).toMatch(/Baixar CSV/);
+    expect(tela).toMatch(/Baixar XLSX/);
+  });
+
+  it('os seletores de módulo são botões com foco e estado anunciados', () => {
+    const bloco = tela.slice(tela.indexOf('function BlocoExportacao'));
+    expect(bloco).toMatch(/accessibilityRole="button"/);
+    expect(bloco).toMatch(/accessibilityState=\{\{ selected: ativo \}\}/);
+    expect(bloco).toMatch(/tabIndex=\{0\}/);
+  });
+
+  it('progresso, erro e vazio são estados próprios — e o erro é anunciado', () => {
+    const bloco = tela.slice(tela.indexOf('function BlocoExportacao'));
+    expect(bloco).toMatch(/accessibilityRole="progressbar"/);
+    expect(bloco).toMatch(/accessibilityLiveRegion="polite"/);
+    expect(bloco).toMatch(/accessibilityRole="alert"/);
+    expect(bloco).toMatch(/disabled=\{gerando !== null\}/);
+  });
+
+  it('conjunto vazio NÃO gera arquivo — um arquivo vazio pareceria recorte legítimo', () => {
+    expect(tela).toMatch(/rowCount === 0/);
+    expect(tela).toMatch(/Nada foi gerado/);
+  });
+
+  it('a tela usa o MESMO recorte do painel — não monta filtro próprio', () => {
+    expect(tela).toMatch(/<BlocoExportacao filtros=\{filters\}/);
+    expect(tela).toMatch(/exporting\.getDataset\(modulo, filtros\)/);
+  });
+
+  it('o XLSX é montado com os quatro módulos, e o CSV com um', () => {
+    expect(tela).toMatch(/for \(const m of EXPORT_MODULES\)/);
+    expect(tela).toMatch(/toXlsx\(datasets\)/);
+    expect(tela).toMatch(/csvBytes\(r\.value\)/);
+  });
+
+  it('a tela declara as cinco abas e avisa que o Resumo é provisório (A-06)', () => {
+    expect(tela).toMatch(/Gestao_Assistida, Auditoria_Mensal, Planos, Resumo e/);
+    expect(tela).toMatch(/Filtros_Aplicados/);
+    expect(tela).toMatch(/sem fórmula alguma/);
+    expect(tela).toMatch(/resumo técnico provisório[\s\S]{0,120}A-06/);
+  });
+
+  it('a exportação não consulta o Supabase direto nem gera dado local', () => {
+    const bloco = tela.slice(tela.indexOf('function BlocoExportacao'));
+    expect(bloco).not.toMatch(/from\('|\.rpc\(/);
+    expect(bloco).toMatch(/useRepositories\(\)/);
+  });
+});
+
 describe('responsivo a 375 px', () => {
   it('os campos de filtro encolhem em vez de estourar a linha', () => {
     expect(tela).toMatch(/flexWrap: 'wrap'/);

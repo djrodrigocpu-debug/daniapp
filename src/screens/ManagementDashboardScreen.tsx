@@ -40,6 +40,12 @@ import {
   proportion, provisionalNotice, quadrantAccessibleLabel, weightedIndexAccessibleLabel,
   weightingLabel, weightedIndexUnavailableReason,
 } from '../domain/dashboard/policy135';
+import {
+  EXPORT_MODULES, EXPORT_MODULE_LABEL, ExportDataset, ExportFormat, ExportModule,
+} from '../domain/exporting/dataset';
+import { csvBytes, exportFileName } from '../domain/exporting/csv';
+import { toXlsx } from '../domain/exporting/xlsx';
+import { entregarExport } from '../utils/entregarExport';
 import { colors, radius, spacing } from '../theme';
 
 const MODULOS: Array<{ id: DashboardModule; label: string }> = [
@@ -291,7 +297,125 @@ export function ManagementDashboardScreen() {
           Quadrantes: {matrix.ruleProvenance.quadrantRule}
         </Text>
       </View>
+
+      <BlocoExportacao filtros={filters} resumo={resumo} />
     </Screen>
+  );
+}
+
+/**
+ * Exportação — CSV por módulo e XLSX com as cinco abas.
+ *
+ * O escopo e os filtros do arquivo são os MESMOS que o painel acima aplicou, e
+ * são resolvidos no servidor: a tela não escolhe o que entra, só o formato e o
+ * módulo. O XLSX busca os quatro módulos e monta uma pasta só; o CSV busca um.
+ */
+function BlocoExportacao({ filtros, resumo }: { filtros: DashboardFilters; resumo: string }) {
+  const { exporting } = useRepositories();
+  const [modulo, setModulo] = useState<ExportModule>('assisted');
+  const [gerando, setGerando] = useState<ExportFormat | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  const gerar = useCallback(async (formato: ExportFormat) => {
+    setGerando(formato);
+    setAviso(null);
+    try {
+      if (formato === 'csv') {
+        const r = await exporting.getDataset(modulo, filtros);
+        if (!r.ok) { setAviso(r.error.message); return; }
+        if (r.value.rowCount === 0) {
+          setAviso('Nenhuma linha no recorte aplicado. Nada foi gerado — um arquivo vazio '
+            + 'pareceria um recorte legítimo.');
+          return;
+        }
+        const entrega = await entregarExport()(
+          csvBytes(r.value), exportFileName(r.value, 'csv'), 'csv');
+        setAviso(entrega.ok ? `Arquivo gerado com ${r.value.rowCount} linha(s).` : (entrega.message ?? null));
+        return;
+      }
+
+      const datasets: Partial<Record<string, ExportDataset>> = {};
+      for (const m of EXPORT_MODULES) {
+        const r = await exporting.getDataset(m, filtros);
+        if (!r.ok) { setAviso(r.error.message); return; }
+        datasets[m] = r.value;
+      }
+      const total = EXPORT_MODULES.reduce((s, m) => s + (datasets[m]?.rowCount ?? 0), 0);
+      if (total === 0) {
+        setAviso('Nenhuma linha no recorte aplicado. Nada foi gerado.');
+        return;
+      }
+      const entrega = await entregarExport()(
+        toXlsx(datasets), exportFileName(datasets.summary!, 'xlsx'), 'xlsx');
+      setAviso(entrega.ok ? `Pasta gerada com ${total} linha(s) em cinco abas.` : (entrega.message ?? null));
+    } finally {
+      setGerando(null);
+    }
+  }, [exporting, modulo, filtros]);
+
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle} accessibilityRole="header">Exportar</Text>
+      <Text style={styles.muted}>
+        O arquivo carrega exatamente o recorte acima — escopo e filtros são resolvidos no
+        servidor, e a geração não amplia o que ele devolveu. {resumo}
+      </Text>
+
+      <Text style={styles.label}>Módulo (CSV)</Text>
+      <View style={styles.chips}>
+        {EXPORT_MODULES.map((m) => {
+          const ativo = modulo === m;
+          return (
+            <Pressable
+              key={m}
+              accessibilityRole="button"
+              accessibilityState={{ selected: ativo }}
+              accessibilityLabel={`Exportar ${EXPORT_MODULE_LABEL[m]}${ativo ? ', selecionado' : ''}`}
+              // `tabIndex` é o que dá foco por teclado no web — a lição do O-13.
+              tabIndex={0}
+              style={[styles.chip, ativo && styles.chipAtivo]}
+              onPress={() => setModulo(m)}
+            >
+              <Text style={[styles.chipTexto, ativo && styles.chipTextoAtivo]}>
+                {ativo ? '✓ ' : ''}{EXPORT_MODULE_LABEL[m]}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <AppButton
+        title={gerando === 'csv' ? 'Gerando CSV…' : `Baixar CSV — ${EXPORT_MODULE_LABEL[modulo]}`}
+        onPress={() => void gerar('csv')}
+        disabled={gerando !== null}
+      />
+      <AppButton
+        title={gerando === 'xlsx' ? 'Gerando XLSX…' : 'Baixar XLSX — cinco abas'}
+        variant="secondary"
+        onPress={() => void gerar('xlsx')}
+        disabled={gerando !== null}
+      />
+
+      {gerando !== null && (
+        <View style={styles.progresso} accessibilityRole="progressbar"
+          accessibilityLabel={`Gerando o arquivo ${gerando}`}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={styles.muted}>Gerando o arquivo…</Text>
+        </View>
+      )}
+
+      {aviso !== null && (
+        <Text style={styles.semDado} accessibilityLiveRegion="polite" accessibilityRole="alert">
+          {aviso}
+        </Text>
+      )}
+
+      <Text style={styles.avisoDetalhe}>
+        O XLSX traz as abas Gestao_Assistida, Auditoria_Mensal, Planos, Resumo e
+        Filtros_Aplicados, nesta ordem, sem fórmula alguma. A aba Resumo é um
+        resumo técnico provisório — a composição empresarial final continua pendente (A-06).
+      </Text>
+    </View>
   );
 }
 
@@ -454,4 +578,5 @@ const styles = StyleSheet.create({
   },
   avisoTexto: { color: colors.ink, fontSize: 12, fontWeight: '700', lineHeight: 17 },
   avisoDetalhe: { color: colors.inkMuted, fontSize: 11, lineHeight: 16 },
+  progresso: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
 });
