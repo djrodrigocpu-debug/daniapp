@@ -134,6 +134,8 @@ export function AssistedCycleScreen({ route, navigation }: Props) {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Semana anterior"
+        focusable
+        tabIndex={0}
         onPress={() => shiftWeek(-7)}
         style={styles.weekNav}
       >
@@ -146,6 +148,8 @@ export function AssistedCycleScreen({ route, navigation }: Props) {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Próxima semana"
+        focusable
+        tabIndex={0}
         onPress={() => shiftWeek(7)}
         style={styles.weekNav}
       >

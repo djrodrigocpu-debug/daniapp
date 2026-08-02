@@ -175,6 +175,8 @@ export function MonthlyAuditScreen({ route }: Props) {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Competência anterior"
+        focusable
+        tabIndex={0}
         onPress={() => setCompetence((c) => shiftCompetence(c, -1))}
         style={styles.competenceNav}
       >
@@ -189,6 +191,8 @@ export function MonthlyAuditScreen({ route }: Props) {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Próxima competência"
+        focusable
+        tabIndex={0}
         onPress={() => setCompetence((c) => shiftCompetence(c, 1))}
         style={styles.competenceNav}
       >
@@ -538,6 +542,10 @@ function CriterionCard({
                   accessibilityRole="radio"
                   accessibilityState={{ selected, disabled }}
                   accessibilityLabel={describeAnswerStatus(s)}
+                  // Grupo de rádio precisa ser alcançável por teclado, e o
+                  // `Pressable` do RN Web não entra na tabulação sozinho.
+                  focusable={!disabled}
+                  tabIndex={disabled ? -1 : 0}
                   disabled={disabled}
                   onPress={() => setStatus(s)}
                   style={[

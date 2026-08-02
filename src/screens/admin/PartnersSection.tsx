@@ -161,7 +161,16 @@ export function PartnersSection() {
           <TextInput value={form.city} onChangeText={(v) => setForm((f) => ({ ...f, city: v }))} placeholder="Cidade" placeholderTextColor={colors.neutral} style={[styles.input, styles.flex]} />
           <View style={styles.stateChips}>
             {(['PR', 'SC'] as const).map((uf) => (
-              <Pressable key={uf} onPress={() => setForm((f) => ({ ...f, state: uf }))} style={[styles.chip, form.state === uf && styles.chipActive]}>
+              <Pressable
+                key={uf}
+                accessibilityRole="button"
+                accessibilityLabel={`Estado ${uf}`}
+                accessibilityState={{ selected: form.state === uf }}
+                focusable
+                tabIndex={0}
+                onPress={() => setForm((f) => ({ ...f, state: uf }))}
+                style={[styles.chip, form.state === uf && styles.chipActive]}
+              >
                 <Text style={[styles.chipText, form.state === uf && styles.chipTextActive]}>{uf}</Text>
               </Pressable>
             ))}
@@ -172,7 +181,16 @@ export function PartnersSection() {
         {coordinations.length > 0 && (
           <View style={styles.chipRow}>
             {coordinations.map((c) => (
-              <Pressable key={c} onPress={() => setForm((f) => ({ ...f, coordinationName: c }))} style={[styles.chip, form.coordinationName === c && styles.chipActive]}>
+              <Pressable
+                key={c}
+                accessibilityRole="button"
+                accessibilityLabel={`Coordenadoria ${c}`}
+                accessibilityState={{ selected: form.coordinationName === c }}
+                focusable
+                tabIndex={0}
+                onPress={() => setForm((f) => ({ ...f, coordinationName: c }))}
+                style={[styles.chip, form.coordinationName === c && styles.chipActive]}
+              >
                 <Text style={[styles.chipText, form.coordinationName === c && styles.chipTextActive]}>{c}</Text>
               </Pressable>
             ))}
@@ -209,11 +227,24 @@ export function PartnersSection() {
         filtered.map((partner) => (
           <View key={partner.id} style={styles.partnerCard}>
             <View style={styles.partnerHeader}>
-              <Pressable onPress={() => startEdit(partner)} style={styles.flex}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Editar ${partner.officeName}`}
+                accessibilityHint="Abre o formulário com os dados deste Parceiro AACE"
+                focusable
+                tabIndex={0}
+                onPress={() => startEdit(partner)}
+                style={styles.flex}
+              >
                 <Text style={styles.partnerOffice}>{partner.officeName}</Text>
                 <Text style={styles.partnerCompany}>{partner.partnerName}</Text>
               </Pressable>
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${partner.active ? 'Inativar' : 'Ativar'} ${partner.officeName}`}
+                accessibilityState={{ selected: partner.active }}
+                focusable
+                tabIndex={0}
                 onPress={() => void toggleActive(partner)}
                 style={[styles.statusToggle, partner.active ? styles.statusOn : styles.statusOff]}
               >
@@ -258,11 +289,28 @@ function FilterRow({ label, values, selected, onSelect }: {
     <View style={styles.filterRow}>
       <Text style={styles.filterLabel}>{label}</Text>
       <View style={styles.chipRow}>
-        <Pressable onPress={() => onSelect(null)} style={[styles.chip, selected === null && styles.chipActive]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Todas"
+          accessibilityState={{ selected: selected === null }}
+          focusable
+          tabIndex={0}
+          onPress={() => onSelect(null)}
+          style={[styles.chip, selected === null && styles.chipActive]}
+        >
           <Text style={[styles.chipText, selected === null && styles.chipTextActive]}>Todas</Text>
         </Pressable>
         {values.map((v) => (
-          <Pressable key={v} onPress={() => onSelect(selected === v ? null : v)} style={[styles.chip, selected === v && styles.chipActive]}>
+          <Pressable
+            key={v}
+            accessibilityRole="button"
+            accessibilityLabel={v}
+            accessibilityState={{ selected: selected === v }}
+            focusable
+            tabIndex={0}
+            onPress={() => onSelect(selected === v ? null : v)}
+            style={[styles.chip, selected === v && styles.chipActive]}
+          >
             <Text style={[styles.chipText, selected === v && styles.chipTextActive]}>{v}</Text>
           </Pressable>
         ))}

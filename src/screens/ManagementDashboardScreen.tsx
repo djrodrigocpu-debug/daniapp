@@ -24,7 +24,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
@@ -189,6 +189,9 @@ export function ManagementDashboardScreen() {
                 accessibilityState={{ selected: ativo }}
                 accessibilityLabel={`Filtrar por ${m.label}${ativo ? ', selecionado' : ''}`}
                 // `tabIndex` é o que dá foco por teclado no web — a lição do O-13.
+                // `focusable` é o par nativo dele: sem os dois, o controle fica
+                // alcançável numa plataforma e invisível na outra.
+                focusable
                 tabIndex={0}
                 style={[styles.chip, ativo && styles.chipAtivo]}
                 onPress={() => setModules((atual) => (
@@ -373,6 +376,9 @@ function BlocoExportacao({ filtros, resumo }: { filtros: DashboardFilters; resum
               accessibilityState={{ selected: ativo }}
               accessibilityLabel={`Exportar ${EXPORT_MODULE_LABEL[m]}${ativo ? ', selecionado' : ''}`}
               // `tabIndex` é o que dá foco por teclado no web — a lição do O-13.
+              // `focusable` é o par nativo dele: sem os dois, o controle fica
+              // alcançável numa plataforma e invisível na outra.
+              focusable
               tabIndex={0}
               style={[styles.chip, ativo && styles.chipAtivo]}
               onPress={() => setModulo(m)}
@@ -471,22 +477,39 @@ function Grafico({ titulo, descricao, linhas }: { titulo: string; descricao: str
 }
 
 /** Alternativa tabular acessível — texto puro, com cabeçalho anunciado. */
+/**
+ * A alternativa tabular de cada gráfico.
+ *
+ * A ROLAGEM É DO CONTÊINER, NUNCA DO DOCUMENTO. A 375 px uma tabela de quatro
+ * colunas não cabe, e a saída errada é deixar a página inteira rolar para o
+ * lado — aí o cabeçalho, os filtros e os botões saem da viewport junto, e o
+ * usuário perde a referência. Aqui só a tabela anda.
+ */
 function Tabela({ titulo, colunas, linhas }: {
   titulo: string; colunas: string[]; linhas: Array<string[]>;
 }) {
   return (
     <View style={styles.tabela} accessibilityLabel={titulo}>
       <Text style={styles.tabelaTitulo} accessibilityRole="header">{titulo}</Text>
-      <View style={styles.tabelaLinha}>
-        {colunas.map((c) => (
-          <Text key={c} style={[styles.tabelaCelula, styles.tabelaCabecalho]}>{c}</Text>
-        ))}
-      </View>
-      {linhas.map((l, i) => (
-        <View key={`${l[0]}-${i}`} style={styles.tabelaLinha} accessibilityLabel={l.join(', ')}>
-          {l.map((c, j) => <Text key={`${c}-${j}`} style={styles.tabelaCelula}>{c}</Text>)}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator
+        contentContainerStyle={styles.tabelaConteudo}
+        accessibilityLabel={`${titulo}: tabela rolável na horizontal`}
+      >
+        <View>
+          <View style={styles.tabelaLinha}>
+            {colunas.map((c) => (
+              <Text key={c} style={[styles.tabelaCelula, styles.tabelaCabecalho]}>{c}</Text>
+            ))}
+          </View>
+          {linhas.map((l, i) => (
+            <View key={`${l[0]}-${i}`} style={styles.tabelaLinha} accessibilityLabel={l.join(', ')}>
+              {l.map((c, j) => <Text key={`${c}-${j}`} style={styles.tabelaCelula}>{c}</Text>)}
+            </View>
+          ))}
         </View>
-      ))}
+      </ScrollView>
     </View>
   );
 }
@@ -550,6 +573,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 8, color: colors.ink, fontSize: 13,
   },
   filtroLinha: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  // `minWidth` e não `width`: a tabela ocupa o disponível e só empurra o
+  // contêiner rolável quando o conteúdo realmente exige.
+  tabelaConteudo: { minWidth: '100%' },
   filtroCampo: { flexGrow: 1, flexShrink: 1, minWidth: 140, gap: 4 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: {

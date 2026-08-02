@@ -166,6 +166,8 @@ export function CatalogSection() {
             accessibilityRole="tab"
             accessibilityState={{ selected: tab === t.key }}
             accessibilityLabel={t.label}
+            focusable
+            tabIndex={0}
             onPress={() => setTab(t.key)}
             style={[styles.tab, tab === t.key && styles.tabActive]}
           >
@@ -221,6 +223,8 @@ function RegionPicker({ regions, selected, subject, onSelect }: {
               accessibilityRole="button"
               accessibilityState={{ selected: selected === r.id }}
               accessibilityLabel={`Região ${r.name}${gere ? '' : ' (somente leitura)'}`}
+              focusable
+              tabIndex={0}
               onPress={() => onSelect(r.id)}
               style={[styles.chip, selected === r.id && styles.chipActive]}
             >
@@ -312,6 +316,8 @@ function ThemesTab({ themes, regionId, subject, podeGerirGlobal, podeGerirRegiao
                 accessibilityRole="button"
                 accessibilityState={{ selected: escopo === k, disabled: !habilitado }}
                 accessibilityLabel={k === 'global' ? 'Escopo global' : 'Escopo regional'}
+                focusable={habilitado}
+                tabIndex={habilitado ? 0 : -1}
                 disabled={!habilitado}
                 onPress={() => setEscopo(k)}
                 style={[styles.chip, escopo === k && styles.chipActive, !habilitado && styles.chipDisabled]}
@@ -419,6 +425,8 @@ function IndicatorsTab({ indicators, regionId, subject, podeGerirGlobal, podeGer
                 accessibilityRole="button"
                 accessibilityState={{ selected: escopo === k, disabled: !habilitado }}
                 accessibilityLabel={k === 'global' ? 'Escopo global' : 'Escopo regional'}
+                focusable={habilitado}
+                tabIndex={habilitado ? 0 : -1}
                 disabled={!habilitado}
                 onPress={() => setEscopo(k)}
                 style={[styles.chip, escopo === k && styles.chipActive, !habilitado && styles.chipDisabled]}
@@ -450,6 +458,8 @@ function IndicatorsTab({ indicators, regionId, subject, podeGerirGlobal, podeGer
               accessibilityRole="button"
               accessibilityState={{ selected: direction === d.value }}
               accessibilityLabel={d.label}
+              focusable
+              tabIndex={0}
               onPress={() => setDirection(d.value)}
               style={[styles.chip, direction === d.value && styles.chipActive]}
             >
@@ -585,6 +595,8 @@ function ConfigurationTab({ regionId, themes, indicators, configs, podeGerir, on
               accessibilityRole="button"
               accessibilityState={{ selected: indicadorId === indicador.id }}
               accessibilityLabel={`Indicador ${indicador.code}`}
+              focusable
+              tabIndex={0}
               onPress={() => setIndicadorId(indicador.id)}
               style={[styles.chip, indicadorId === indicador.id && styles.chipActive]}
             >
@@ -606,6 +618,8 @@ function ConfigurationTab({ regionId, themes, indicators, configs, podeGerir, on
               accessibilityRole="button"
               accessibilityState={{ selected: temaVersaoId === versao.id }}
               accessibilityLabel={`Tema ${tema.code}`}
+              focusable
+              tabIndex={0}
               onPress={() => setTemaVersaoId(versao.id)}
               style={[styles.chip, temaVersaoId === versao.id && styles.chipActive]}
             >

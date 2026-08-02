@@ -293,7 +293,11 @@ const styles = StyleSheet.create({
   infoText: { flex: 1 },
   infoLabel: { color: colors.inkMuted, fontSize: 11 },
   infoValue: { color: colors.ink, fontSize: 13, fontWeight: '700', marginTop: 3 },
-  buttonRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.xl },
+  // `flexWrap` é o que impede a linha de estourar a viewport a 375 px: os dois
+  // botões passam a empilhar em vez de forçar rolagem horizontal do documento.
+  buttonRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.xl,
+  },
   flexButton: { flex: 1 },
   historyCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md },
   historyTop: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md },

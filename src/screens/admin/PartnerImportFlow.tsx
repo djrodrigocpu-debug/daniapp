@@ -117,7 +117,13 @@ export function PartnerImportFlow({ visible, onClose }: Props) {
       <View style={styles.safe}>
         <View style={styles.header}>
           <Text style={styles.title}>Importar Parceiros AACE</Text>
-          <Pressable onPress={close} accessibilityLabel="Fechar importação">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Fechar importação"
+            focusable
+            tabIndex={0}
+            onPress={close}
+          >
             <Text style={styles.closeText}>Fechar</Text>
           </Pressable>
         </View>
