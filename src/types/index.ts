@@ -75,5 +75,24 @@ export type RootStackParamList = {
   OperationDetail: { operationId: string };
   Evaluation: { operationId: string; evaluationId?: string };
   Performance: { operationId: string };
+  /**
+   * Ciclo semanal da Gestão Assistida (AAPEx 1.3.5, D1). `weekStartDate` é
+   * opcional: sem ele a tela abre na semana corrente, derivada do fuso
+   * empresarial e confirmada pelo servidor.
+   */
+  AssistedCycle: { operationId: string; weekStartDate?: string };
+  /**
+   * Auditoria Mensal por competência (AAPEx 1.3.5, D4). `competence` é
+   * `AAAA-MM` e é opcional: sem ela a tela abre na competência corrente. Passar
+   * uma competência explícita é o que torna a auditoria aprovada alcançável a
+   * partir do histórico — o caminho que fecha o O-12.
+   */
+  MonthlyAudit: { operationId: string; competence?: string };
   PerformanceMatrix: undefined;
+  /**
+   * Painel gerencial e Matriz da 1.3.5 (D10). Sem parâmetro: o escopo é do
+   * servidor, e os filtros são estado da própria tela — passá-los por rota
+   * abriria caminho para um link pedir mais do que o papel alcança.
+   */
+  ManagementDashboard: undefined;
 };

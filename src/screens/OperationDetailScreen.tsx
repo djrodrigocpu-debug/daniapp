@@ -14,6 +14,8 @@ import { useOperationalUser } from '../context/useOperationalUser';
 import { useRepositories } from '../data/repositories/RepositoryProvider';
 import { OperationPeople, scopeFromUser } from '../data/repositories/OperationsRepository';
 import { decideOperationDetailState } from '../domain/operations/operationDetailState';
+import { describeAuditStatus, describeCompetence } from '../domain/monthlyAudit/policy';
+import type { MonthlyAuditSummary } from '../domain/monthlyAudit/types';
 import { colors, radius, spacing } from '../theme';
 import { RootStackParamList } from '../types';
 import { formatDate, getMaturity, trafficLightColor } from '../utils/format';
@@ -43,6 +45,20 @@ export function OperationDetailScreen({ route, navigation }: NativeStackScreenPr
     });
     return () => { cancelled = true; };
   }, [operationsRepo, currentUser, operationId]);
+
+  // Competências da Auditoria Mensal. Falha silenciosa é DELIBERADA aqui: o
+  // adapter de demonstração recusa por princípio, e o detalhe do parceiro não
+  // pode virar tela de erro por causa de um bloco secundário. A tela da própria
+  // Auditoria Mensal é que explica a indisponibilidade, com a frase do motivo.
+  const { monthlyAudit: monthlyRepo } = useRepositories();
+  const [monthlyAudits, setMonthlyAudits] = useState<MonthlyAuditSummary[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void monthlyRepo.listAudits(operationId, 6).then((res) => {
+      if (!cancelled) setMonthlyAudits(res.ok ? res.value : []);
+    });
+    return () => { cancelled = true; };
+  }, [monthlyRepo, operationId]);
 
   const history = useMemo(() => listByOperation(operationId).slice(0, 5), [listByOperation, operationId]);
 
@@ -119,16 +135,85 @@ export function OperationDetailScreen({ route, navigation }: NativeStackScreenPr
         <InfoRow icon="alarm-outline" label="Próxima auditoria" value={formatDate(operation.nextAudit)} last />
       </View>
 
-      <SectionTitle title="Visita produtiva" subtitle="Metas, realizado, prioridades, diagnóstico, plano de ação e retroalimentação em um único fluxo." />
-      <AppButton title="Abrir Gestão Assistida" onPress={() => navigation.navigate('Performance', { operationId: activeOperation.id })} style={{ marginBottom: spacing.xl }} />
+      {/*
+        A partir da 1.3.5 "Gestão Assistida" é o CICLO SEMANAL (decisão D1), com
+        domínio próprio. A tela de Visita produtiva continua servindo o caminho
+        de 1.3.4 e passa a se chamar pelo próprio nome: dois botões chamados
+        "Gestão Assistida" mandariam o operador ao lugar errado.
+      */}
+      <View style={styles.blocoAtual}>
+        <Text style={styles.blocoRotulo} accessibilityRole="header">Operação atual</Text>
+      </View>
+      <SectionTitle title="Gestão Assistida" subtitle="Ciclo semanal: o resultado é consultado no relatório oficial da operação (fonte externa), e o AAPEx calcula o status, registra o diagnóstico e o plano de ação." />
+      <AppButton title="Abrir semana atual" onPress={() => navigation.navigate('AssistedCycle', { operationId: activeOperation.id })} style={{ marginBottom: spacing.xl }} />
 
-      <SectionTitle title="Avaliação operacional" subtitle="Checklists semanal e mensal permanecem disponíveis para os processos de excelência." />
+      <SectionTitle title="Visita produtiva" subtitle="Metas, realizado, prioridades, diagnóstico, plano de ação e retroalimentação em um único fluxo." />
+      <AppButton title="Abrir visita produtiva" variant="secondary" onPress={() => navigation.navigate('Performance', { operationId: activeOperation.id })} style={{ marginBottom: spacing.xl }} />
+
+      {/*
+        AUDITORIA MENSAL por competência (D4) — o módulo de PROCESSO. Fica junto
+        da Gestão Assistida e SEPARADA do bloco legado abaixo, porque são três
+        coisas diferentes e o Modelo Operacional §6 exige que a interface as
+        distinga.
+      */}
+      <SectionTitle title="Auditoria Mensal" subtitle="Verifica se o processo que sustenta o resultado existe, está implantado e é executado." />
+      <AppButton title="Abrir competência atual" onPress={() => navigation.navigate('MonthlyAudit', { operationId: activeOperation.id })} />
+      {monthlyAudits.length > 0 && (
+        <View style={styles.monthlyList}>
+          {monthlyAudits.map((m) => (
+            <View key={m.id} style={styles.monthlyRow}>
+              <View style={styles.monthlyText}>
+                <Text style={styles.monthlyLabel}>{describeCompetence(m.competence)}</Text>
+                <Text style={styles.monthlyMeta}>
+                  {describeAuditStatus(m.status)}
+                  {m.nonConformCount > 0 ? ` · ${m.nonConformCount} não conforme(s)` : ''}
+                </Text>
+              </View>
+              {/*
+                O-12: TODA auditoria listada tem rota de abertura, e a aprovada
+                recebe a ação explícita "Ver auditoria" — com semântica de botão,
+                nome acessível e alvo de toque adequado. O achado nasceu de um
+                cartão aprovado que não levava a lugar nenhum.
+              */}
+              <AppButton
+                title={m.status === 'approved' ? 'Ver auditoria' : 'Continuar'}
+                compact
+                variant={m.status === 'approved' ? 'secondary' : 'primary'}
+                onPress={() => navigation.navigate('MonthlyAudit', {
+                  operationId: activeOperation.id, competence: m.competence,
+                })}
+              />
+            </View>
+          ))}
+        </View>
+      )}
+      <View style={{ marginBottom: spacing.xl }} />
+
+      {/*
+        TERCEIRO BLOCO — o HISTÓRICO SEMANAL LEGADO, e ele é visualmente
+        separado dos dois de cima. O Modelo Operacional §6 exige que a interface
+        distinga três coisas, e a tabela de terminologia de §9 fixa o nome deste
+        bloco — qualquer sinônimo informal está proibido, e confundi-lo com a
+        Gestão Assistida, também.
+
+        A faixa não é adorno: sem uma marca visual, "Auditoria semanal" (legado)
+        e "Gestão Assistida" (atual) ficam a uma rolagem de distância e parecem
+        dois nomes para a mesma coisa.
+      */}
+      <View style={styles.blocoLegado}>
+        <Text style={styles.blocoRotulo} accessibilityRole="header">Histórico semanal legado</Text>
+        <Text style={styles.blocoNota}>
+          Modelo anterior à 1.3.5, preservado e somente leitura no que já foi aprovado.
+          Não se confunde com a Gestão Assistida nem com a Auditoria Mensal.
+        </Text>
+      </View>
+      <SectionTitle title="Checklists do modelo legado" subtitle="Permanecem disponíveis para os processos de excelência enquanto o cutover não ocorrer." />
       <View style={styles.buttonRow}>
-        <AppButton title="Auditoria semanal" onPress={() => void launch('weekly')} style={styles.flexButton} />
-        <AppButton title="Auditoria mensal" onPress={() => void launch('monthly')} variant="secondary" style={styles.flexButton} />
+        <AppButton title="Checklist semanal legado" onPress={() => void launch('weekly')} style={styles.flexButton} />
+        <AppButton title="Checklist mensal legado" onPress={() => void launch('monthly')} variant="secondary" style={styles.flexButton} />
       </View>
 
-      <SectionTitle title="Histórico recente" subtitle="Ciclos registrados para este Parceiro AACE." />
+      <SectionTitle title="Histórico legado recente" subtitle="Ciclos do modelo anterior registrados para este Parceiro AACE." />
       {history.length ? history.map((evaluation) => (
         <View key={evaluation.id} style={styles.historyCard}>
           <View style={styles.historyTop}>
@@ -140,7 +225,22 @@ export function OperationDetailScreen({ route, navigation }: NativeStackScreenPr
           </View>
           <View style={styles.historyFooter}>
             <Text style={styles.historyStatus}>{evaluation.status === 'draft' ? 'Rascunho' : evaluation.status === 'submitted' ? 'Aguardando validação' : evaluation.status === 'approved' ? 'Aprovada' : 'Devolvida'}</Text>
-            {['draft', 'returned'].includes(evaluation.status) && <AppButton title={evaluation.status === 'returned' ? 'Corrigir' : 'Continuar'} compact onPress={() => navigation.navigate('Evaluation', { operationId, evaluationId: evaluation.id })} />}
+            {/*
+              O-12 no BLOCO LEGADO. Antes, só rascunho e devolvida tinham botão:
+              uma avaliação aprovada ficava listada sem rota, exatamente o padrão
+              que o achado descreve. Agora TODO item listado tem ação — o que
+              muda é o verbo, e o `variant` diz se é leitura ou edição.
+            */}
+            <AppButton
+              title={
+                evaluation.status === 'returned' ? 'Corrigir'
+                  : evaluation.status === 'draft' ? 'Continuar'
+                    : 'Ver avaliação'
+              }
+              compact
+              variant={['draft', 'returned'].includes(evaluation.status) ? 'primary' : 'secondary'}
+              onPress={() => navigation.navigate('Evaluation', { operationId, evaluationId: evaluation.id })}
+            />
           </View>
         </View>
       )) : <Text style={styles.noHistory}>Nenhuma avaliação registrada.</Text>}
@@ -158,6 +258,19 @@ function InfoRow({ icon, label, value, last }: { icon: keyof typeof Ionicons.gly
 }
 
 const styles = StyleSheet.create({
+  blocoAtual: {
+    borderLeftWidth: 4, borderLeftColor: colors.primary,
+    paddingLeft: spacing.md, marginBottom: spacing.md,
+  },
+  blocoLegado: {
+    borderLeftWidth: 4, borderLeftColor: colors.inkMuted,
+    paddingLeft: spacing.md, marginTop: spacing.xl, marginBottom: spacing.md, gap: 4,
+  },
+  blocoRotulo: {
+    color: colors.ink, fontSize: 12, fontWeight: '700',
+    textTransform: 'uppercase', letterSpacing: 0.6,
+  },
+  blocoNota: { color: colors.inkMuted, fontSize: 11, lineHeight: 16 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, paddingVertical: spacing.xl },
   centeredText: { color: colors.inkMuted, fontSize: 13, textAlign: 'center' },
   identityCard: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, marginBottom: spacing.md },
@@ -180,7 +293,11 @@ const styles = StyleSheet.create({
   infoText: { flex: 1 },
   infoLabel: { color: colors.inkMuted, fontSize: 11 },
   infoValue: { color: colors.ink, fontSize: 13, fontWeight: '700', marginTop: 3 },
-  buttonRow: { flexDirection: 'row', gap: spacing.md, marginBottom: spacing.xl },
+  // `flexWrap` é o que impede a linha de estourar a viewport a 375 px: os dois
+  // botões passam a empilhar em vez de forçar rolagem horizontal do documento.
+  buttonRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.xl,
+  },
   flexButton: { flex: 1 },
   historyCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md },
   historyTop: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md },
@@ -190,4 +307,14 @@ const styles = StyleSheet.create({
   historyFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border },
   historyStatus: { color: colors.inkMuted, fontSize: 11, fontWeight: '700' },
   noHistory: { color: colors.inkMuted, fontSize: 13 },
+  monthlyList: { marginTop: spacing.md, gap: spacing.sm },
+  monthlyRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    minHeight: 56,
+  },
+  monthlyText: { flex: 1 },
+  monthlyLabel: { color: colors.ink, fontSize: 13, fontWeight: '800' },
+  monthlyMeta: { color: colors.inkMuted, fontSize: 11, marginTop: 2 },
 });

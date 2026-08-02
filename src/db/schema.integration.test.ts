@@ -24,6 +24,25 @@ const REQUIRED_TABLES = [
   // 0028: reserva de upload de evidência — estado intermediário entre o caminho
   // reservado e o arquivo confirmado no bucket (D-02).
   'evidence_upload_reservations',
+  // 0036–0037 (AAPEx 1.3.5, decisão A-08): catálogo com escopo global/regional e
+  // a configuração operacional que cada região publica sobre ele.
+  'themes', 'theme_versions',
+  'indicator_regional_configs', 'indicator_regional_config_versions',
+  // 0038: critérios de processo da Auditoria Mensal, por região.
+  'audit_criteria', 'audit_criteria_versions',
+  // 0039 (Fase 3): domínio PRÓPRIO da Gestão Assistida semanal — D1 proíbe
+  // sobrecarregar `evaluations` com um segundo significado.
+  'assisted_cycles', 'assisted_cycle_entries',
+  // 0042 (Fase 5): Auditoria Mensal materializada. `evaluations` continua sendo
+  // o agregado; o que muda é de que ela é feita (ADR-135-003).
+  'evaluation_criteria', 'evaluation_criterion_answers',
+  'evaluation_criterion_answer_evidence',
+  // 0047 (Fase 7): parâmetros do sistema. Nasce com `weekly_audit_cutover_date`
+  // em JSON null — estrutura criada, cutover NÃO ativado (D5, pendência A-02).
+  'system_settings',
+  // 0048 (Fase 8): ponderação regional versionada. Nasce VAZIA — D10 diz que não
+  // há peso padrão aprovado, e a pendência A-04 continua aberta.
+  'region_weightings',
 ];
 
 describe('esquema aplicado em banco real (0001→0003)', () => {

@@ -12,6 +12,49 @@ drop function if exists
   public.admin_update_operation(uuid, jsonb),
   public.admin_import_partners(jsonb, boolean);
 
+-- Catálogo com escopo global/regional (AAPEx 1.3.5, migrations 0036–0038).
+-- Mesmo motivo: função em `public` sobrevive ao `drop schema app cascade`, e o
+-- harness reaplica todas as migrations sobre o mesmo banco depois deste arquivo.
+drop function if exists
+  public.catalog_create_theme(text, uuid, text, jsonb),
+  public.catalog_add_theme_version(uuid, jsonb),
+  public.catalog_publish_theme_version(uuid),
+  public.catalog_set_theme_lifecycle(uuid, text),
+  public.catalog_create_indicator(text, uuid, text, jsonb),
+  public.catalog_add_indicator_version(uuid, jsonb),
+  public.catalog_publish_indicator_version(uuid),
+  public.catalog_set_indicator_lifecycle(uuid, text),
+  public.catalog_save_regional_config_draft(uuid, uuid, jsonb),
+  public.catalog_publish_regional_config_version(uuid),
+  public.catalog_create_criterion(uuid, text, jsonb),
+  public.catalog_add_criterion_version(uuid, jsonb),
+  public.catalog_publish_criterion_version(uuid),
+  public.catalog_set_criterion_lifecycle(uuid, text);
+
+-- Parâmetros do sistema e cutover (AAPEx 1.3.5, migration 0047). Mesmo motivo.
+drop function if exists
+  public.get_system_settings(),
+  public.admin_set_weekly_audit_cutover(date, boolean);
+
+-- Ponderação regional, Dashboard e Matriz (AAPEx 1.3.5, migration 0048).
+drop function if exists
+  public.catalog_save_region_weighting_draft(uuid, jsonb),
+  public.catalog_publish_region_weighting(uuid),
+  public.get_weighting_status(uuid),
+  public.get_dashboard_aggregates(jsonb),
+  public.get_matrix_dataset(jsonb);
+
+-- Exportação CSV/XLSX (AAPEx 1.3.5, migration 0049).
+drop function if exists public.export_dataset(text, jsonb);
+
+-- Gestão Assistida semanal (AAPEx 1.3.5, migrations 0039–0041). Mesmo motivo.
+drop function if exists
+  public.open_assisted_cycle(uuid, date),
+  public.save_assisted_entry(uuid, jsonb),
+  public.close_assisted_cycle(uuid),
+  public.get_assisted_cycle(uuid, date),
+  public.list_assisted_cycles(uuid, int);
+
 -- Projeções de leitura (0005/0009) — dependem das tabelas-base (cairiam por
 -- cascade, mas são removidas explicitamente para uma reversão autocontida).
 drop view if exists
@@ -24,6 +67,39 @@ drop view if exists
   cascade;
 
 drop table if exists
+  -- Auditoria Mensal materializada (0042). Mesmo motivo da Gestão Assistida
+  -- abaixo: sem listar aqui, a tabela sobrevive ao teardown e perde as colunas
+  -- tipadas por enum de `app`, e o `create table if not exists` não as recria.
+  public.evaluation_criterion_answer_evidence,
+  public.evaluation_criterion_answers,
+  public.evaluation_criteria,
+  -- Gestão Assistida antes do catálogo: aponta para configuração regional,
+  -- temas e operações, e `action_plans` aponta para ela.
+  --
+  -- LISTAR AQUI NÃO É OPCIONAL. Sem isto a tabela SOBREVIVE ao teardown, mas
+  -- `drop schema app cascade` derruba `app.assisted_status` e
+  -- `app.indicator_direction` — e com eles as COLUNAS tipadas por esses enums.
+  -- O `create table if not exists` da reaplicação então não recria nada, e a
+  -- tabela fica sem `direction` nem `status`. O sintoma é opaco: "column
+  -- e.direction does not exist" numa RPC que não tem nada a ver com o assunto.
+  public.assisted_cycle_entries,
+  public.assisted_cycles,
+  -- `system_settings` (0047) não tem coluna de enum de `app`, e mesmo assim
+  -- entra aqui — por um motivo próprio e igualmente concreto: ela guarda ESTADO
+  -- de configuração. Sobrevivendo ao teardown, uma data de cutover gravada por
+  -- um teste vazaria para o teste seguinte (o `on conflict do nothing` da
+  -- semente não a reescreve), e o isolamento entre arquivos deixaria de existir.
+  public.system_settings,
+  -- `region_weightings` (0048) usa `app.catalog_status`: sem esta linha a tabela
+  -- sobrevive ao teardown e perde a coluna `status` no `drop schema app cascade`.
+  public.region_weightings,
+  -- Catálogo 1.3.5 depois: apontam para regions e indicator_definitions.
+  public.audit_criteria_versions,
+  public.audit_criteria,
+  public.indicator_regional_config_versions,
+  public.indicator_regional_configs,
+  public.theme_versions,
+  public.themes,
   public.evidence_upload_reservations,
   public.visit_reports,
   public.indicator_results,
@@ -63,5 +139,8 @@ drop type if exists
   app.role_code, app.user_status, app.visit_type, app.visit_status,
   app.evaluation_status, app.action_status, app.evidence_status,
   app.indicator_lifecycle, app.traffic_light, app.indicator_direction,
-  app.calendar_exception, app.validation_decision
+  app.calendar_exception, app.validation_decision,
+  app.scope_kind, app.catalog_status,
+  app.assisted_cycle_status, app.assisted_status, app.action_source,
+  app.evaluation_model, app.criterion_answer_status
   cascade;

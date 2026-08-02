@@ -116,6 +116,58 @@ export async function seedScenario(db: TestDb): Promise<Scenario> {
   return { id: q };
 }
 
+/**
+ * Identificadores de uma SEGUNDA região, montada só quando o teste precisa
+ * provar isolamento REGIONAL (AAPEx 1.3.5, decisão A-08).
+ *
+ * `seedScenario` tem uma região só — suficiente para RLS por operação, inútil
+ * para provar que a meta de A não alcança B. Em vez de inchar o cenário base
+ * (que 20 arquivos de teste já assumem), a segunda região é aditiva e opcional.
+ */
+export const ID2 = {
+  region2: '00000000-0000-0000-0000-00000000b002',
+  unit2: '00000000-0000-0000-0000-00000000c002',
+  coord3: '00000000-0000-0000-0000-00000000d003',
+  opC: '00000000-0000-0000-0000-00000000e003',
+  /** Regional da região 2 — o ator dos testes de escopo cruzado. */
+  uReg2: '00000000-0000-0000-0000-000000001008',
+  uCoord3: '00000000-0000-0000-0000-000000001009',
+  uGcC: '00000000-0000-0000-0000-00000000100a',
+} as const;
+
+/** Acrescenta a segunda região ao cenário base. Chamar DEPOIS de seedScenario. */
+export async function seedSecondRegion(db: TestDb): Promise<typeof ID2> {
+  const q = ID2;
+  await db.exec(`
+    insert into auth.users (id, email) values
+      ('${q.uReg2}','regional2@fic.example'),
+      ('${q.uCoord3}','coord3@fic.example'),
+      ('${q.uGcC}','gcc@fic.example');
+
+    insert into public.users (id, display_name, corporate_email, status) values
+      ('${q.uReg2}','Regional 2 Fic','regional2@fic.example','active'),
+      ('${q.uCoord3}','Coord3 Fic','coord3@fic.example','active'),
+      ('${q.uGcC}','GC C Fic','gcc@fic.example','active');
+
+    insert into public.regions (id, organization_id, name) values
+      ('${q.region2}','${ID.org}','Região Fictícia 2');
+    insert into public.units (id, region_id, name) values
+      ('${q.unit2}','${q.region2}','Unidade Fictícia 2');
+    insert into public.coordinations (id, region_id, name, coordinator_user_id) values
+      ('${q.coord3}','${q.region2}','Coord 3','${q.uCoord3}');
+    insert into public.operations (id, unit_id, coordination_id, partner_name, office_name, city, state, channel_manager_user_id) values
+      ('${q.opC}','${q.unit2}','${q.coord3}','Parceiro C','Loja C','Londrina','PR','${q.uGcC}');
+    insert into public.operation_assignments (operation_id, user_id) values
+      ('${q.opC}','${q.uGcC}');
+
+    insert into public.user_scopes (user_id, role, region_id, coordination_id) values
+      ('${q.uReg2}','regional','${q.region2}', null),
+      ('${q.uCoord3}','coordinator', null,'${q.coord3}'),
+      ('${q.uGcC}','channel_manager', null, null);
+  `);
+  return q;
+}
+
 export interface EvidenciaAnexada {
   reservationId: string;
   evidenceId: string;

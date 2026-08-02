@@ -41,6 +41,31 @@ import {
   LocalDirectoryRepository,
   SupabaseDirectoryRepository,
 } from './DirectoryRepository';
+import {
+  SupabaseCatalogRepository,
+  UnavailableCatalogRepository,
+} from './CatalogRepository';
+import type { CatalogRepository } from '../../domain/repositories/catalog';
+import {
+  SupabaseAssistedRepository,
+  UnavailableAssistedRepository,
+} from './AssistedRepository';
+import type { AssistedRepository } from '../../domain/repositories/assisted';
+import {
+  SupabaseMonthlyAuditRepository,
+  UnavailableMonthlyAuditRepository,
+} from './MonthlyAuditRepository';
+import type { MonthlyAuditRepository } from '../../domain/repositories/monthlyAudit';
+import {
+  SupabaseDashboardRepository,
+  UnavailableDashboardRepository,
+} from './DashboardRepository';
+import type { DashboardRepository } from '../../domain/repositories/dashboard';
+import {
+  SupabaseExportRepository,
+  UnavailableExportRepository,
+} from './ExportRepository';
+import type { ExportRepository } from '../../domain/repositories/exporting';
 
 export interface Repositories {
   operations: OperationsRepository;
@@ -54,6 +79,40 @@ export interface Repositories {
   adminPartners: AdminPartnersRepository;
   performance: PerformanceRepository;
   evidence: EvidenceRepository;
+  /**
+   * Catálogo com escopo global/regional (AAPEx 1.3.5, A-08). Sem backend
+   * corporativo o adapter RECUSA tudo, em vez de simular: escopo, autorização
+   * por região, versionamento e vigência são do servidor.
+   */
+  catalog: CatalogRepository;
+  /**
+   * Gestão Assistida semanal (AAPEx 1.3.5, D1). Mesma escolha do catálogo: sem
+   * backend corporativo o adapter RECUSA tudo. Idempotência da semana, cálculo
+   * de status, imutabilidade do fechamento e vínculo do plano são do servidor.
+   */
+  assisted: AssistedRepository;
+  /**
+   * Auditoria Mensal por competência (AAPEx 1.3.5, D4). Mesma escolha do
+   * catálogo e da Gestão Assistida: sem backend corporativo o adapter RECUSA
+   * tudo. Unicidade de competência, materialização, imutabilidade e snapshot
+   * são do servidor.
+   */
+  monthlyAudit: MonthlyAuditRepository;
+  /**
+   * Painel gerencial, Matriz e ponderação regional (AAPEx 1.3.5, D10). Mesma
+   * escolha das três anteriores: sem backend corporativo o adapter RECUSA tudo.
+   * Um painel local produziria NÚMEROS — e é justamente o número que não pode
+   * ser inventado: escopo por papel, ponderação publicada, quadrante e a
+   * distinção entre "zero" e "sem dado" são do servidor.
+   */
+  dashboard: DashboardRepository;
+  /**
+   * Exportação CSV/XLSX (AAPEx 1.3.5, D9). Recusa no modo demonstração pelo
+   * mesmo motivo das anteriores, com um agravante: o arquivo SAI do aplicativo
+   * e passa a circular por conta própria — ele sobrevive ao contexto em que foi
+   * feito, e quem o abrir amanhã não saberá que era demonstração.
+   */
+  exporting: ExportRepository;
   /** Origem efetiva dos dados operacionais. */
   source: 'supabase' | 'local';
 }
@@ -75,6 +134,11 @@ function buildRepositories(): Repositories {
       adminPartners: new SupabaseAdminPartnersRepository(client),
       performance: new SupabasePerformanceRepository(client),
       evidence,
+      catalog: new SupabaseCatalogRepository(client),
+      assisted: new SupabaseAssistedRepository(client),
+      monthlyAudit: new SupabaseMonthlyAuditRepository(client, evidence),
+      dashboard: new SupabaseDashboardRepository(client),
+      exporting: new SupabaseExportRepository(client),
       source: 'supabase',
     };
   }
@@ -90,6 +154,11 @@ function buildRepositories(): Repositories {
     adminPartners: new LocalAdminPartnersRepository(localStore),
     performance: new LocalPerformanceRepository(localStore),
     evidence,
+    catalog: new UnavailableCatalogRepository(),
+    assisted: new UnavailableAssistedRepository(),
+    monthlyAudit: new UnavailableMonthlyAuditRepository(),
+    dashboard: new UnavailableDashboardRepository(),
+    exporting: new UnavailableExportRepository(),
     source: 'local',
   };
 }

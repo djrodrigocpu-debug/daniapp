@@ -20,9 +20,12 @@ import { ValidationsScreen } from '../screens/ValidationsScreen';
 import { AdminScreen } from '../screens/AdminScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { OperationDetailScreen } from '../screens/OperationDetailScreen';
+import { AssistedCycleScreen } from '../screens/AssistedCycleScreen';
+import { MonthlyAuditScreen } from '../screens/MonthlyAuditScreen';
 import { EvaluationScreen } from '../screens/EvaluationScreen';
 import { PerformanceScreen } from '../screens/PerformanceScreen';
 import { PerformanceMatrixScreen } from '../screens/PerformanceMatrixScreen';
+import { ManagementDashboardScreen } from '../screens/ManagementDashboardScreen';
 import { colors } from '../theme';
 import { RootStackParamList } from '../types';
 
@@ -189,7 +192,10 @@ export function AppNavigator() {
         <Stack.Screen name="OperationDetail" component={OperationDetailScreen} options={{ title: 'Parceiro AACE' }} />
         <Stack.Screen name="Evaluation" component={EvaluationScreen} options={{ title: 'Auditoria' }} />
         <Stack.Screen name="Performance" component={PerformanceScreen} options={{ title: 'Visita produtiva' }} />
+        <Stack.Screen name="AssistedCycle" component={AssistedCycleScreen} options={{ title: 'Gestão Assistida' }} />
+        <Stack.Screen name="MonthlyAudit" component={MonthlyAuditScreen} options={{ title: 'Auditoria Mensal' }} />
         <Stack.Screen name="PerformanceMatrix" component={PerformanceMatrixScreen} options={{ title: 'Matriz de desempenho' }} />
+        <Stack.Screen name="ManagementDashboard" component={ManagementDashboardScreen} options={{ title: 'Painel gerencial' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

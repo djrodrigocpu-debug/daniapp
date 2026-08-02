@@ -140,8 +140,15 @@ describe('O-04 — remover evidência respeita o mesmo estado que anexar (0034)'
       respostas.push((await removerEsperandoErro(ID.uGcA)).message);
     }
     expect(new Set(respostas).size).toBe(1);
-    expect(respostas[0]).toMatch(/sem permissao/);
+    // Desde a 0046 (O-18) a frase é a mesma que um UUID inexistente recebe: quem
+    // não alcança a operação não descobre nem o estado nem a existência.
+    expect(respostas[0]).toBe('avaliacao inexistente ou fora do escopo');
     expect(respostas[0]).not.toMatch(MSG_ESTADO);
+
+    const inexistente = (await db.asUser(ID.uGcA, (tx) => tx.expectError(
+      `select public.remove_evidence($1,$2)`,
+      ['00000000-0000-0000-0000-0000000000fc', evidenceId]))).message;
+    expect(inexistente).toBe(respostas[0]);
   });
 
   it('12 — anon é recusado pelo grant, antes do corpo', async () => {
@@ -163,8 +170,20 @@ describe('O-04 — remover evidência respeita o mesmo estado que anexar (0034)'
     // PGlite é de conexão única, então duas transações REAIS concorrentes não
     // existem aqui — a corrida de verdade é exercitada no staging, por HTTP.
     // O que dá para travar em teste é a estrutura que a torna segura.
-    const def = await db.query<{ d: string }>(
+    // Desde a 0046, `public.remove_evidence` é o WRAPPER que fecha o O-18 e
+    // `app.remove_evidence_legacy` é o corpo — movido por `pg_get_functiondef`,
+    // não copiado. A propriedade medida continua sendo a mesma, e agora vale nos
+    // dois: a trava é tomada no PONTO DE ENTRADA, antes da decisão de escopo, e
+    // de novo dentro do legado, antes da decisão de estado.
+    const entrada = await db.query<{ d: string }>(
       `select pg_get_functiondef('public.remove_evidence(uuid,uuid)'::regprocedure) as d`);
+    expect(entrada[0].d).toMatch(/from public\.evaluations[\s\S]*?for update/i);
+    expect(entrada[0].d.indexOf('for update'))
+      .toBeLessThan(entrada[0].d.indexOf('fora do escopo'));
+    expect(entrada[0].d).toContain('app.remove_evidence_legacy');
+
+    const def = await db.query<{ d: string }>(
+      `select pg_get_functiondef('app.remove_evidence_legacy(uuid,uuid)'::regprocedure) as d`);
     expect(def[0].d).toMatch(/from public\.evaluations[\s\S]*?for update/i);
     // E a trava vem ANTES da decisão de estado, senão não serializa nada.
     expect(def[0].d.indexOf('for update')).toBeLessThan(def[0].d.indexOf('rascunho ou devolvida'));
