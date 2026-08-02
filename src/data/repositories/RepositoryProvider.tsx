@@ -41,6 +41,11 @@ import {
   LocalDirectoryRepository,
   SupabaseDirectoryRepository,
 } from './DirectoryRepository';
+import {
+  SupabaseCatalogRepository,
+  UnavailableCatalogRepository,
+} from './CatalogRepository';
+import type { CatalogRepository } from '../../domain/repositories/catalog';
 
 export interface Repositories {
   operations: OperationsRepository;
@@ -54,6 +59,12 @@ export interface Repositories {
   adminPartners: AdminPartnersRepository;
   performance: PerformanceRepository;
   evidence: EvidenceRepository;
+  /**
+   * Catálogo com escopo global/regional (AAPEx 1.3.5, A-08). Sem backend
+   * corporativo o adapter RECUSA tudo, em vez de simular: escopo, autorização
+   * por região, versionamento e vigência são do servidor.
+   */
+  catalog: CatalogRepository;
   /** Origem efetiva dos dados operacionais. */
   source: 'supabase' | 'local';
 }
@@ -75,6 +86,7 @@ function buildRepositories(): Repositories {
       adminPartners: new SupabaseAdminPartnersRepository(client),
       performance: new SupabasePerformanceRepository(client),
       evidence,
+      catalog: new SupabaseCatalogRepository(client),
       source: 'supabase',
     };
   }
@@ -90,6 +102,7 @@ function buildRepositories(): Repositories {
     adminPartners: new LocalAdminPartnersRepository(localStore),
     performance: new LocalPerformanceRepository(localStore),
     evidence,
+    catalog: new UnavailableCatalogRepository(),
     source: 'local',
   };
 }
