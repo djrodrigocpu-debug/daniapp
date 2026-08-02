@@ -354,4 +354,62 @@ describe('leitura: tema regional não atravessa a fronteira da região', () => {
       expect(erro.message).toMatch(/permission denied/i);
     });
   });
+
+  it('PUBLIC não tem privilégio algum nas seis tabelas novas', async () => {
+    // A RPC normaliza o escopo antes de gravar; isto prova a camada de baixo, a
+    // única que continua valendo se alguém escrever pelo PostgREST no futuro.
+    const rows = await db.query<{ grantee: string; table_name: string; privilege_type: string }>(
+      `select grantee, table_name, privilege_type
+         from information_schema.role_table_grants
+        where table_schema = 'public'
+          and grantee in ('PUBLIC', 'anon')
+          and table_name in ('themes','theme_versions','indicator_regional_configs',
+                             'indicator_regional_config_versions','audit_criteria','audit_criteria_versions')`);
+    expect(rows).toEqual([]);
+  });
+
+  it('as seis tabelas novas têm RLS habilitada E FORÇADA', async () => {
+    const rows = await db.query<{ relname: string }>(
+      `select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'public'
+          and c.relname in ('themes','theme_versions','indicator_regional_configs',
+                            'indicator_regional_config_versions','audit_criteria','audit_criteria_versions')
+          and (c.relrowsecurity = false or c.relforcerowsecurity = false)`);
+    expect(rows).toEqual([]);
+  });
+});
+
+describe('o CHECK de escopo é do banco, não da RPC', () => {
+  let db: TestDb;
+  beforeAll(async () => { db = await createTestDb(); await seedScenario(db); }, 60_000);
+  afterAll(async () => { await db.close(); });
+
+  const tentar = async (sql: string): Promise<Error | null> => {
+    try { await db.exec(sql); return null; } catch (e) { return e as Error; }
+  };
+
+  it('RECUSA tema global COM região, mesmo escrito como superusuário', async () => {
+    const erro = await tentar(
+      `insert into public.themes (code, scope_kind, region_id)
+       values ('TEMA-CK-1', 'global', '${ID.region}')`);
+    expect(erro?.message).toMatch(/themes_scope_ck|violates check/i);
+  });
+
+  it('RECUSA tema regional SEM região', async () => {
+    const erro = await tentar(
+      `insert into public.themes (code, scope_kind) values ('TEMA-CK-2', 'regional')`);
+    expect(erro?.message).toMatch(/themes_scope_ck|violates check/i);
+  });
+
+  it('RECUSA indicador global COM região e regional SEM região', async () => {
+    const comRegiao = await tentar(
+      `insert into public.indicator_definitions (code, name, scope_kind, region_id)
+       values ('IND-CK-1', 'x', 'global', '${ID.region}')`);
+    expect(comRegiao?.message).toMatch(/indicator_definitions_scope_ck|violates check/i);
+
+    const semRegiao = await tentar(
+      `insert into public.indicator_definitions (code, name, scope_kind)
+       values ('IND-CK-2', 'x', 'regional')`);
+    expect(semRegiao?.message).toMatch(/indicator_definitions_scope_ck|violates check/i);
+  });
 });

@@ -193,14 +193,15 @@ describe('UnavailableCatalogRepository não finge', () => {
       repo.setCriterionLifecycle('cr1', 'inactive'),
     ];
 
-    const resultados = await Promise.all(chamadas);
+    // `Result<unknown>` porque a lista mistura retornos de tipos diferentes; o
+    // que se afirma aqui é o mesmo para todos: recusa, com o mesmo motivo.
+    const resultados: Array<{ ok: boolean }> = await Promise.all(chamadas);
     expect(resultados).toHaveLength(18);
     for (const r of resultados) {
-      expect(isErr(r)).toBe(true);
-      if (isErr(r)) {
-        expect(r.error.code).toBe('config/missing-env');
-        expect(r.error.message).toBe(CATALOG_UNAVAILABLE_MESSAGE);
-      }
+      expect(isErr(r as never)).toBe(true);
+      const erro = (r as { ok: false; error: { code: string; message: string } }).error;
+      expect(erro.code).toBe('config/missing-env');
+      expect(erro.message).toBe(CATALOG_UNAVAILABLE_MESSAGE);
     }
   });
 
