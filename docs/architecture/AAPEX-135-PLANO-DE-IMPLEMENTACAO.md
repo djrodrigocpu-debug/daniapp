@@ -507,14 +507,30 @@ candidate.
 
 ---
 
-### Fase 12 — Produção e documentação pública
+### Fase 12 — Produção ✅ EXECUTADA em 02/08/2026
 
-**Não pertence a esta sessão nem à Fase 11.** Exige autorização literal do proprietário sobre um
-release candidate homologado, e o plano selado da Fase 11.
+Autorizada expressamente pelo proprietário sobre a release candidate congelada.
 
-**Entrega:** merge em `main` · migrations em produção · deploy no domínio produtivo · atualização
-dos **seis artefatos públicos** · decisão nominal dos quatro drafts · backfill real · ativação do
-cutover, se e quando A-02 for definida.
+**Relatório completo:** [`AAPEX-135-FASE-12-PRODUCAO.md`](AAPEX-135-FASE-12-PRODUCAO.md).
+
+**Entregue:** backup lógico integral de produção, verificado por releitura de disco (52
+arquivos, 192 linhas, PITR **desabilitado** e sem backup físico — o export é o único
+artefato de recuperação) · runbook de rollback em quatro caminhos · guarda executável
+testada 6/6 antes da primeira escrita · migrations **0036–0051** aplicadas em
+`plnbgdabciwygsmnyddy`, `migration list` **51/51 sem divergência** · esquema **idêntico ao
+homologado em dez categorias**, com o detalhamento de constraints batendo `c=38 · f=116 ·
+p=45 · u=27` · nenhuma linha histórica alterada · 2.305 testes verdes em 136 arquivos,
+typecheck e build web verdes · merge `--no-ff` em `main` e deployment de produção.
+
+**NÃO entregue, por serem decisão empresarial sem dado definitivo em artefato canônico —
+e o Plano §7 proíbe arbitrá-las:** o **backfill** do catálogo legado (13 indicadores
+seguem globais, **0** configurações regionais) · **A-02** (cutover permanece **JSON
+null**) · **A-03** (os 4 drafts seguem intactos) · **A-04** (`region_weightings` segue
+**vazia**) · os **40 códigos** (exigiriam o staging congelado, proibido) · carga de dados
+reais (nenhum arquivo definitivo identificado por artefato canônico).
+
+**Exceção formal:** `EXCEÇÃO DE ACESSIBILIDADE ACEITA PELO RESPONSÁVEL · LEITOR DE TELA
+NÃO EXECUTADO`.
 
 ---
 
