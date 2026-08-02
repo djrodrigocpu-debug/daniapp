@@ -31,6 +31,14 @@ drop function if exists
   public.catalog_publish_criterion_version(uuid),
   public.catalog_set_criterion_lifecycle(uuid, text);
 
+-- Gestão Assistida semanal (AAPEx 1.3.5, migrations 0039–0041). Mesmo motivo.
+drop function if exists
+  public.open_assisted_cycle(uuid, date),
+  public.save_assisted_entry(uuid, jsonb),
+  public.close_assisted_cycle(uuid),
+  public.get_assisted_cycle(uuid, date),
+  public.list_assisted_cycles(uuid, int);
+
 -- Projeções de leitura (0005/0009) — dependem das tabelas-base (cairiam por
 -- cascade, mas são removidas explicitamente para uma reversão autocontida).
 drop view if exists
@@ -43,7 +51,18 @@ drop view if exists
   cascade;
 
 drop table if exists
-  -- Catálogo 1.3.5 primeiro: apontam para regions e indicator_definitions.
+  -- Gestão Assistida antes do catálogo: aponta para configuração regional,
+  -- temas e operações, e `action_plans` aponta para ela.
+  --
+  -- LISTAR AQUI NÃO É OPCIONAL. Sem isto a tabela SOBREVIVE ao teardown, mas
+  -- `drop schema app cascade` derruba `app.assisted_status` e
+  -- `app.indicator_direction` — e com eles as COLUNAS tipadas por esses enums.
+  -- O `create table if not exists` da reaplicação então não recria nada, e a
+  -- tabela fica sem `direction` nem `status`. O sintoma é opaco: "column
+  -- e.direction does not exist" numa RPC que não tem nada a ver com o assunto.
+  public.assisted_cycle_entries,
+  public.assisted_cycles,
+  -- Catálogo 1.3.5 depois: apontam para regions e indicator_definitions.
   public.audit_criteria_versions,
   public.audit_criteria,
   public.indicator_regional_config_versions,
@@ -90,5 +109,6 @@ drop type if exists
   app.evaluation_status, app.action_status, app.evidence_status,
   app.indicator_lifecycle, app.traffic_light, app.indicator_direction,
   app.calendar_exception, app.validation_decision,
-  app.scope_kind, app.catalog_status
+  app.scope_kind, app.catalog_status,
+  app.assisted_cycle_status, app.assisted_status, app.action_source
   cascade;

@@ -30,6 +30,9 @@ const REQUIRED_TABLES = [
   'indicator_regional_configs', 'indicator_regional_config_versions',
   // 0038: critérios de processo da Auditoria Mensal, por região.
   'audit_criteria', 'audit_criteria_versions',
+  // 0039 (Fase 3): domínio PRÓPRIO da Gestão Assistida semanal — D1 proíbe
+  // sobrecarregar `evaluations` com um segundo significado.
+  'assisted_cycles', 'assisted_cycle_entries',
 ];
 
 describe('esquema aplicado em banco real (0001→0003)', () => {
