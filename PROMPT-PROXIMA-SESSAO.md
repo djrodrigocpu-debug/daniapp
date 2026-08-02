@@ -2,8 +2,13 @@
 
 Copiar o bloco abaixo para abrir a próxima sessão.
 
-> **Antes de colar:** conferir que a branch `aapex-1.3.5-assisted-management-monthly-audit` aponta
-> para `7b98532` local **e remoto**, e que a árvore está limpa.
+> **Antes de colar:** conferir que a árvore está limpa e que `HEAD` local e
+> `origin/aapex-1.3.5-assisted-management-monthly-audit` apontam para o **mesmo** commit.
+>
+> **O SHA exato não está escrito aqui de propósito**: cada commit de documentação o mudaria, e um
+> número desatualizado no prompt é pior que nenhum. O SHA selado está em
+> `E:\AACE_Backups\AAPEx-135-FASE-1-FUNDACAO-20260801-2238\00-RESUMO-EXECUTIVO.md`. Se `HEAD` for
+> **posterior** a ele, confira que os commits acrescidos são só de documentação.
 
 > **Fase 3 é mesmo a próxima.** A **Fase 2 (critérios de processo) foi ABSORVIDA pela Fase 1**, não
 > pulada: a decisão **D-A** do ADR-135-001 ancorou os critérios na configuração regional, e isso
@@ -46,8 +51,10 @@ C:\Users\Asus\Documents\dani app\Nova pasta\AACE_Excelencia_Mobile_v1.3.0
 GitHub: djrodrigocpu-debug/daniapp
 
 Estado esperado (VERIFICAR, não presumir):
-  branch  aapex-1.3.5-assisted-management-monthly-audit em 7b98532
-  remoto  origin/aapex-1.3.5-... no MESMO 7b98532 (upstream configurado)
+  branch  aapex-1.3.5-assisted-management-monthly-audit
+  remoto  origin/aapex-... no MESMO commit (upstream ja configurado)
+          SHA selado no checkpoint 00-RESUMO-EXECUTIVO.md; commits
+          posteriores, se houver, devem ser SO de documentacao
   main    8ffc49a, intacta
   versão  1.3.4 (NÃO fazer bump)
   migrations 0001-0038; PRÓXIMO NÚMERO LIVRE: 0039
@@ -233,7 +240,7 @@ Continue a AAPEx 1.3.5 — Fase 3 (Gestão Assistida semanal idempotente).
 A Fase 1 está pronta: migrations 0036-0038 criaram o catálogo com escopo
 global/regional e a configuração operacional regional versionada. A-08 e
 A-09 estão RESOLVIDAS (docs/architecture/ADR-135-001). Próximo número de
-migration livre: 0039. Branch em 7b98532, ja empurrada para origin; main
+migration livre: 0039. Branch ja empurrada para origin; main
 intacta em 8ffc49a, sem merge.
 
 A meta NÃO vem de indicator_versions: vem da versão publicada e vigente
