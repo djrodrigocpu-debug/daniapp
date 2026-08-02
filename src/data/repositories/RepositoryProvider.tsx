@@ -51,6 +51,11 @@ import {
   UnavailableAssistedRepository,
 } from './AssistedRepository';
 import type { AssistedRepository } from '../../domain/repositories/assisted';
+import {
+  SupabaseMonthlyAuditRepository,
+  UnavailableMonthlyAuditRepository,
+} from './MonthlyAuditRepository';
+import type { MonthlyAuditRepository } from '../../domain/repositories/monthlyAudit';
 
 export interface Repositories {
   operations: OperationsRepository;
@@ -76,6 +81,13 @@ export interface Repositories {
    * de status, imutabilidade do fechamento e vínculo do plano são do servidor.
    */
   assisted: AssistedRepository;
+  /**
+   * Auditoria Mensal por competência (AAPEx 1.3.5, D4). Mesma escolha do
+   * catálogo e da Gestão Assistida: sem backend corporativo o adapter RECUSA
+   * tudo. Unicidade de competência, materialização, imutabilidade e snapshot
+   * são do servidor.
+   */
+  monthlyAudit: MonthlyAuditRepository;
   /** Origem efetiva dos dados operacionais. */
   source: 'supabase' | 'local';
 }
@@ -99,6 +111,7 @@ function buildRepositories(): Repositories {
       evidence,
       catalog: new SupabaseCatalogRepository(client),
       assisted: new SupabaseAssistedRepository(client),
+      monthlyAudit: new SupabaseMonthlyAuditRepository(client, evidence),
       source: 'supabase',
     };
   }
@@ -116,6 +129,7 @@ function buildRepositories(): Repositories {
     evidence,
     catalog: new UnavailableCatalogRepository(),
     assisted: new UnavailableAssistedRepository(),
+    monthlyAudit: new UnavailableMonthlyAuditRepository(),
     source: 'local',
   };
 }
