@@ -36,6 +36,14 @@ drop function if exists
   public.get_system_settings(),
   public.admin_set_weekly_audit_cutover(date, boolean);
 
+-- Ponderação regional, Dashboard e Matriz (AAPEx 1.3.5, migration 0048).
+drop function if exists
+  public.catalog_save_region_weighting_draft(uuid, jsonb),
+  public.catalog_publish_region_weighting(uuid),
+  public.get_weighting_status(uuid),
+  public.get_dashboard_aggregates(jsonb),
+  public.get_matrix_dataset(jsonb);
+
 -- Gestão Assistida semanal (AAPEx 1.3.5, migrations 0039–0041). Mesmo motivo.
 drop function if exists
   public.open_assisted_cycle(uuid, date),
@@ -79,6 +87,9 @@ drop table if exists
   -- um teste vazaria para o teste seguinte (o `on conflict do nothing` da
   -- semente não a reescreve), e o isolamento entre arquivos deixaria de existir.
   public.system_settings,
+  -- `region_weightings` (0048) usa `app.catalog_status`: sem esta linha a tabela
+  -- sobrevive ao teardown e perde a coluna `status` no `drop schema app cascade`.
+  public.region_weightings,
   -- Catálogo 1.3.5 depois: apontam para regions e indicator_definitions.
   public.audit_criteria_versions,
   public.audit_criteria,

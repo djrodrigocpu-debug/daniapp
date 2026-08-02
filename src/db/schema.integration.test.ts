@@ -40,6 +40,9 @@ const REQUIRED_TABLES = [
   // 0047 (Fase 7): parâmetros do sistema. Nasce com `weekly_audit_cutover_date`
   // em JSON null — estrutura criada, cutover NÃO ativado (D5, pendência A-02).
   'system_settings',
+  // 0048 (Fase 8): ponderação regional versionada. Nasce VAZIA — D10 diz que não
+  // há peso padrão aprovado, e a pendência A-04 continua aberta.
+  'region_weightings',
 ];
 
 describe('esquema aplicado em banco real (0001→0003)', () => {

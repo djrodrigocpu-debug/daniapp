@@ -53,7 +53,7 @@ const F6 = {
 /** UUID que não existe em lugar nenhum — o outro lado da comparação de mensagens. */
 const NADA = '00000000-0000-0000-0000-0000dead0001';
 
-/** As 11 tabelas criadas nas Fases 1, 3 e 5. */
+/** As 13 tabelas criadas nas Fases 1, 3, 5, 7 e 8. */
 const TABELAS_NOVAS = [
   'themes', 'theme_versions',
   'indicator_regional_configs', 'indicator_regional_config_versions',
@@ -61,6 +61,9 @@ const TABELAS_NOVAS = [
   'assisted_cycles', 'assisted_cycle_entries',
   'evaluation_criteria', 'evaluation_criterion_answers',
   'evaluation_criterion_answer_evidence',
+  // Fase 7 e Fase 8: a superfície nova entra na MESMA bateria, e não numa
+  // paralela — senão "a superfície inteira resiste" deixa de ser verdade.
+  'system_settings', 'region_weightings',
 ] as const;
 
 /** As 25 RPCs públicas criadas nas Fases 1, 3 e 5, com uma chamada sintática válida. */
@@ -90,6 +93,15 @@ const RPCS_NOVAS: Array<{ nome: string; chamada: string }> = [
   { nome: 'get_monthly_audit', chamada: `select public.get_monthly_audit('${NADA}','2026-07')` },
   { nome: 'list_monthly_audits', chamada: `select public.list_monthly_audits('${NADA}',10)` },
   { nome: 'get_monthly_audit_snapshot', chamada: `select public.get_monthly_audit_snapshot('${NADA}')` },
+  // Fase 7 (0047)
+  { nome: 'get_system_settings', chamada: `select public.get_system_settings()` },
+  { nome: 'admin_set_weekly_audit_cutover', chamada: `select public.admin_set_weekly_audit_cutover(null,false)` },
+  // Fase 8 (0048)
+  { nome: 'catalog_save_region_weighting_draft', chamada: `select public.catalog_save_region_weighting_draft('${NADA}','{}'::jsonb)` },
+  { nome: 'catalog_publish_region_weighting', chamada: `select public.catalog_publish_region_weighting('${NADA}')` },
+  { nome: 'get_weighting_status', chamada: `select public.get_weighting_status(null)` },
+  { nome: 'get_dashboard_aggregates', chamada: `select public.get_dashboard_aggregates('{}'::jsonb)` },
+  { nome: 'get_matrix_dataset', chamada: `select public.get_matrix_dataset('{}'::jsonb)` },
 ];
 
 interface Retrato { [k: string]: number | string | null }
@@ -1088,7 +1100,7 @@ describe('Fase 6 — autorização server-side sobre a superfície inteira (0036
         select p.proname n, pg_get_function_identity_arguments(p.oid) args
           from pg_proc p join pg_namespace ns on ns.oid=p.pronamespace
          where ns.nspname='public'
-           and p.proname ~ '^(catalog_|open_assisted|save_assisted|close_assisted|get_assisted|list_assisted|start_monthly|save_criterion|submit_monthly|get_monthly|list_monthly)'`);
+           and p.proname ~ '^(catalog_|open_assisted|save_assisted|close_assisted|get_assisted|list_assisted|start_monthly|save_criterion|submit_monthly|get_monthly|list_monthly|get_system_settings|admin_set_weekly_audit_cutover|get_weighting_status|get_dashboard_aggregates|get_matrix_dataset)'`);
       expect(r.length).toBe(RPCS_NOVAS.length);
       for (const f of r) {
         expect(`${f.n}(${f.args})`).not.toMatch(/p_(actor|actor_id|user_id|uid|role|score|status|created_by|validated_by|approved_by)\b/);
