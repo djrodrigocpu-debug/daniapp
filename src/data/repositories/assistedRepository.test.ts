@@ -16,7 +16,7 @@ import {
   SupabaseAssistedRepository,
   UnavailableAssistedRepository,
 } from './AssistedRepository';
-import { isErr, isOk } from '../../domain/errors/result';
+import { isErr, isOk, Result } from '../../domain/errors/result';
 
 interface RpcCall { name: string; params: Record<string, unknown> }
 
@@ -210,7 +210,7 @@ describe('UnavailableAssistedRepository — honesto em vez de vazio', () => {
   const repo = new UnavailableAssistedRepository();
 
   it('recusa TODA operação, leitura inclusive', async () => {
-    const resultados = await Promise.all([
+    const resultados: Result<unknown>[] = await Promise.all([
       repo.openCycle('op-1'),
       repo.getCycle('op-1'),
       repo.listCycles('op-1'),
