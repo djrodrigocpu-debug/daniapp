@@ -219,10 +219,10 @@ Registradas para não serem inventadas depois.
 | **A-02** | **Data de cutover** | Estrutura será parametrizável e **desativada** até a definição |
 | **A-03** | **Decisão nominal de cada um dos 4 drafts de produção** | Concluir como legado · cancelar formalmente · arquivar |
 | **A-04** | **Pesos da ponderação por região** | Não há peso padrão aprovado; sem configuração não se calcula índice |
-| **A-05** | **Nova `REPORT_FORMAT_VERSION`** | Só após o contrato canônico do novo PDF ser congelado |
-| **A-06** | **Escopo do “Resumo” na exportação** | As abas estão nomeadas; o conteúdo do Resumo não foi especificado |
-| **A-10** ⭐ | **Regra de pontuação da Auditoria Mensal** | Critérios **não têm peso** — os dez campos de D4 não incluem um. A Fase 5 adotou **proporção simples de conformidade**, com `nao_aplicavel` fora dos dois lados, e a declarou **provisória**. Não é ponderação e não é o Índice de Excelência. Ver [ADR-135-003 §4, D-O](../architecture/ADR-135-003-AUDITORIA-MENSAL-MATERIALIZADA.md) |
-| **A-11** ⭐ | **Regra de pontuação do eixo de DESEMPENHO (Gestão Assistida)** | **NOVA, aberta em 02/08/2026 na Fase 8.** O índice ponderado de D10 precisa de um número em cada eixo. O mensal tem um, provisório (A-10). O eixo de desempenho **não tinha nenhum**: a Gestão Assistida produz *status* por indicador, não nota. Adotada a **mesma forma** de A-10 — `conforme / (conforme + atencao + nao_conforme) × 100`, com `sem_dado` fora dos dois lados — e **declarada provisória**. `atencao` conta como não conformidade porque D2 a trata como desvio que exige plano; não há decisão que a torne meia conformidade. **Não é decisão tomada, é pendência registrada** |
+| ~~**A-05**~~ ✅ | ~~Nova `REPORT_FORMAT_VERSION`~~ | **RESOLVIDA em 02/08/2026** — duas constantes, nunca uma. Ver §8 |
+| ~~**A-06**~~ ✅ | ~~Escopo do “Resumo” na exportação~~ | **RESOLVIDA em 02/08/2026** — treze itens, sete proibições. Ver §8 |
+| ~~**A-10**~~ ⭐✅ | ~~Regra de pontuação da Auditoria Mensal~~ | **RESOLVIDA em 02/08/2026.** Ver §8. *Registro do que ela foi antes:* critérios **não têm peso** — os dez campos de D4 não incluem um. A Fase 5 adotou **proporção simples de conformidade**, com `nao_aplicavel` fora dos dois lados, e a declarou **provisória**. Ver [ADR-135-003 §4, D-O](../architecture/ADR-135-003-AUDITORIA-MENSAL-MATERIALIZADA.md) |
+| ~~**A-11**~~ ⭐✅ | ~~Regra de pontuação do eixo de DESEMPENHO (Gestão Assistida)~~ | **RESOLVIDA em 02/08/2026.** Ver §8. *Registro do que ela foi antes:* nasceu **aberta em 02/08/2026 na Fase 8**, porque o índice ponderado de D10 precisa de um número em cada eixo e o eixo de desempenho não tinha nenhum. Foi adotada a **mesma forma** provisória de A-10 — `conforme / (conforme + atencao + nao_conforme) × 100`, com `sem_dado` fora dos dois lados —, com `atencao` valendo zero *"porque não há decisão que a torne meia conformidade"*. **Agora há: vale exatamente meia** |
 | **A-07** | **Definição operacional de “região” do Gerente Regional** | `user_scopes.region_id` existe; falta confirmar se a autoridade regional se resolve só por ele |
 | ~~**A-08**~~ ✅ | ~~Temas e indicadores são globais ou por região?~~ | **RESOLVIDA em 01/08/2026** — modelo híbrido. Ver §6 |
 | ~~**A-09**~~ ✅ | ~~Confirmar as flags de módulo na *versão* do indicador~~ | **RESOLVIDA por consequência de A-08** — ficam na versão da **configuração regional**. Ver §6 |
@@ -272,3 +272,102 @@ nesta sessão, e nenhuma foi preenchida por inferência.
 **O que esta sessão deliberadamente NÃO fez:** ativar o cutover, definir data, decidir os quatro
 drafts, semear peso, aprovar A-10, fechar A-06, gerar PDF novo, alterar `REPORT_FORMAT_VERSION` ou
 fazer bump de versão. A versão continua **1.3.4** e o build continua **8**.
+
+## 8. Decisões congeladas na Fase 10 (02/08/2026)
+
+**Confirmadas pelo proprietário em 02/08/2026. Canônicas. Não reabrir.**
+Registradas tecnicamente em
+[ADR-135-004](../architecture/ADR-135-004-PONTUACOES-RESUMO-E-RELATORIO-MENSAL.md), **escrito antes
+de qualquer código**.
+
+### A-10 ✅ **APROVADA** — pontuação do processo
+
+```
+pontuacao_processo = conformes / (conformes + nao_conformes) × 100
+```
+
+- `nao_aplicavel` **fora do numerador e do denominador**;
+- critério obrigatório `nao_avaliado` **impede a submissão**;
+- **ausência de critérios aplicáveis = DADOS INSUFICIENTES**, e **nunca zero**;
+- **não há peso individual por critério** nesta versão, e nenhum foi inventado;
+- precisão **autoritativa** no armazenamento; arredondamento **só para apresentação**.
+
+**Não é a ponderação entre módulos e não é o Índice de Excelência.**
+
+A matemática já vigente estava **correta** e por isso não foi reescrita — o que mudou foi um
+defeito de borda real: `coalesce(..., 0)` fazia o denominador zero devolver **zero**. Saiu.
+
+Proveniência: `proporcao-simples/A-10-pendente` → **`conformidade-simples-processo/1.3.5`**.
+
+### A-11 ✅ **APROVADA** — pontuação do desempenho
+
+| `conforme` | `atencao` | `nao_conforme` | `sem_dado` |
+|---|---|---|---|
+| **100** | **50** | **0** | **sem nota, e produz insuficiência** |
+
+```
+pontuacao_desempenho = Σ(pontos × peso_materializado) ÷ Σ(pesos_materializados)
+```
+
+- usa o **peso copiado no registro histórico**; **nunca** o peso vivo do catálogo;
+- `sem_dado` **não vale zero** e **não é descartado** para aumentar a nota;
+- indicador obrigatório em `sem_dado` **torna o eixo insuficiente** — e, como o modelo assistido
+  **não tem semântica de indicador opcional**, todo item materializado é obrigatório. Nenhuma
+  opcionalidade nova foi criada;
+- soma de pesos ≤ 0 → **dados insuficientes**;
+- regra temporal da 0048 **preservada**; período e seleção de ciclos **inalterados**;
+- **nenhuma renormalização** por dado ausente.
+
+Proveniência: `proporcao-simples-desempenho/A-11-pendente` → **`desempenho-ponderado-status/1.3.5`**.
+
+### Ponderação entre os módulos — **não se confunde com as duas acima**
+
+```
+indice_consolidado = desempenho × assisted_weight/100 + processo × audit_weight/100
+```
+
+Só existe com **os dois eixos suficientes**, **ponderação publicada e vigente** e
+`assisted_weight + audit_weight = 100`. Sem isso: **não calcular** — nem zero, nem média.
+**Nunca renormalizar** o peso restante. **Nenhum peso padrão, nenhum 50/50 semeado.**
+
+> **A-04 continua ABERTA.** Este bloco define **como** ponderar, não **com quanto**.
+> `region_weightings` continua **vazia**.
+
+### A-06 ✅ **APROVADA** — conteúdo do Resumo
+
+**Contém, e exatamente isto:** período · filtros efetivamente aplicados · parceiros abrangidos ·
+cobertura da Gestão Assistida · cobertura da Auditoria Mensal · eixo de desempenho · eixo de
+processo · planos por estado · suficiência dos dados · ponderação utilizada · índice consolidado
+**somente quando permitido** · versões das regras utilizadas.
+
+**Não contém:** ranking · meta empresarial inventada · novo semáforo executivo · projeção
+financeira · KPI não aprovado · fórmula adicional · comparação fora do escopo do ator.
+
+Rótulo: *"Resumo técnico provisório"* → **"Resumo"**. Ele cai **porque o conteúdo passou a seguir
+este contrato**, não antes.
+
+### A-05 ✅ **APROVADA** — formato do novo relatório
+
+```
+REPORT_FORMAT_VERSION         = 1.3.3   ← histórico legado. PRESERVADA.
+MONTHLY_REPORT_FORMAT_VERSION = 1.3.5   ← nova. Formato mensal.
+```
+
+- a constante histórica **não é substituída** — ela identifica os quarenta documentos já emitidos;
+- o relatório mensal **não nasce do caminho legado**, e `monthly_criteria` **não pode alcançar**
+  `app.official_audit_report_legacy`;
+- nasce **somente** de auditoria `monthly_criteria` **aprovada**, com **snapshot oficial imutável**,
+  lendo **dados já materializados no snapshot**;
+- **zero dependência** de catálogo vivo, do estado atual dos planos e da data atual — `generated_at`
+  fica **fora** do conteúdo assinado;
+- **código de integridade próprio**, determinístico, com a versão do formato participando da
+  canonicalização. Os **40 códigos históricos não são alterados**.
+
+Terminologia D8 **inalterada**: *"Relatório oficial da operação"* é a fonte externa;
+**"Relatório Oficial da Auditoria Mensal"** é o documento produzido pelo AAPEx.
+
+### O que a Fase 10 deliberadamente NÃO decidiu
+
+**A-01** (`target_band`) · **A-02** (data de cutover) · **A-03** (os quatro drafts de produção) ·
+**A-04** (**pesos empresariais reais**) · **A-07** (autoridade regional). Nenhuma foi preenchida por
+inferência. O cutover continua **nulo** e `region_weightings` continua **vazia**.
