@@ -128,6 +128,23 @@ Rejeitada por custo sem contrapartida.
 
 Adotada a alternativa **(d)**, na forma detalhada abaixo.
 
+> ⚠️ **CORREÇÃO em 02/08/2026.** O escopo residual descrito em **D-H** — *"acrescentar
+> `monthly_audit_id` e relaxar o CHECK"* — **estava errado**, e foi corrigido por
+> [ADR-135-003 §4, decisão D-Q](ADR-135-003-AUDITORIA-MENSAL-MATERIALIZADA.md) antes de qualquer
+> migration da Fase 5.
+>
+> `monthly_audit_id -> evaluations(id)` seria **redundante** com `action_plans.evaluation_id`, que
+> existe desde `0001:334` e já referencia a mesma tabela; e seria **grosso demais**, porque apontar
+> para a auditoria inteira não diz **qual não conformidade** originou o plano — enquanto o vínculo
+> semanal aponta para o item.
+>
+> A terceira origem é `monthly_criterion_answer_id`, FK à **resposta do critério**, com
+> `evaluation_id` não nulo e `item_id` nulo na mesma perna do CHECK. E, diferente do vínculo
+> semanal, **não** é 1:1 (ADR-135-003, D-R): uma não conformidade de processo pode exigir mais de
+> uma ação, e não há decisão empresarial que a limite a uma.
+>
+> O texto original de D-H fica abaixo, preservado, para que a diferença seja rastreável.
+
 ### D-H · `source` é enum com as três origens de D6, mas só duas são aceitáveis hoje
 
 ```
@@ -153,8 +170,9 @@ check (
 )
 ```
 
-**Escopo residual da Fase 4:** acrescentar `monthly_audit_id` e relaxar o CHECK para a terceira
-origem. Nada mais.
+**Escopo residual da Fase 4:** ~~acrescentar `monthly_audit_id`~~ **acrescentar
+`monthly_criterion_answer_id`** e relaxar o CHECK para a terceira origem — ver a correção D-Q
+acima. Nada mais.
 
 ### D-I · Cardinalidade **um plano por item**, imposta por índice único parcial
 
@@ -219,7 +237,7 @@ um segundo motor nasce.
 
 | # | Fica em aberto |
 |---|---|
-| **Fase 4 residual** | coluna `monthly_audit_id` e a terceira perna do CHECK |
+| ~~**Fase 4 residual**~~ ✅ | ~~coluna `monthly_audit_id` e a terceira perna do CHECK~~ — **resolvido na Fase 5** com `monthly_criterion_answer_id`; ver [ADR-135-003, D-Q](ADR-135-003-AUDITORIA-MENSAL-MATERIALIZADA.md) |
 | **A-01** | regra de status para `target_band` — aqui nem tocada |
 | **O-11** | teste dirigido de auto-validação em plano `done` pertence à fase de autorização; esta decisão não altera a regra que ele mede |
 | Cardinalidade N:1 | se a operação exigir vários planos por desvio, é decisão empresarial nova (ver D-I) |
