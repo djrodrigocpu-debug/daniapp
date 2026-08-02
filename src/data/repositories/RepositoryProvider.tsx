@@ -61,6 +61,11 @@ import {
   UnavailableDashboardRepository,
 } from './DashboardRepository';
 import type { DashboardRepository } from '../../domain/repositories/dashboard';
+import {
+  SupabaseExportRepository,
+  UnavailableExportRepository,
+} from './ExportRepository';
+import type { ExportRepository } from '../../domain/repositories/exporting';
 
 export interface Repositories {
   operations: OperationsRepository;
@@ -101,6 +106,13 @@ export interface Repositories {
    * distinção entre "zero" e "sem dado" são do servidor.
    */
   dashboard: DashboardRepository;
+  /**
+   * Exportação CSV/XLSX (AAPEx 1.3.5, D9). Recusa no modo demonstração pelo
+   * mesmo motivo das anteriores, com um agravante: o arquivo SAI do aplicativo
+   * e passa a circular por conta própria — ele sobrevive ao contexto em que foi
+   * feito, e quem o abrir amanhã não saberá que era demonstração.
+   */
+  exporting: ExportRepository;
   /** Origem efetiva dos dados operacionais. */
   source: 'supabase' | 'local';
 }
@@ -126,6 +138,7 @@ function buildRepositories(): Repositories {
       assisted: new SupabaseAssistedRepository(client),
       monthlyAudit: new SupabaseMonthlyAuditRepository(client, evidence),
       dashboard: new SupabaseDashboardRepository(client),
+      exporting: new SupabaseExportRepository(client),
       source: 'supabase',
     };
   }
@@ -145,6 +158,7 @@ function buildRepositories(): Repositories {
     assisted: new UnavailableAssistedRepository(),
     monthlyAudit: new UnavailableMonthlyAuditRepository(),
     dashboard: new UnavailableDashboardRepository(),
+    exporting: new UnavailableExportRepository(),
     source: 'local',
   };
 }
