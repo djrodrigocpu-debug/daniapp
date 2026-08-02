@@ -14,6 +14,8 @@ import { useOperationalUser } from '../context/useOperationalUser';
 import { useRepositories } from '../data/repositories/RepositoryProvider';
 import { OperationPeople, scopeFromUser } from '../data/repositories/OperationsRepository';
 import { decideOperationDetailState } from '../domain/operations/operationDetailState';
+import { describeAuditStatus, describeCompetence } from '../domain/monthlyAudit/policy';
+import type { MonthlyAuditSummary } from '../domain/monthlyAudit/types';
 import { colors, radius, spacing } from '../theme';
 import { RootStackParamList } from '../types';
 import { formatDate, getMaturity, trafficLightColor } from '../utils/format';
@@ -43,6 +45,20 @@ export function OperationDetailScreen({ route, navigation }: NativeStackScreenPr
     });
     return () => { cancelled = true; };
   }, [operationsRepo, currentUser, operationId]);
+
+  // Competências da Auditoria Mensal. Falha silenciosa é DELIBERADA aqui: o
+  // adapter de demonstração recusa por princípio, e o detalhe do parceiro não
+  // pode virar tela de erro por causa de um bloco secundário. A tela da própria
+  // Auditoria Mensal é que explica a indisponibilidade, com a frase do motivo.
+  const { monthlyAudit: monthlyRepo } = useRepositories();
+  const [monthlyAudits, setMonthlyAudits] = useState<MonthlyAuditSummary[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void monthlyRepo.listAudits(operationId, 6).then((res) => {
+      if (!cancelled) setMonthlyAudits(res.ok ? res.value : []);
+    });
+    return () => { cancelled = true; };
+  }, [monthlyRepo, operationId]);
 
   const history = useMemo(() => listByOperation(operationId).slice(0, 5), [listByOperation, operationId]);
 
@@ -131,7 +147,46 @@ export function OperationDetailScreen({ route, navigation }: NativeStackScreenPr
       <SectionTitle title="Visita produtiva" subtitle="Metas, realizado, prioridades, diagnóstico, plano de ação e retroalimentação em um único fluxo." />
       <AppButton title="Abrir visita produtiva" variant="secondary" onPress={() => navigation.navigate('Performance', { operationId: activeOperation.id })} style={{ marginBottom: spacing.xl }} />
 
-      <SectionTitle title="Avaliação operacional" subtitle="Checklists semanal e mensal permanecem disponíveis para os processos de excelência." />
+      {/*
+        AUDITORIA MENSAL por competência (D4) — o módulo de PROCESSO. Fica junto
+        da Gestão Assistida e SEPARADA do bloco legado abaixo, porque são três
+        coisas diferentes e o Modelo Operacional §6 exige que a interface as
+        distinga.
+      */}
+      <SectionTitle title="Auditoria Mensal" subtitle="Verifica se o processo que sustenta o resultado existe, está implantado e é executado." />
+      <AppButton title="Abrir competência atual" onPress={() => navigation.navigate('MonthlyAudit', { operationId: activeOperation.id })} />
+      {monthlyAudits.length > 0 && (
+        <View style={styles.monthlyList}>
+          {monthlyAudits.map((m) => (
+            <View key={m.id} style={styles.monthlyRow}>
+              <View style={styles.monthlyText}>
+                <Text style={styles.monthlyLabel}>{describeCompetence(m.competence)}</Text>
+                <Text style={styles.monthlyMeta}>
+                  {describeAuditStatus(m.status)}
+                  {m.nonConformCount > 0 ? ` · ${m.nonConformCount} não conforme(s)` : ''}
+                </Text>
+              </View>
+              {/*
+                O-12: TODA auditoria listada tem rota de abertura, e a aprovada
+                recebe a ação explícita "Ver auditoria" — com semântica de botão,
+                nome acessível e alvo de toque adequado. O achado nasceu de um
+                cartão aprovado que não levava a lugar nenhum.
+              */}
+              <AppButton
+                title={m.status === 'approved' ? 'Ver auditoria' : 'Continuar'}
+                compact
+                variant={m.status === 'approved' ? 'secondary' : 'primary'}
+                onPress={() => navigation.navigate('MonthlyAudit', {
+                  operationId: activeOperation.id, competence: m.competence,
+                })}
+              />
+            </View>
+          ))}
+        </View>
+      )}
+      <View style={{ marginBottom: spacing.xl }} />
+
+      <SectionTitle title="Avaliação operacional" subtitle="Checklists semanal e mensal permanecem disponíveis para os processos de excelência. Histórico legado." />
       <View style={styles.buttonRow}>
         <AppButton title="Auditoria semanal" onPress={() => void launch('weekly')} style={styles.flexButton} />
         <AppButton title="Auditoria mensal" onPress={() => void launch('monthly')} variant="secondary" style={styles.flexButton} />
@@ -199,4 +254,14 @@ const styles = StyleSheet.create({
   historyFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.border },
   historyStatus: { color: colors.inkMuted, fontSize: 11, fontWeight: '700' },
   noHistory: { color: colors.inkMuted, fontSize: 13 },
+  monthlyList: { marginTop: spacing.md, gap: spacing.sm },
+  monthlyRow: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    minHeight: 56,
+  },
+  monthlyText: { flex: 1 },
+  monthlyLabel: { color: colors.ink, fontSize: 13, fontWeight: '800' },
+  monthlyMeta: { color: colors.inkMuted, fontSize: 11, marginTop: 2 },
 });

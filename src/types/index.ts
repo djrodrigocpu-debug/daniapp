@@ -81,5 +81,12 @@ export type RootStackParamList = {
    * empresarial e confirmada pelo servidor.
    */
   AssistedCycle: { operationId: string; weekStartDate?: string };
+  /**
+   * Auditoria Mensal por competência (AAPEx 1.3.5, D4). `competence` é
+   * `AAAA-MM` e é opcional: sem ela a tela abre na competência corrente. Passar
+   * uma competência explícita é o que torna a auditoria aprovada alcançável a
+   * partir do histórico — o caminho que fecha o O-12.
+   */
+  MonthlyAudit: { operationId: string; competence?: string };
   PerformanceMatrix: undefined;
 };
