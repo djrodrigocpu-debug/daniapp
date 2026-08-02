@@ -351,12 +351,15 @@ describe('Fase 6 — autorização server-side sobre a superfície inteira (0036
           from pg_proc p join pg_namespace n on n.oid=p.pronamespace
          where n.nspname='app' and p.proname like '%\\_legacy'
          order by 1`);
-      // Quatro desde a 0046: `remove_evidence` e `reserve_evidence_upload`
-      // também viraram wrapper, para fechar o O-18 sem copiar corpo legado.
+      // Cinco: os dois da 0044, mais `remove_evidence` e
+      // `reserve_evidence_upload` (0046, para fechar o O-18) e
+      // `start_evaluation` (0047, para a guarda de cutover). Em todos, o corpo
+      // legado foi MOVIDO por `pg_get_functiondef`, nunca copiado.
       expect(r.map((x) => x.n)).toEqual([
         'official_audit_report_legacy',
         'remove_evidence_legacy',
         'reserve_evidence_upload_legacy',
+        'start_evaluation_legacy',
         'submit_evaluation_legacy',
       ]);
       for (const x of r) expect(`${x.n}=${x.a}${x.b}${x.c}`).toBe(`${x.n}=falsefalsefalse`);

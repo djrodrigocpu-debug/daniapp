@@ -37,6 +37,9 @@ const REQUIRED_TABLES = [
   // o agregado; o que muda é de que ela é feita (ADR-135-003).
   'evaluation_criteria', 'evaluation_criterion_answers',
   'evaluation_criterion_answer_evidence',
+  // 0047 (Fase 7): parâmetros do sistema. Nasce com `weekly_audit_cutover_date`
+  // em JSON null — estrutura criada, cutover NÃO ativado (D5, pendência A-02).
+  'system_settings',
 ];
 
 describe('esquema aplicado em banco real (0001→0003)', () => {

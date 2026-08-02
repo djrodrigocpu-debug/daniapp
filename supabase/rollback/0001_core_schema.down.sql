@@ -31,6 +31,11 @@ drop function if exists
   public.catalog_publish_criterion_version(uuid),
   public.catalog_set_criterion_lifecycle(uuid, text);
 
+-- Parâmetros do sistema e cutover (AAPEx 1.3.5, migration 0047). Mesmo motivo.
+drop function if exists
+  public.get_system_settings(),
+  public.admin_set_weekly_audit_cutover(date, boolean);
+
 -- Gestão Assistida semanal (AAPEx 1.3.5, migrations 0039–0041). Mesmo motivo.
 drop function if exists
   public.open_assisted_cycle(uuid, date),
@@ -68,6 +73,12 @@ drop table if exists
   -- e.direction does not exist" numa RPC que não tem nada a ver com o assunto.
   public.assisted_cycle_entries,
   public.assisted_cycles,
+  -- `system_settings` (0047) não tem coluna de enum de `app`, e mesmo assim
+  -- entra aqui — por um motivo próprio e igualmente concreto: ela guarda ESTADO
+  -- de configuração. Sobrevivendo ao teardown, uma data de cutover gravada por
+  -- um teste vazaria para o teste seguinte (o `on conflict do nothing` da
+  -- semente não a reescreve), e o isolamento entre arquivos deixaria de existir.
+  public.system_settings,
   -- Catálogo 1.3.5 depois: apontam para regions e indicator_definitions.
   public.audit_criteria_versions,
   public.audit_criteria,
