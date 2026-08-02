@@ -30,17 +30,30 @@ por si.
 | ~~0039~~ ✅ | `assisted_management_core` | **APLICADA LOCALMENTE.** Enums, `app.assisted_week_start`, `app.assisted_today`, `app.assisted_status_of`, `app.assisted_rule_version`, `app.is_assisted_operator`, `assisted_cycles` (**unique `(operation_id, week_start_date)`** + CHECK de segunda-feira), `assisted_cycle_entries`, cinco gatilhos, RLS forçada | 0037 |
 | ~~0040~~ ✅ | `action_plan_assisted_source` | **APLICADA LOCALMENTE.** `app.action_source`, `assisted_entry_id` + `source` + CHECK, índice único parcial, gatilho de coerência, `save_action_plan` estendida, `ui_action_plans` +2 colunas. **Nome e ordem diferem do proposto:** os planos precisam existir antes das RPCs, porque `close_assisted_cycle` valida contra `assisted_entry_id` | 0039 |
 | ~~0041~~ ✅ | `assisted_management_rpcs` | **APLICADA LOCALMENTE.** DTOs, `open_assisted_cycle`, `save_assisted_entry`, `close_assisted_cycle`, `get_assisted_cycle`, `list_assisted_cycles`, trilha | 0040 |
-| **0042** | `monthly_audit_competence` | `start_monthly_audit` com **período por parâmetro** (fecha O-06); `evaluation_criteria` + materialização; guarda de imutabilidade | 0038 |
-| **0043** | `system_settings_and_cutover` | `system_settings`; semente `weekly_audit_cutover_date = null`; guarda **inerte** em `start_evaluation` | 0042 |
-| **0044** | `region_weightings` | tabela com CHECK `soma = 100`; **nenhuma linha semeada** | 0036 |
-| **0045** | `dashboard_and_export_rpcs` | agregações e datasets de exportação, todos com escopo server-side | 0039–0044 |
-| **0046** | `ui_projections_135` | novas views `ui_*` e colunas nas existentes | 0045 |
+| ~~0042~~ ✅ | `monthly_audit_model` | **APLICADA LOCALMENTE.** `app.evaluation_model` e `app.criterion_answer_status`; discriminador em `evaluations` e `official_snapshots` com CHECK **mais forte** que o `not null` que substitui; `evaluation_criteria`, `evaluation_criterion_answers`, `evaluation_criterion_answer_evidence`; `evidence_upload_reservations` com dois destinos; `app.monthly_audit_score` (provisória, A-10) | 0038 |
+| ~~0043~~ ✅ | `action_plan_monthly_source` | **APLICADA LOCALMENTE.** `monthly_criterion_answer_id` (**não** `monthly_audit_id` — ver ADR-135-003, D-Q), CHECK com as três origens, gatilho de coerência, `save_action_plan` estendida | 0042 |
+| ~~0044~~ ✅ | `monthly_audit_rpcs` | **APLICADA LOCALMENTE.** `start_monthly_audit` com **período por parâmetro** (fecha O-06), respostas, evidências, submissão, `validate_evaluation` com ramo mensal, consulta e as duas fronteiras legadas | 0043 |
+| **0045** | `system_settings_and_cutover` | `system_settings`; semente `weekly_audit_cutover_date = null`; guarda **inerte** em `start_evaluation` | 0044 |
+| **0046** | `region_weightings` | tabela com CHECK `soma = 100`; **nenhuma linha semeada** | 0036 |
+| **0047** | `dashboard_and_export_rpcs` | agregações e datasets de exportação, todos com escopo server-side | 0039–0046 |
+| **0048** | `ui_projections_135` | novas views `ui_*` e colunas nas existentes | 0047 |
+
+> **Os quatro últimos foram RENUMERADOS**, e só eles: a Auditoria Mensal consumiu três migrations
+> em vez de uma, porque o modelo precisou de tabelas de resposta e de vínculo de evidência que os
+> Contratos §6 não previam. As já aplicadas (0036–0044) **não mudam de número**.
 
 > Números são **propostos**, não reservados. A ordem real será confirmada na sessão de
 > implementação, conforme o [Plano de Implementação](AAPEX-135-PLANO-DE-IMPLEMENTACAO.md).
 
-> **Estado real em 01/08/2026:** 0036–0041 escritas e aplicadas **somente em PGlite local**.
-> Nenhuma foi enviada a staging ou produção. Próximo número livre: **0042**.
+> **Estado real em 02/08/2026:** 0036–0044 escritas e aplicadas **somente em PGlite local**.
+> Nenhuma foi enviada a staging ou produção. Próximo número livre: **0045**.
+>
+> **Técnica nova, e obrigatória daqui para a frente.** Estender função legada **copiando o corpo
+> é proibido**: a primeira versão da 0044 reescreveu `submit_evaluation` a partir da 0025 e perdeu,
+> em silêncio, a guarda de estado que a 0027 acrescentou. Cinco testes pegaram. O caminho é
+> `pg_get_functiondef` renomear a função vigente para `app.*_legacy` e o wrapper novo só
+> acrescentar a fronteira — assim *"o corpo legado é o mesmo"* deixa de ser promessa e vira
+> propriedade do comando. Aplicado a `submit_evaluation` e a `get_official_audit_report_data`.
 >
 > **Uma ressalva de reversibilidade que a §9 não previa:** o teardown do harness
 > (`supabase/rollback/0001_core_schema.down.sql`, **fora de `migrations/`**) precisou conhecer as

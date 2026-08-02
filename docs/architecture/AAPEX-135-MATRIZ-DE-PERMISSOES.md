@@ -110,10 +110,13 @@ PostgREST devolve `42501`.
 
 **Anti-auto-validação preservada:** `validated_by ≠ criador`, via `app.can_validate`.
 
-> ⚠️ **Achado O-11 em aberto.** Ao tentar auto-validar, a recusa medida veio da **máquina de
-> estados** (*“transição inválida de in_progress para validated”*), não da **regra de ator**. Não
-> se provou que um plano **já em `completed`** seria recusado ao próprio criador. **Teste dirigido
-> obrigatório na fase de autorização.**
+> ✅ **Achado O-11 FECHADO em 02/08/2026.** O teste dirigido levou o plano até `done` — estado a
+> partir do qual `app.action_transition_allowed('done','validated')` devolve **verdadeiro**, o que
+> o teste também afirma — e só então tentou validar. A recusa veio da **regra de ator**:
+> *"apenas coordenacao, regional ou administracao registram validado"*. Um coordenador que **criou**
+> o plano recebe *"quem criou o plano nao pode valida-lo"*, e um coordenador que não o criou
+> **valida com sucesso**. Nenhuma regra foi enfraquecida para o teste passar.
+> `src/db/monthly_audit.integration.test.ts`.
 
 `overdue` é **derivado da data**; gravação manual já é recusada.
 
@@ -197,7 +200,7 @@ Acrescentam-se aos 18 já existentes, no mesmo formato
 | ~~28~~ ✅ | Abrir 2º ciclo semanal na mesma semana | recusado pela unicidade — **verde** |
 | ~~29~~ ✅ | Fechar ciclo com desvio **sem** diagnóstico/plano | recusado — **verde** |
 | ~~30~~ ✅ | GC abre ciclo em parceiro de outro GC | fora do escopo — **verde** |
-| 31 | GC valida o **próprio** plano concluído | **recusado por regra de ator** (fecha O-11) |
+| ~~31~~ ✅ | GC valida o **próprio** plano concluído | **recusado por regra de ator** — **FECHADO em 02/08/2026** |
 | 32 | Alterar critério materializado de auditoria criada | recusado |
 | 33 | `anon` em cada RPC nova | HTTP 401 |
 | 34 | `anon` em cada tabela nova | conjunto vazio |

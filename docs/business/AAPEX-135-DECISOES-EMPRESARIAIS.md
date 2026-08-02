@@ -221,6 +221,7 @@ Registradas para não serem inventadas depois.
 | **A-04** | **Pesos da ponderação por região** | Não há peso padrão aprovado; sem configuração não se calcula índice |
 | **A-05** | **Nova `REPORT_FORMAT_VERSION`** | Só após o contrato canônico do novo PDF ser congelado |
 | **A-06** | **Escopo do “Resumo” na exportação** | As abas estão nomeadas; o conteúdo do Resumo não foi especificado |
+| **A-10** ⭐ | **Regra de pontuação da Auditoria Mensal** | Critérios **não têm peso** — os dez campos de D4 não incluem um. A Fase 5 adotou **proporção simples de conformidade**, com `nao_aplicavel` fora dos dois lados, e a declarou **provisória**. Não é ponderação e não é o Índice de Excelência. Ver [ADR-135-003 §4, D-O](../architecture/ADR-135-003-AUDITORIA-MENSAL-MATERIALIZADA.md) |
 | **A-07** | **Definição operacional de “região” do Gerente Regional** | `user_scopes.region_id` existe; falta confirmar se a autoridade regional se resolve só por ele |
 | ~~**A-08**~~ ✅ | ~~Temas e indicadores são globais ou por região?~~ | **RESOLVIDA em 01/08/2026** — modelo híbrido. Ver §6 |
 | ~~**A-09**~~ ✅ | ~~Confirmar as flags de módulo na *versão* do indicador~~ | **RESOLVIDA por consequência de A-08** — ficam na versão da **configuração regional**. Ver §6 |

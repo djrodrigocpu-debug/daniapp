@@ -87,9 +87,10 @@ Não precisa ser construído:
 | `indicator_versions` | **estendida** | +`theme_version_id`, `orientation`, `description`, `include_in_assisted_management`, `include_in_monthly_audit` |
 | `action_plans` | ✅ **estendida** (0040) | +`assisted_entry_id`, +`source`, CHECK de exclusividade, índice único parcial e gatilho de coerência de operação. **`monthly_audit_id` NÃO foi criada** — fica no residual da Fase 4, e até lá `source = 'monthly_audit'` é recusado pelo CHECK. Ver [ADR-135-002](ADR-135-002-PLANOS-DA-GESTAO-ASSISTIDA.md) |
 | `assisted_cycles`, `assisted_cycle_entries` | ✅ **novas** (0039) | domínio próprio da Gestão Assistida. `evaluations` **não foi tocada** — é o que D1 exige |
-| `evaluations` | **lida**, não alterada | recebe guarda de cutover em `start_evaluation`; nenhuma coluna nova |
-| `official_snapshots` | **intacta** | imutável por gatilho; conteúdo do payload muda apenas quando o novo formato for congelado (A-05) |
-| `audit_items`, `audit_templates`, `audit_template_versions` | **intactas** | servem o histórico legado; **não convertidas em critérios** |
+| `evaluations` | ✅ **estendida** (0042) | +`evaluation_model` com default `legacy_template`; `template_version_id` passa a anulável **acompanhada de CHECK mais forte**. Nenhuma linha reescrita |
+| `official_snapshots` | ✅ **estendida** (0042) | mesmo par. Os gatilhos de imutabilidade de 0033/0034 **não são tocados** |
+| `evaluation_criteria`, `evaluation_criterion_answers`, `evaluation_criterion_answer_evidence` | ✅ **novas** (0042) | a Auditoria Mensal materializada. `evaluation_answers` e `audit_items` **intactos** |
+| `audit_items`, `audit_templates`, `audit_template_versions` | **intactas** | servem o histórico legado; **não convertidas em critérios**. Contagem provada igual antes e depois de dezenas de auditorias mensais |
 | `evaluation_answers`, `evaluation_answer_evidence`, `evidence_files` | **intactas** | |
 | `audit_logs` | **intacta** | recebe eventos dos fluxos novos pelo mesmo `app.write_audit` |
 | `indicator_results` | **coexiste** | `period` é `YYYY-MM`; a Gestão Assistida é semanal e usa estrutura própria. **Não migrar** |
@@ -102,7 +103,7 @@ Não precisa ser construído:
 | RPC | Mudança | Risco |
 |---|---|---|
 | `start_evaluation` | guarda de cutover: recusa `weekly` **se** a data existir e tiver passado. Enquanto nula, comportamento idêntico | baixo — enquanto o cutover não for ativado, nada muda |
-| `get_official_audit_report_data` | passa a ler critérios materializados quando a auditoria os tiver | **médio** — o código de integridade é determinístico e está provado 40/40. Auditorias antigas **devem continuar gerando o mesmo código**. Ver §6 |
+| `get_official_audit_report_data` | ✅ **vira WRAPPER (0044)**: a função vigente é renomeada para `app.official_audit_report_legacy` **sem uma linha alterada**, e a nova só **recusa** o modelo `monthly_criteria`, citando A-05 | **baixo** — o corpo legado é literalmente o mesmo objeto, não uma cópia. Ver ADR-135-003, D-S |
 | `save_action_plan` | aceita e valida a nova origem | baixo |
 
 ### 3.2 Novas (nomes propostos)

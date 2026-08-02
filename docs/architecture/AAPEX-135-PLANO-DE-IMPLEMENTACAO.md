@@ -198,34 +198,72 @@ vínculo em ciclo fechado) · `save_action_plan` estendida · `ui_action_plans` 
 - [ ] **teste dirigido do O-11**: plano em `completed`, criador tenta validar → recusa **por regra de
       ator**, não por máquina de estados (teste 31).
 
-**Critério de saída — parcialmente verificado**
+**Critério de saída — verificado** (o residual foi entregue na Fase 5, 02/08/2026)
 - [x] `source` inconsistente com as FKs → recusado pelo CHECK (teste 6 de migração);
 - [x] planos existentes com `source = 'legacy'` **por default de coluna**, sem `UPDATE` semântico;
 - [x] os estados de D6 preservados; anti-auto-validação intacta — provada sobre um plano da Gestão
-      Assistida;
+      Assistida **e** sobre um plano da Auditoria Mensal;
 - [x] `overdue` segue derivado; gravação manual recusada (teste 36);
-- [ ] teste dirigido do **O-11** — pertence à fase de autorização e **não foi feito aqui**.
+- [x] **teste dirigido do O-11 — FECHADO na Fase 5**, em duas formas: com o plano em `done` (a
+      transição que a máquina de estados **permite**), o criador é recusado por **regra de ator**
+      com a mensagem literal *"apenas coordenacao, regional ou administracao registram validado"*;
+      e um coordenador que criou o plano recebe *"quem criou o plano nao pode valida-lo"*. Nenhuma
+      regra foi enfraquecida para o teste passar.
+
+> ⚠️ **A coluna prevista era `monthly_audit_id`, e estava errada.** Corrigida por
+> [ADR-135-003, D-Q](ADR-135-003-AUDITORIA-MENSAL-MATERIALIZADA.md): seria redundante com
+> `action_plans.evaluation_id`, que existe desde `0001:334`, e não diria **qual não conformidade**
+> originou o plano. A coluna entregue é `monthly_criterion_answer_id`, FK à **resposta do
+> critério**, e o vínculo é **N:1** — uma não conformidade de processo pode exigir mais de uma ação.
 
 ---
 
-### Fase 5 — Auditoria Mensal por competência
+### Fase 5 — Auditoria Mensal por competência ✅ **CONCLUÍDA** (02/08/2026)
 
-> **Próximo número de migration livre: 0042.** As Fases 1–3 consumiram 0036–0041.
+> **Entregue VERTICAL**, e absorvendo o residual da Fase 4. Decisão registrada em
+> [ADR-135-003](ADR-135-003-AUDITORIA-MENSAL-MATERIALIZADA.md).
+>
+> **Quatro lacunas do plano anterior foram corrigidas ANTES da migration:**
+> `evaluation_answers.item_id` é `not null` e só responde a `audit_items`; não havia onde responder
+> aos critérios materializados; `template_version_id` era `not null` nos dois lugares; e
+> `monthly_audit_id` seria redundante com `evaluation_id`.
 
-**Entrega:** migration 0042 · `start_monthly_audit(operation_id, competence)` com **período por
-parâmetro** · `evaluation_criteria` + materialização · guarda de imutabilidade · **e o residual da
-Fase 4** (`monthly_audit_id` + terceira perna do CHECK), que é pré-requisito de plano com origem
-mensal.
+**Entregue de fato:** migrations **0042, 0043 e 0044** · `app.evaluation_model` com default que
+preserva a história · `app.criterion_answer_status` (quatro valores, sem o amarelo) ·
+`evaluation_criteria`, `evaluation_criterion_answers`,
+`evaluation_criterion_answer_evidence` · `app.monthly_audit_score` (provisória, **A-10**) ·
+`action_plans.monthly_criterion_answer_id` + CHECK com as três origens · RPCs
+`start_monthly_audit`, `save_criterion_answer`, `submit_monthly_audit`, `get_monthly_audit`,
+`list_monthly_audits`, `get_monthly_audit_snapshot` · `validate_evaluation` com ramo mensal ·
+domínio, policy, repositórios e a tela `MonthlyAuditScreen` · **1818 testes verdes** (eram 1651).
 
-**Critério de saída**
-- [ ] **auditoria de competência passada registrável pelo caminho oficial — fecha o O-06**;
-- [ ] uma auditoria oficial por parceiro por competência;
-- [ ] só entram indicadores com `include_in_monthly_audit = true`;
-- [ ] critérios **materializados** na criação; alterar catálogo depois **não muda** a auditoria
-      (teste 32);
-- [ ] aprovação gera snapshot imutável;
-- [ ] **40 códigos de integridade idênticos** — auditorias sem critérios materializados percorrem o
-      caminho antigo **sem desvio**.
+**Critério de saída — verificado** (`src/db/monthly_audit.integration.test.ts`, 76 casos)
+
+- [x] **auditoria de competência PASSADA registrável pelo caminho oficial — fecha o O-06**: a
+      competência vem por parâmetro, e `2025-11` foi criada com `period_start`/`period_end`
+      corretos;
+- [x] uma auditoria oficial por parceiro por competência, com **índice único parcial no banco** —
+      o insert direto de uma segunda é recusado. O legado **não** herda a restrição;
+- [x] só entram configurações regionais publicadas, vigentes, ativas, com
+      `include_in_monthly_audit`, da região da operação, e com critério publicado e ativo;
+- [x] critérios **materializados** na criação; publicar nova versão do critério depois **não muda**
+      a auditoria (teste 32);
+- [x] aprovação gera snapshot imutável, com `evaluation_model = 'monthly_criteria'` e
+      `template_version_id` nulo;
+- [x] **nenhum `audit_item` nem template artificial criado** — provado por contagem antes e depois;
+- [ ] **40 códigos de integridade**: dívida **não remedida** — a medição é contra staging, que
+      segue fora de alcance por decisão. O que foi provado localmente é que o caminho legado é
+      **literalmente a mesma função** (wrapper por `pg_get_functiondef`) e que
+      `official_audit_report.integration.test.ts` continua verde.
+
+**Regra provisória declarada — pontuação (A-10).** Critérios não têm peso: os dez campos de D4 não
+incluem um. `evaluations.score` da auditoria mensal guarda **proporção simples de conformidade**,
+com `nao_aplicavel` fora do numerador e do denominador. **Não é ponderação e não é o Índice de
+Excelência**, e a tela diz isso.
+
+**Fronteira do relatório.** `get_official_audit_report_data` **recusa** o modelo novo citando
+**A-05**, em vez de devolver um relatório sintaticamente válido e vazio. A interface **não oferece**
+PDF para a Auditoria Mensal, e explica a ausência em texto.
 
 ---
 
