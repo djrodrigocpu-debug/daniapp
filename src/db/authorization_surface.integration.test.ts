@@ -93,6 +93,8 @@ const RPCS_NOVAS: Array<{ nome: string; chamada: string }> = [
   { nome: 'get_monthly_audit', chamada: `select public.get_monthly_audit('${NADA}','2026-07')` },
   { nome: 'list_monthly_audits', chamada: `select public.list_monthly_audits('${NADA}',10)` },
   { nome: 'get_monthly_audit_snapshot', chamada: `select public.get_monthly_audit_snapshot('${NADA}')` },
+  // Fase 10 (0051) — o Relatório Oficial da Auditoria Mensal 1.3.5.
+  { nome: 'get_monthly_audit_report_data', chamada: `select public.get_monthly_audit_report_data('${NADA}')` },
   // Fase 7 (0047)
   { nome: 'get_system_settings', chamada: `select public.get_system_settings()` },
   { nome: 'admin_set_weekly_audit_cutover', chamada: `select public.admin_set_weekly_audit_cutover(null,false)` },
@@ -363,18 +365,20 @@ describe('Fase 6 — autorização server-side sobre a superfície inteira (0036
           from pg_proc p join pg_namespace n on n.oid=p.pronamespace
          where n.nspname='app' and p.proname like '%\\_legacy'
          order by 1`);
-      // SEIS: os dois da 0044, mais `remove_evidence` e
+      // SETE: os dois da 0044, mais `remove_evidence` e
       // `reserve_evidence_upload` (0046, para fechar o O-18), `start_evaluation`
-      // (0047, para a guarda de cutover) e `export_dataset` (0050, para o Resumo
-      // definitivo da A-06). Em todos, o corpo foi MOVIDO por
+      // (0047, para a guarda de cutover), `export_dataset` (0050, para o Resumo
+      // definitivo da A-06) e `get_monthly_audit_snapshot` (0051, para a
+      // proveniência definitiva). Em todos, o corpo foi MOVIDO por
       // `pg_get_functiondef`, nunca copiado.
       //
-      // A sexta camada é o RT-15 se materializando de novo, e ela respeita o
-      // O-16 da forma mais forte possível: o wrapper de `export_dataset`
-      // DELEGA PRIMEIRO e só depois pós-processa o módulo `summary` — não há
-      // uma linha executada antes da autorização da função movida.
+      // As duas camadas novas são o RT-15 se materializando de novo, e as duas
+      // respeitam o O-16 na forma mais forte possível: **delegam primeiro**.
+      // Nem `export_dataset` nem `get_monthly_audit_snapshot` executam uma
+      // linha antes da autorização que mora dentro da função movida.
       expect(r.map((x) => x.n)).toEqual([
         'export_dataset_legacy',
+        'monthly_audit_snapshot_legacy',
         'official_audit_report_legacy',
         'remove_evidence_legacy',
         'reserve_evidence_upload_legacy',
@@ -784,11 +788,15 @@ describe('Fase 6 — autorização server-side sobre a superfície inteira (0036
       expect(m).toBe('esta auditoria segue o modelo antigo: use get_official_audit_report_data');
     });
 
-    it('o relatório oficial legado recusa a auditoria mensal citando A-05', async () => {
+    it('o relatório oficial legado recusa a mensal e aponta o caminho DEFINITIVO', async () => {
+      // ATUALIZADO PELA FASE 10 (A-05 congelada em 02/08/2026, migration 0051).
+      // A fronteira é a mesma e a ORDEM é a mesma — o que mudou é o conselho:
+      // antes mandava para o leitor de snapshot porque não havia relatório;
+      // agora manda para o relatório, que passou a existir.
       const m = await recusaSemEfeito(() =>
         rpc(ID.uGcA, `select public.get_official_audit_report_data($1) as r`, [auditA.id]));
-      expect(m).toContain('pendencia A-05');
-      expect(m).toContain('get_monthly_audit_snapshot');
+      expect(m).toContain('get_monthly_audit_report_data');
+      expect(m).not.toContain('A-05');
     });
 
     it('avaliação legada NÃO pode existir sem template; mensal NÃO pode carregá-lo', async () => {
@@ -1091,7 +1099,8 @@ describe('Fase 6 — autorização server-side sobre a superfície inteira (0036
     it('a fronteira de modelo continua valendo para quem ALCANÇA o objeto', async () => {
       const m = await recusaSemEfeito(() =>
         rpc(ID.uGcA, `select public.get_official_audit_report_data($1) as r`, [auditA.id]));
-      expect(m).toContain('pendencia A-05');
+      expect(m).toContain('tem formato proprio');
+      expect(m).toContain('get_monthly_audit_report_data');
     });
   });
 

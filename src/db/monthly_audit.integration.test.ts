@@ -988,23 +988,26 @@ describe('Auditoria Mensal por competência (0042–0044)', () => {
 
   // -------------------------------------------------------------------------
   describe('relatório: o legado intacto, o novo não fingido', () => {
-    it('o relatório oficial RECUSA a auditoria mensal, citando A-05', async () => {
+    it('o relatório oficial RECUSA a auditoria mensal e aponta o formato próprio', async () => {
+      // ATUALIZADO PELA FASE 10: A-05 congelada, e o formato mensal existe.
       const a = await iniciar(db, ID.uGcA, ID.opA, '2029-01');
       const e = await db
         .asUser(ID.uCoord1, (tx) =>
           tx.query(`select public.get_official_audit_report_data($1)`, [a.id]))
         .then(() => null).catch((x: Error) => x);
-      expect(e?.message).toMatch(/A-05/);
-      expect(e?.message).toMatch(/get_monthly_audit_snapshot/);
+      expect(e?.message).toMatch(/get_monthly_audit_report_data/);
+      expect(e?.message).not.toMatch(/A-05/);
     });
 
-    it('o snapshot mensal é lido por RPC própria, e diz que a nota é provisória', async () => {
+    it('o snapshot mensal é lido por RPC própria, com a regra DEFINITIVA nomeada', async () => {
       const a = await iniciar(db, ID.uGcA, ID.opA, '2029-01');
       const r = await db.asUser(ID.uCoord1, (tx) =>
         tx.query<{ s: { period: string; scoreRule: string; official: MonthlyAudit } }>(
           `select public.get_monthly_audit_snapshot($1) as s`, [a.id]));
       expect(r[0].s.period).toBe('2029-01');
-      expect(r[0].s.scoreRule).toMatch(/A-10-pendente/);
+      // ATUALIZADO PELA FASE 10: a proveniência do snapshot deixou de anunciar
+      // pendência fechada e passou a nomear a regra definitiva.
+      expect(r[0].s.scoreRule).toBe('conformidade-simples-processo/1.3.5');
       expect(r[0].s.official.criteria).toHaveLength(3);
       // O snapshot guarda o CONTEÚDO CONGELADO, com ordenação estável.
       expect(r[0].s.official.criteria.map((c) => c.criterionCode))
