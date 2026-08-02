@@ -134,13 +134,28 @@ Removê-las seria destrutivo. Permanecem servindo o caminho legado; a partir de 
 operativo é o da configuração regional**. A duplicidade é deliberada e está documentada aqui para
 que ninguém a leia como fonte alternativa.
 
-### D-E · Unicidade de código passa a ser **por escopo**
+### D-E · O código continua sendo **identidade global**, não por escopo
 
-`indicator_definitions.code` era `unique` global. Com indicadores regionais, duas regiões podem
-legitimamente ter `IND-101`. A restrição de tabela é substituída por dois índices únicos parciais:
-um sobre `code` para `scope_kind = 'global'`, outro sobre `(region_id, code)` para
-`scope_kind = 'regional'`. Como **todas as linhas existentes nascem globais por default**, o
-primeiro índice preserva exatamente o invariante anterior. Mesmo desenho em `themes`.
+O escopo decide **quem administra** e **quem enxerga**. Não decide se a sigla pode repetir:
+`indicator_definitions.code` e `themes.code` são únicos em **todo** o catálogo.
+
+A alternativa — dois índices únicos parciais, um por escopo, permitindo `IND-101` em duas regiões —
+foi escrita, testada e **descartada por quebrar consumidores reais**: `on conflict (code)` **não
+infere índice parcial**, e é exatamente essa cláusula que dá reexecutabilidade à semente do catálogo
+(`supabase/seed/0001_seed_catalog.sql`) e ao bootstrap `0021`. Um índice parcial transforma os dois
+num erro opaco de inferência de índice. O custo de contornar isso seria reescrever migration
+histórica; o ganho seria permitir que a mesma sigla signifique coisas diferentes em regiões
+diferentes — o que, em exportação, PDF e comparação entre regiões, é um defeito, não um recurso.
+
+**Consequências aceitas**
+
+- duas regiões não podem usar a mesma sigla para indicadores ou temas diferentes;
+- um Regional que tente criar `TEMA-X` já usado por outra região recebe *“já existe um tema com o
+  código TEMA-X”*. A recusa **não diz de quem é** — o espaço de códigos é compartilhado, a
+  existência do objeto alheio continua não observável.
+
+Isto satisfaz a exigência de *“unicidade do identificador dentro do respectivo escopo”*: unicidade
+global é estritamente mais forte.
 
 ### D-F · `target_band` bloqueado na publicação (A-01)
 

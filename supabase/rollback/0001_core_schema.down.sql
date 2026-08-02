@@ -12,6 +12,25 @@ drop function if exists
   public.admin_update_operation(uuid, jsonb),
   public.admin_import_partners(jsonb, boolean);
 
+-- Catálogo com escopo global/regional (AAPEx 1.3.5, migrations 0036–0038).
+-- Mesmo motivo: função em `public` sobrevive ao `drop schema app cascade`, e o
+-- harness reaplica todas as migrations sobre o mesmo banco depois deste arquivo.
+drop function if exists
+  public.catalog_create_theme(text, uuid, text, jsonb),
+  public.catalog_add_theme_version(uuid, jsonb),
+  public.catalog_publish_theme_version(uuid),
+  public.catalog_set_theme_lifecycle(uuid, text),
+  public.catalog_create_indicator(text, uuid, text, jsonb),
+  public.catalog_add_indicator_version(uuid, jsonb),
+  public.catalog_publish_indicator_version(uuid),
+  public.catalog_set_indicator_lifecycle(uuid, text),
+  public.catalog_save_regional_config_draft(uuid, uuid, jsonb),
+  public.catalog_publish_regional_config_version(uuid),
+  public.catalog_create_criterion(uuid, text, jsonb),
+  public.catalog_add_criterion_version(uuid, jsonb),
+  public.catalog_publish_criterion_version(uuid),
+  public.catalog_set_criterion_lifecycle(uuid, text);
+
 -- Projeções de leitura (0005/0009) — dependem das tabelas-base (cairiam por
 -- cascade, mas são removidas explicitamente para uma reversão autocontida).
 drop view if exists
@@ -24,6 +43,13 @@ drop view if exists
   cascade;
 
 drop table if exists
+  -- Catálogo 1.3.5 primeiro: apontam para regions e indicator_definitions.
+  public.audit_criteria_versions,
+  public.audit_criteria,
+  public.indicator_regional_config_versions,
+  public.indicator_regional_configs,
+  public.theme_versions,
+  public.themes,
   public.evidence_upload_reservations,
   public.visit_reports,
   public.indicator_results,
@@ -63,5 +89,6 @@ drop type if exists
   app.role_code, app.user_status, app.visit_type, app.visit_status,
   app.evaluation_status, app.action_status, app.evidence_status,
   app.indicator_lifecycle, app.traffic_light, app.indicator_direction,
-  app.calendar_exception, app.validation_decision
+  app.calendar_exception, app.validation_decision,
+  app.scope_kind, app.catalog_status
   cascade;

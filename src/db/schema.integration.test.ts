@@ -24,6 +24,12 @@ const REQUIRED_TABLES = [
   // 0028: reserva de upload de evidência — estado intermediário entre o caminho
   // reservado e o arquivo confirmado no bucket (D-02).
   'evidence_upload_reservations',
+  // 0036–0037 (AAPEx 1.3.5, decisão A-08): catálogo com escopo global/regional e
+  // a configuração operacional que cada região publica sobre ele.
+  'themes', 'theme_versions',
+  'indicator_regional_configs', 'indicator_regional_config_versions',
+  // 0038: critérios de processo da Auditoria Mensal, por região.
+  'audit_criteria', 'audit_criteria_versions',
 ];
 
 describe('esquema aplicado em banco real (0001→0003)', () => {
