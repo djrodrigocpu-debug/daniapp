@@ -22,10 +22,24 @@ import {
   ThemeVersionInput,
 } from '../catalog/types';
 
+/** Região, no mínimo necessário para escolher onde configurar. */
+export interface CatalogRegion {
+  id: string;
+  name: string;
+}
+
 export interface CatalogRepository {
   // -------------------------------------------------------------------------
   // Leitura — o servidor já devolve apenas o que o papel alcança (RLS)
   // -------------------------------------------------------------------------
+
+  /**
+   * Regiões existentes. `public.regions` é legível por qualquer autenticado
+   * desde 0002 — quem pode ADMINISTRAR cada uma é outra pergunta, respondida
+   * por `canManageCatalog` na interface e por `app.can_manage_catalog` no
+   * servidor.
+   */
+  listRegions(): Promise<Result<CatalogRegion[]>>;
 
   /** Temas globais mais os regionais que o usuário alcança. */
   listThemes(): Promise<Result<Theme[]>>;

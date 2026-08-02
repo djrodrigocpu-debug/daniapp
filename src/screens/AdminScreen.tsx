@@ -12,15 +12,21 @@ import { INDICATOR_DIRECTIONS, INDICATOR_UNITS, validateIndicatorVersionForm, ye
 import { roleLabel } from '../utils/format';
 import { PartnersSection } from './admin/PartnersSection';
 import { UserImportFlow } from './admin/UserImportFlow';
+import { CatalogSection } from './admin/CatalogSection';
 
 const ROLES: UserRole[] = ['admin', 'regional', 'coordinator', 'channel_manager'];
 
-type AdminMode = 'partners' | 'users' | 'indicators';
+type AdminMode = 'partners' | 'users' | 'indicators' | 'catalog';
 
 const TABS: Array<{ mode: AdminMode; label: string }> = [
   { mode: 'partners', label: 'Parceiros AACE' },
   { mode: 'users', label: 'Usuários' },
   { mode: 'indicators', label: 'Indicadores' },
+  // Catálogo com escopo global/regional (AAPEx 1.3.5, A-08). Aba SEPARADA da
+  // aba "Indicadores": aquela é o catálogo legado, sem escopo e sem
+  // configuração regional, e continua servindo o que já existe. Misturar as
+  // duas faria o operador achar que a meta editada ali vale para a região.
+  { mode: 'catalog', label: 'Catálogo regional' },
 ];
 
 export function AdminScreen() {
@@ -40,7 +46,9 @@ export function AdminScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>Administração</Text>
-        <Text style={styles.subtitle}>Parceiros AACE, usuários e indicadores versionados do programa.</Text>
+        <Text style={styles.subtitle}>
+          Parceiros AACE, usuários, indicadores versionados e o catálogo com escopo global e regional.
+        </Text>
         <View style={styles.tabs}>
           {TABS.map((tab) => (
             <Pressable key={tab.mode} onPress={() => setMode(tab.mode)} style={[styles.tab, mode === tab.mode && styles.tabActive]}>
@@ -51,7 +59,10 @@ export function AdminScreen() {
 
         <DemoDataBanner />
 
-        {mode === 'partners' ? <PartnersSection /> : mode === 'users' ? <UsersSection /> : <IndicatorsSection />}
+        {mode === 'partners' ? <PartnersSection />
+          : mode === 'users' ? <UsersSection />
+          : mode === 'indicators' ? <IndicatorsSection />
+          : <CatalogSection />}
       </ScrollView>
     </SafeAreaView>
   );

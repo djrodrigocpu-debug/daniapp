@@ -22,7 +22,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { Result, ok, err } from '../../domain/errors/result';
 import { AppError } from '../../domain/errors/AppError';
-import { CatalogRepository } from '../../domain/repositories/catalog';
+import { CatalogRegion, CatalogRepository } from '../../domain/repositories/catalog';
 import {
   AuditCriterion,
   AuditCriterionInput,
@@ -299,6 +299,13 @@ const CONFIG_SELECT =
 export class SupabaseCatalogRepository implements CatalogRepository {
   constructor(private readonly client: SupabaseClient) {}
 
+  async listRegions(): Promise<Result<CatalogRegion[]>> {
+    const { data, error } = await this.client
+      .from('regions').select('id, name').eq('active', true).order('name');
+    if (error) return err(fail('Falha ao carregar regiões.', error));
+    return ok((data ?? []) as CatalogRegion[]);
+  }
+
   async listThemes(): Promise<Result<Theme[]>> {
     const { data, error } = await this.client.from('themes').select(THEME_SELECT).order('code');
     if (error) return err(fail('Falha ao carregar temas.', error));
@@ -453,6 +460,7 @@ export class UnavailableCatalogRepository implements CatalogRepository {
     })));
   }
 
+  listRegions() { return this.refuse<CatalogRegion[]>(); }
   listThemes() { return this.refuse<Theme[]>(); }
   listIndicators() { return this.refuse<CatalogIndicator[]>(); }
   listRegionalConfigs(_regionId: string) { return this.refuse<RegionalConfig[]>(); }
