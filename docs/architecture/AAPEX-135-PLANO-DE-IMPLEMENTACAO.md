@@ -469,24 +469,32 @@ sem mouse, as três larguras, PDF em leitor real e XLSX no Excel real. Pacote pr
 
 ---
 
-### Fase 11 — Homologação controlada e release candidate ⛔ **NÃO INICIADA** (NO-GO, 02/08/2026)
+### Fase 11 — Homologação controlada e release candidate ✅ **HOMOLOGADA** · ⛔ **RC não congelado** (02/08/2026)
 
-> **NO-GO, e a razão é objetiva.** Não existe project ref identificado como
-> homologação/disposable/temporário em nenhuma configuração local ou documento. O único ref
-> vinculado (`supabase/.temp/project-ref`) é o **staging congelado**, que não pode ser mutado.
->
-> Parou-se depois da Fase 10. Nenhum projeto foi criado, nenhum ambiente foi improvisado, o staging
-> **não foi consultado**. A ausência do ambiente **não invalida a Fase 10**.
+> **O bloqueio de entrada caiu.** O proprietário provisionou **AAPEx 1.3.5 Homologacao**
+> (`qjvpkaurihjvzktlinhp`, ca-central-1) e autorizou a execução. O staging congelado
+> (`qcixfsdyfpankpatbays`) e a produção (`plnbgdabciwygsmnyddy`) permaneceram **intocados**, com
+> guarda executável abortando qualquer comando que os citasse.
 
-**Entrega:** homologação em ambiente remoto **separado** · fixture sintética nova · os quatro papéis
-em runtime real · CSV, XLSX e PDF em aplicativo real · release candidate congelado · bump para
-**1.3.5**.
+**Entregue:** 51 migrations aplicadas do zero com **Local = Remote** · paridade de catálogo
+conferida por hash contra o PGlite (COLUMN, ENUM, GRANT, INDEX, **POLICY**, TABLE, TRIGGER e VIEW
+idênticos) · duas Edge Functions publicadas · fixture sintética com duas regiões, nove usuários e
+quatro parceiros · os quatro papéis em runtime real com relogin · isolamento comprovado nas duas
+direções · Gestão Assistida e Auditoria Mensal ponta a ponta · evidência física no Storage ·
+**A-10 = 66,67 e denominador zero → NULO** · **A-11 = 72,22 ponderado** (a média aritmética seria
+50) · A-06 sem ranking · 1.3.3 preservada e recusando o modelo mensal · 1.3.5 validada · preview
+não produtivo com dado real · **2.305 testes verdes em 136 arquivos**.
 
-**Bloqueio de entrada:** um project ref de homologação, distinto de `qcixfsdyfpankpatbays` e de
-`plnbgdabciwygsmnyddy`, com autorização explícita do proprietário.
+**Relatório completo:** [`AAPEX-135-FASE-11-HOMOLOGACAO.md`](AAPEX-135-FASE-11-HOMOLOGACAO.md).
 
-**Critério de saída:** os 25 gates do escopo integrado. Prompt autônomo em
-`PROMPT-PROXIMA-SESSAO.md`.
+**Correção de dívida encontrada aqui:** `src/services/supabase/database.types.ts` estava gerado
+antes das migrations 0036–0051 e não continha nenhuma tabela nem RPC da 1.3.5. Nunca quebrou o
+build porque os repositórios usam `SupabaseClient` sem o genérico. Foi **regenerado**.
+
+**Continua bloqueado — e é o que falta para a Fase 12:** gates **14** (XLSX no Excel real),
+**15** (PDF em leitor real) e **17** (acessibilidade com teclado e leitor de tela reais) exigem
+aplicativo de mesa e **não foram executados**. Por isso o gate **25** não fechou: **sem bump, o
+aplicativo continua 1.3.4 · build 8**.
 
 ---
 

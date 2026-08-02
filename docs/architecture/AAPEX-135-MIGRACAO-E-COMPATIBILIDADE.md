@@ -254,6 +254,39 @@ Obrigatórios no conjunto:
 - O helper `q.ps1` tem guarda de ambiente que **recusa** rodar fora do alvo — manter o padrão,
   trocando o alvo para local.
 
+## 8.1 Matriz Local × Homologação (Fase 11, 02/08/2026)
+
+Ambiente separado: **AAPEx 1.3.5 Homologacao** (`qjvpkaurihjvzktlinhp`, ca-central-1), provisionado
+do zero. `migration list` inicial: **51 locais, 0 remotas**. Depois do `db push`: **Local = Remote
+em 0001–0051**.
+
+A paridade não ficou no número de arquivos: a mesma consulta de catálogo rodou nos dois lados
+(PGlite 18.3 × PostgreSQL 17.6) e foi comparada por hash.
+
+| Categoria | Local | Homologação | Veredito |
+|---|---:|---:|---|
+| COLUMN | 572 | 572 | hash **idêntico** |
+| ENUM | 19 | 19 | hash **idêntico** |
+| GRANT | 914 | 914 | hash **idêntico** |
+| INDEX | 120 | 120 | hash **idêntico** |
+| **POLICY (RLS)** | 71 | 71 | hash **idêntico** |
+| RLSENABLED | 45 | 45 | hash **idêntico** |
+| TABLE | 45 | 45 | hash **idêntico** |
+| TRIGGER | 71 | 71 | hash **idêntico** |
+| VIEW (`ui_*`) | 9 | 9 | hash **idêntico** |
+| CONSTRAINT | 587 | 226 | **PG 18 materializa `NOT NULL` em `pg_constraint`; o 17 não.** Fora `contype='n'`: 38/116/45/27 dos dois lados |
+| FUNCTION | 232 | 195 | **as 37 a mais são pgcrypto em `public` (PGlite).** Zero funções só no remoto |
+| FUNCGRANT | 464 | 390 | 74 = 2 papéis × as mesmas 37 |
+| SCHEMAGRANT | 6 | 6 | o harness dá `usage on app` a `anon`/`service_role`; a homologação dá **só a `authenticated`** (0008). **O remoto é mais restrito** |
+
+Nenhuma divergência é de domínio. Detalhamento em
+[`AAPEX-135-FASE-11-HOMOLOGACAO.md`](AAPEX-135-FASE-11-HOMOLOGACAO.md).
+
+> **Tipos gerados.** `src/services/supabase/database.types.ts` estava congelado antes das
+> migrations 0036–0051 e não descrevia nenhuma tabela nem RPC da 1.3.5. Não quebrava o build
+> porque os repositórios recebem `SupabaseClient` **sem** o genérico `<Database>`. Foi
+> **regenerado** contra a homologação; `tsc --noEmit` segue verde.
+
 ## 9. Reversibilidade
 
 Como tudo é aditivo, reverter é **descartar estruturas novas**, nunca restaurar dado.
