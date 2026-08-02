@@ -75,5 +75,11 @@ export type RootStackParamList = {
   OperationDetail: { operationId: string };
   Evaluation: { operationId: string; evaluationId?: string };
   Performance: { operationId: string };
+  /**
+   * Ciclo semanal da Gestão Assistida (AAPEx 1.3.5, D1). `weekStartDate` é
+   * opcional: sem ele a tela abre na semana corrente, derivada do fuso
+   * empresarial e confirmada pelo servidor.
+   */
+  AssistedCycle: { operationId: string; weekStartDate?: string };
   PerformanceMatrix: undefined;
 };

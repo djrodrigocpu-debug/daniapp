@@ -119,8 +119,17 @@ export function OperationDetailScreen({ route, navigation }: NativeStackScreenPr
         <InfoRow icon="alarm-outline" label="Próxima auditoria" value={formatDate(operation.nextAudit)} last />
       </View>
 
+      {/*
+        A partir da 1.3.5 "Gestão Assistida" é o CICLO SEMANAL (decisão D1), com
+        domínio próprio. A tela de Visita produtiva continua servindo o caminho
+        de 1.3.4 e passa a se chamar pelo próprio nome: dois botões chamados
+        "Gestão Assistida" mandariam o operador ao lugar errado.
+      */}
+      <SectionTitle title="Gestão Assistida" subtitle="Ciclo semanal: resultado consultado na fonte oficial da operação, status calculado, diagnóstico e plano de ação." />
+      <AppButton title="Abrir semana atual" onPress={() => navigation.navigate('AssistedCycle', { operationId: activeOperation.id })} style={{ marginBottom: spacing.xl }} />
+
       <SectionTitle title="Visita produtiva" subtitle="Metas, realizado, prioridades, diagnóstico, plano de ação e retroalimentação em um único fluxo." />
-      <AppButton title="Abrir Gestão Assistida" onPress={() => navigation.navigate('Performance', { operationId: activeOperation.id })} style={{ marginBottom: spacing.xl }} />
+      <AppButton title="Abrir visita produtiva" variant="secondary" onPress={() => navigation.navigate('Performance', { operationId: activeOperation.id })} style={{ marginBottom: spacing.xl }} />
 
       <SectionTitle title="Avaliação operacional" subtitle="Checklists semanal e mensal permanecem disponíveis para os processos de excelência." />
       <View style={styles.buttonRow}>
