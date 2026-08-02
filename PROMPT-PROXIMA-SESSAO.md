@@ -3,7 +3,13 @@
 Copiar o bloco abaixo para abrir a próxima sessão.
 
 > **Antes de colar:** conferir que a branch `aapex-1.3.5-assisted-management-monthly-audit` aponta
-> para `d31e422` e que a árvore está limpa.
+> para `ed5e12f` local **e remoto**, e que a árvore está limpa.
+
+> **Fase 3 é mesmo a próxima.** A **Fase 2 (critérios de processo) foi ABSORVIDA pela Fase 1**, não
+> pulada: a decisão **D-A** do ADR-135-001 ancorou os critérios na configuração regional, e isso
+> tornou as duas inseparáveis. A migration saiu com o número previsto, `0038`. Registro em
+> [AAPEX-135-PLANO-DE-IMPLEMENTACAO.md](docs/architecture/AAPEX-135-PLANO-DE-IMPLEMENTACAO.md),
+> Fase 2.
 
 ---
 
@@ -40,7 +46,8 @@ C:\Users\Asus\Documents\dani app\Nova pasta\AACE_Excelencia_Mobile_v1.3.0
 GitHub: djrodrigocpu-debug/daniapp
 
 Estado esperado (VERIFICAR, não presumir):
-  branch  aapex-1.3.5-assisted-management-monthly-audit em d31e422
+  branch  aapex-1.3.5-assisted-management-monthly-audit em ed5e12f
+  remoto  origin/aapex-1.3.5-... no MESMO ed5e12f (upstream configurado)
   main    8ffc49a, intacta
   versão  1.3.4 (NÃO fazer bump)
   migrations 0001-0038; PRÓXIMO NÚMERO LIVRE: 0039
@@ -73,7 +80,34 @@ Sem merge. Sem push de main.
     evaluations, official_snapshots, evaluation_answers ou audit_logs;
   - NÃO corrigir O-05, O-14, O-15, AuthModeBanner nem o logout dos GCs;
   - NÃO executar o backfill do catálogo legado (risco RF1-01);
-  - desenvolvimento LOCAL (esta máquina não tem Docker).
+  - desenvolvimento LOCAL (esta máquina não tem Docker);
+  - NÃO desenvolver dentro do worktree de revisão da 1.3.4 (ver abaixo).
+
+4b. WORKTREE DE REVISÃO DA 1.3.4 — NÃO É AMBIENTE DE TRABALHO
+
+Existe um worktree separado, detached em 8ffc49a, criado só para a
+revisão da fixture ver a interface histórica correta:
+
+  C:\Users\Asus\Documents\dani app\AAPEx-134-revisao-fixture   (8ffc49a, 1.3.4, build 8)
+
+Ele tem .env próprio apontando EXCLUSIVAMENTE para staging, e
+node_modules por junção para a árvore principal (package-lock idêntico).
+
+  - não desenvolver nele;
+  - não fazer commit nele;
+  - não remover o worktree sem `git worktree remove`;
+  - a árvore de trabalho continua sendo a principal, na branch 1.3.5.
+
+Reiniciar o servidor de revisão (de dentro do worktree):
+  npx.cmd expo start --web --lan --port 8102
+
+4c. DÍVIDA DE VERIFICAÇÃO HERDADA
+
+Os 40 códigos de integridade foram medidos contra o STAGING na 1.3.4 e
+NÃO puderam ser remedidos na Fase 1 — staging está fora de alcance. Os
+invariantes locais de determinismo do relatório estão verdes. A
+remedição é devida à primeira sessão com staging liberado; não a
+declare cumprida sem executá-la.
 
 5. O QUE JÁ EXISTE E VOCÊ VAI USAR
 
@@ -191,7 +225,8 @@ Continue a AAPEx 1.3.5 — Fase 3 (Gestão Assistida semanal idempotente).
 A Fase 1 está pronta: migrations 0036-0038 criaram o catálogo com escopo
 global/regional e a configuração operacional regional versionada. A-08 e
 A-09 estão RESOLVIDAS (docs/architecture/ADR-135-001). Próximo número de
-migration livre: 0039. Branch em d31e422, main intacta em 8ffc49a.
+migration livre: 0039. Branch em ed5e12f, ja empurrada para origin; main
+intacta em 8ffc49a, sem merge.
 
 A meta NÃO vem de indicator_versions: vem da versão publicada e vigente
 de indicator_regional_config_versions da região da operação.

@@ -34,7 +34,26 @@ Sete documentos produzidos, revisados entre si, commitados. Nenhum código.
 
 ---
 
-### Fase 1 — Fundação do catálogo: temas e indicadores versionados 🔜 **PRÓXIMA**
+### Fase 1 — Fundação do catálogo: temas e indicadores versionados ✅ **CONCLUÍDA** (01/08/2026)
+
+**Entregue de fato:** migrations **0036, 0037 e 0038** · escopo `global`/`regional` em temas e
+indicadores · **configuração operacional regional versionada** · **critérios de processo por
+região** · `app.reaches_region` e `app.can_manage_catalog` · 14 RPCs `catalog_*` · domínio,
+repositórios e aba administrativa **“Catálogo regional”** · 1488 testes verdes.
+
+Cresceu além do escrito abaixo porque **A-08** foi aprovada durante a fase. Ver
+[ADR-135-001](ADR-135-001-ESCOPO-GLOBAL-REGIONAL.md) e o checkpoint
+`E:\AACE_Backups\AAPEx-135-FASE-1-FUNDACAO-20260801-2238\`.
+
+**Critério de saída:** cumprido, com **uma ressalva nomeada** — os *40 códigos de integridade*
+foram medidos contra o **staging** na 1.3.4 e **não puderam ser remedidos** aqui, porque staging e
+fixture estão fora de alcance por decisão. O que foi provado localmente é o conjunto de invariantes
+de determinismo do relatório (`src/db/official_audit_report.integration.test.ts`, verde), que é
+condição necessária, não a mesma medição. **A remedição dos 40 códigos fica devida à primeira
+sessão que tiver staging liberado.**
+
+<details>
+<summary>Texto original da fase, preservado</summary>
 
 **Por que primeiro:** tudo depende do catálogo. `assisted_cycle_entries` referencia
 `indicator_versions` **e** `theme_version_id`; critérios pendem de indicador; a Auditoria Mensal
@@ -61,7 +80,38 @@ estendida.
 > **configuração operacional regional versionada** e **critérios por região** — porque o ADR ancora
 > critérios e flags de módulo na configuração regional (D-A, D-B), e não em `indicator_versions`.
 
+</details>
+
 ---
+
+### Fase 2 — Critérios de processo ✅ **ABSORVIDA PELA FASE 1** (01/08/2026)
+
+> **Nada foi renumerado.** A Fase 2 continua sendo a Fase 2; o que mudou é **quando** ela foi
+> entregue, e o motivo é rastreável a uma decisão, não a uma conveniência.
+>
+> **Por que foi absorvida.** A decisão **D-A** do [ADR-135-001](ADR-135-001-ESCOPO-GLOBAL-REGIONAL.md)
+> ancorou os critérios na **configuração regional**, e não em `indicator_definitions` como os
+> Contratos de Dados §6 propunham antes de A-08. Com isso a Fase 2 deixou de ser separável: um
+> critério só existe pendurado numa configuração regional, e a configuração regional passou a ser
+> entrega da Fase 1. Entregar as duas em sessões diferentes exigiria criar a tabela de critérios sem
+> a chave estrangeira que a define — ou seja, criar errado para corrigir depois.
+>
+> **Migration:** `0038_regional_audit_criteria.sql`, exatamente o número previsto.
+
+**Critério de saída — verificado**
+
+- [x] critério criado, versionado, com os dez campos de D4
+      (`src/db/catalog_audit_criteria.integration.test.ts`);
+- [x] marcar `include_in_monthly_audit = true` sem critério ativo → **recusado** por gatilho,
+      inclusive contra escrita direta como superusuário;
+- [x] `audit_items` **intacto**; nenhuma conversão automática — provado por teste que conta as duas
+      estruturas lado a lado;
+- [x] nenhum critério gerado a partir do nome do indicador — provado por teste que exige zero
+      critérios após criar indicador e configuração;
+- [x] teste negativo **27** verde.
+
+<details>
+<summary>Texto original da fase, preservado</summary>
 
 ### Fase 2 — Critérios de processo
 
@@ -75,9 +125,13 @@ indicador auditável sem critério ativo” · RPCs de gestão de critério.
 - [ ] nenhum critério gerado a partir do nome do indicador;
 - [ ] teste negativo **27** verde.
 
+</details>
+
 ---
 
-### Fase 3 — Gestão Assistida: núcleo e regra de status
+### Fase 3 — Gestão Assistida: núcleo e regra de status 🔜 **PRÓXIMA**
+
+> **Próximo número de migration livre: 0039.** As Fases 1 e 2 consumiram 0036, 0037 e 0038.
 
 **Entrega:** migrations 0039–0040 · enums novos · `assisted_cycles` com **unique
 `(operation_id, week_start_date)`** · `assisted_cycle_entries` com os 16 campos ·
@@ -243,7 +297,30 @@ prontas** — autorização se aplica sobre superfície existente.
 | **A-03** | Decisão nominal dos 4 drafts de produção | Ativação do cutover | Decisão individual, registrada na trilha |
 | **A-02** | Data de cutover | Ativação | Estrutura pronta na Fase 7, desativada |
 | **A-05** | Nova `REPORT_FORMAT_VERSION` | Novo formato de PDF | 1.3.3 permanece para o histórico |
+| **BACKFILL** 🔴 | **Catálogo legado sem configuração regional** | **Ativação do cutover** | Mapear e publicar, região a região. Ver §7 abaixo |
+| **40 códigos** | Remedição contra staging | Homologação | Devida à primeira sessão com staging liberado |
 | **Fixture** | Congelada | Homologação remota | Frase de liberação do proprietário |
+
+## 7. Backfill do catálogo legado — PENDENTE, bloqueia o cutover
+
+Estado de fato, medido no código em 01/08/2026:
+
+- os indicadores existentes permanecem **`scope_kind = 'global'`, `region_id` nulo**;
+- **nenhum** possui configuração operacional regional;
+- **nenhuma** participação em módulo foi ativada — nem Gestão Assistida, nem Auditoria Mensal;
+- **nenhum backfill foi executado**, local ou remotamente.
+
+Isso é o comportamento **correto** da decisão **D-G** do ADR: existir no catálogo não ativa nada; a
+adoção é ato explícito e publicado de cada região.
+
+E é também uma pendência real: **o cutover não pode ocorrer antes de as configurações regionais
+serem mapeadas e publicadas**. Sem elas, desligar a auditoria semanal deixaria as regiões sem
+indicador operável nenhum.
+
+> **Nada disso pode ser inventado.** Tema, meta, tolerância, peso, ordem, flags de módulo e
+> critérios são decisão empresarial de cada região. Um backfill que os arbitrasse produziria uma
+> operação que ninguém aprovou, com aparência de configurada. O caminho é mapeamento nominal,
+> região a região, com publicação explícita — trabalho a ser planejado e testado à parte.
 
 > **A-08 é o único bloqueio que impede começar.** Os demais permitem entregar com o comportamento
 > conservador já especificado.
