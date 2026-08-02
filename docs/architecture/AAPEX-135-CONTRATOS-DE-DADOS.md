@@ -340,6 +340,17 @@ e **não calcula** índice consolidado. Faltando um módulo: dados insuficientes
 > tem um, provisório (A-10). O eixo de **desempenho não tinha nenhum**: a Gestão Assistida produz
 > *status* por indicador, não nota. Adotada a **mesma forma** de A-10, declarada **provisória**, e a
 > proveniência viaja em toda resposta. Ver Decisões Empresariais §5.
+>
+> ✅ **A-10 e A-11 RESOLVIDAS em 02/08/2026 (migration 0050).** O desempenho passou a ser
+> **100/50/0 ponderado pelo peso materializado**, e o processo manteve a aritmética que já tinha —
+> o que mudou nele foi a **borda**: `coalesce(..., 0)` fazia denominador zero devolver zero, e a
+> decisão diz que ausência de critério aplicável é insuficiência.
+>
+> **Consequência estrutural, e é a única desta fase.** Para a ausência sobreviver até a tela,
+> `evaluations.score` e `official_snapshots.score` **deixaram de ser `not null`**, com CHECK por
+> modelo — técnica da decisão D-M. `drop not null` não reescreve linha nenhuma, e o CHECK é **mais
+> forte** que a restrição que substitui: o caminho legado continua obrigado a ter nota.
+> Ver [ADR-135-004](ADR-135-004-PONTUACOES-RESUMO-E-RELATORIO-MENSAL.md) §2 e o risco **RT-16**.
 
 ## 9. Resumo das estruturas
 
@@ -365,7 +376,7 @@ Enums novos: `app.assisted_cycle_status`, `app.assisted_status`, `app.action_sou
 |---|---|
 | **A-01** | Regra de status para `target_band` — a função **deve falhar**, não inventar comportamento |
 | **A-04** | Pesos de `region_weightings` — nenhuma linha semeada |
-| **A-06** | Colunas exatas da aba `Resumo` da exportação |
+| ~~**A-06**~~ ✅ | **RESOLVIDA em 02/08/2026** — doze itens e sete proibições. Ver [ADR-135-004](ADR-135-004-PONTUACOES-RESUMO-E-RELATORIO-MENSAL.md) §5 |
 | **A-07** | Se a autoridade regional se resolve apenas por `user_scopes.region_id` |
 | ~~**A-08**~~ ✅ | **Resolvida em 01/08/2026 — modelo híbrido.** Ver [ADR-135-001](ADR-135-001-ESCOPO-GLOBAL-REGIONAL.md). §2, §3 e §6 deste documento foram escritos **antes** da decisão e ficam **superados** naquilo que o ADR §4 substitui: critérios pendem da configuração regional (D-A), e tema/meta/tolerância/peso/ordem/flags moram na versão da configuração regional, não em `indicator_versions` (D-B) |
 | ~~**A-09**~~ ✅ | **Resolvida por consequência de A-08** — as flags ficam na versão da configuração regional |

@@ -38,7 +38,9 @@ por si.
 | ~~0047~~ ✅ | `system_settings_and_cutover` | **APLICADA LOCALMENTE.** `system_settings` (com `client_readable` e CHECK de forma por chave); semente `weekly_audit_cutover_date` = **JSON null**; `get_system_settings`; `admin_set_weekly_audit_cutover`; guarda **inerte** em `start_evaluation`, que vira wrapper | 0046 |
 | ~~0048~~ ✅ | `region_weightings_and_dashboard` | **APLICADA LOCALMENTE.** `region_weightings` versionada com CHECK `soma = 100` e **nenhuma linha semeada**; dois gatilhos (vigência sem sobreposição, versão publicada imutável); `catalog_save_region_weighting_draft`; `catalog_publish_region_weighting`; `get_weighting_status`; `get_dashboard_aggregates`; `get_matrix_dataset`. **A ponderação e as agregações vieram JUNTAS**, e não em duas migrations: a Matriz consulta as duas na mesma função | 0039–0047 |
 | ~~0049~~ ✅ | `export_dataset` | **APLICADA LOCALMENTE.** `export_dataset(module, filters)` como porta única, com quatro corpos internos e **colunas tipadas**. Só funções — nenhuma estrutura | 0048 |
-| **0050** | `ui_projections_135` | novas views `ui_*` e colunas nas existentes — **ainda não escrita**; era o antigo 0049 do plano | 0049 |
+| ~~0050~~ ✅ | `definitive_scoring_rules` | **APLICADA LOCALMENTE.** A-10, A-11 e A-06 no banco. `score` deixa de ser `not null` em `evaluations` e `official_snapshots`, com CHECK por modelo **mais forte** que a restrição que substitui (técnica da D-M); `app.monthly_audit_score` perde o `coalesce(...,0)`; `app.assisted_performance_dto` e `app.monthly_process_dto`; proveniências definitivas; `export_dataset` vira **wrapper**. **O `ui_projections_135` previsto NÃO foi necessário** — as projeções `ui_*` existentes já bastavam, e migration sem conteúdo é proibida |
+| ~~0051~~ ✅ | `monthly_audit_report_contract` | **APLICADA LOCALMENTE.** `get_monthly_audit_report_data`; `app.monthly_report_format_version` = **1.3.5**; as duas fronteiras legadas reapontadas **só na mensagem**; `get_monthly_audit_snapshot` vira **wrapper**. Só funções |
+| **0052** | — | **próximo número livre** | 0049 |
 
 > **Os quatro últimos foram RENUMERADOS**, e só eles: a Auditoria Mensal consumiu três migrations
 > em vez de uma, porque o modelo precisou de tabelas de resposta e de vínculo de evidência que os
@@ -47,8 +49,32 @@ por si.
 > Números são **propostos**, não reservados. A ordem real será confirmada na sessão de
 > implementação, conforme o [Plano de Implementação](AAPEX-135-PLANO-DE-IMPLEMENTACAO.md).
 
-> **Estado real em 02/08/2026 (fim das Fases 7–9):** **0036–0049** escritas e aplicadas **somente em
-> PGlite local**. Nenhuma foi enviada a staging ou produção. Próximo número livre: **0050**.
+> **Estado real em 02/08/2026 (fim da Fase 10):** **0036–0051** escritas e aplicadas **somente em
+> PGlite local**. Nenhuma foi enviada a staging ou produção. Próximo número livre: **0052**.
+> `0001`–`0049` conferidas **por blob Git** contra `6bd29e9`: idênticas.
+>
+> **Uma coluna histórica deixou de ser `not null`, e isso merece o registro completo.**
+> `evaluations.score` e `official_snapshots.score` eram `not null default 0`. Enquanto fossem, a
+> decisão A-10 era **inaplicável**: "nenhum critério aplicável" viraria nota zero **dentro do
+> banco**, antes de qualquer camada de apresentação poder defender a ausência.
+>
+> `drop not null` **não reescreve linha nenhuma** — é alteração de catálogo. E o CHECK que entra no
+> lugar é **mais forte** para o caminho legado, que continua obrigado a ter nota. É a mesma
+> troca que a decisão **D-M** fez com `template_version_id`, pelo mesmo motivo: o modelo passa a
+> declarar qual das duas formas vale, e a outra é impossível.
+>
+> **Risco assumido, registrado como RT-16:** todo consumidor futuro que fizer `Number(score)` sem
+> checar `null` produzirá zero — que é exatamente o defeito que a mudança elimina. Mitigado hoje em
+> quatro camadas; **recorrente por construção**.
+>
+> **Duas funções viraram wrapper, e as duas DELEGAM PRIMEIRO.** `export_dataset` e
+> `get_monthly_audit_snapshot` precisavam de mudanças em literais **dentro** do corpo. Reescrevê-las
+> é o caminho que a 0044 tentou com `submit_evaluation` e que custou, em silêncio, a guarda da 0027.
+> Os corpos foram **movidos** por `pg_get_functiondef`, com `raise` se o corpo não for encontrado —
+> a migration falha alto em vez de produzir função errada. São a **sexta e a sétima** camadas
+> (RT-15), e as duas resolvem o O-16 na forma mais forte: delegam antes de tocar em qualquer coisa.
+>
+> **O teardown NÃO precisou mudar**: nenhuma tabela nova foi criada.
 >
 > **Uma armadilha nova, e ela custou um teste vermelho antes do commit.** Na resolução de filtros,
 > `p_filters ? 'statuses'` é verdadeiro para `statuses: []` — e o `in (select ...)` sobre um array
@@ -107,8 +133,13 @@ por si.
 
 ### 3.2 Compatibilidade do Relatório Oficial — o ponto mais sensível
 
-`REPORT_FORMAT_VERSION` **permanece `1.3.3`** para documentos históricos (D8). A versão do novo
-formato só será definida quando o contrato canônico do novo PDF for congelado — pendência **A-05**.
+`REPORT_FORMAT_VERSION` **permanece `1.3.3`** para documentos históricos (D8).
+
+> ✅ **A-05 RESOLVIDA em 02/08/2026.** O formato mensal nasceu como
+> **`MONTHLY_REPORT_FORMAT_VERSION = 1.3.5`**, em constante e caminho **independentes**. A histórica
+> **não foi substituída**, e a razão é aritmética: ela participa da canonicalização dos quarenta
+> documentos já emitidos, cujos códigos seguem sendo dívida não remedida. Trocá-la invalidaria uma
+> prova para poupar uma linha. Ver [ADR-135-004](ADR-135-004-PONTUACOES-RESUMO-E-RELATORIO-MENSAL.md) §6.
 
 **Contrato de não-regressão:**
 

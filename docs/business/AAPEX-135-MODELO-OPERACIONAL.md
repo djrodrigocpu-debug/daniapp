@@ -95,6 +95,24 @@ sustenta o número existe, está implantado e é executado?"**.
 6. Envio → validação → **aprovação**, que gera **snapshot oficial imutável** e habilita o
    **Relatório Oficial da Auditoria Mensal**.
 
+> ✅ **O relatório existe desde 02/08/2026** (A-05, migrations 0050 e 0051). Ele é emitido em PDF
+> **somente** para auditoria aprovada, nasce **exclusivamente do snapshot** e carrega o formato
+> **1.3.5** — separado da `REPORT_FORMAT_VERSION 1.3.3`, que continua identificando os documentos
+> históricos. Alterar catálogo, critério, plano ou responsável depois da aprovação **não muda uma
+> vírgula** do documento.
+
+### 3.4 A pontuação da auditoria
+
+```
+pontuação do processo = conformes ÷ (conformes + não conformes) × 100
+```
+
+`Não aplicável` fica **fora dos dois lados**. Quando **nenhum** critério é aplicável, **não existe
+pontuação** — e a ausência **não equivale a zero**. O relatório e a tela dizem *"Dados
+insuficientes"* e nomeiam o motivo.
+
+**Esta pontuação não é a ponderação entre módulos e não é o Índice de Excelência.**
+
 ### 3.3 O que um critério contém
 
 pergunta · descrição · orientação · ordem · obrigatório · evidência obrigatória · permite N/A ·
@@ -178,7 +196,16 @@ Dois eixos, com significados agora inequívocos:
 Quadrantes preservados: **Saudável** · **Processo cumprido, resultado insuficiente** · **Resultado
 sem processo** · **Crítico** · **Sem dado suficiente**.
 
-### 7.2 Índice ponderado
+### 7.2 Os dois eixos, e como cada um vira número
+
+**Desempenho (Gestão Assistida).** `Conforme` vale **100**, `Atenção` vale **50** e
+`Não conforme` vale **0**, ponderados pelo **peso do indicador registrado no ciclo** — não pelo peso
+que o catálogo tem hoje. `Sem dado` **não vale zero e não é descartado**: ele torna o eixo
+**insuficiente**, porque descartá-lo premiaria quem não mediu.
+
+**Processo (Auditoria Mensal).** A pontuação de §3.4.
+
+### 7.3 Índice ponderado
 
 É **informação adicional. Não substitui a Matriz.**
 
@@ -189,7 +216,7 @@ sem processo** · **Crítico** · **Sem dado suficiente**.
 - **Faltando um módulo:** dados insuficientes. **Não renormalizar o peso restante** — renormalizar
   faria um parceiro sem auditoria parecer melhor do que um auditado.
 
-### 7.3 Acessibilidade
+### 7.4 Acessibilidade
 
 **Cada gráfico deve ter alternativa tabular acessível.** Não é adorno: os achados **O-12** e
 **O-13** mostraram que controles sem semântica de botão ficam inalcançáveis por teclado e leitor de

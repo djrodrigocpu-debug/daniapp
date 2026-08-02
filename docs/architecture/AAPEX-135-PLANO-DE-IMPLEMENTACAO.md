@@ -435,32 +435,69 @@ real.
 
 ---
 
-### Fase 10 — Interface, navegação e acessibilidade
+### Fase 10 — Interface, relatório mensal e acessibilidade ✅ **CONCLUÍDA** (02/08/2026)
 
-**Entrega:** telas de Gestão Assistida e administração de catálogo · separação visual **legado ·
-Gestão Assistida · Auditoria Mensal** · ação **“Ver auditoria”** · exportação · terminologia D8.
+> **A Fase 10 cresceu além do acabamento.** As quatro pendências que travavam o produto —
+> **A-05, A-06, A-10 e A-11** — foram confirmadas pelo proprietário em 02/08/2026, e a fase passou
+> a incluir congelá-las no código. Registradas em
+> [ADR-135-004](ADR-135-004-PONTUACOES-RESUMO-E-RELATORIO-MENSAL.md), **escrito antes de qualquer
+> migration**.
 
-**Critério de saída**
-- [ ] **O-12 fechado**: auditoria aprovada acessível, com `Pressable`, role apropriado, teclado,
-      foco, leitor de tela, e acesso a snapshot, respostas, evidências, planos e PDF;
-- [ ] **teste de UI: todo ciclo listado tem rota de abertura**;
-- [ ] nenhum controle novo sem `role="button"` + `tabindex` (não repetir o O-13);
-- [ ] os três blocos visualmente distintos;
-- [ ] terminologia D8 aplicada em toda a interface.
+**Entregue de fato:** migrations **0050** e **0051** · regra definitiva de processo (A-10) com a
+borda do `coalesce` corrigida · regra definitiva de desempenho (A-11), 100/50/0 ponderada pelo peso
+materializado · Resumo definitivo (A-06) com doze itens e sete proibições ·
+`get_monthly_audit_report_data` · `MONTHLY_REPORT_FORMAT_VERSION = 1.3.5` com a **1.3.3
+preservada** · modelo, gerador de PDF e ordem de exportação do relatório mensal · três blocos
+visualmente separados · terminologia D8 corrigida onde ainda escorregava · auditoria integral de
+acessibilidade como teste · **2305 testes verdes** (eram 2145).
+
+**Critério de saída — verificado**
+
+- [x] **O-12 fechado nos DOIS blocos.** O bloco legado ainda listava avaliação aprovada **sem rota
+      nenhuma** — o padrão exato do achado. Agora todo item listado tem ação;
+- [x] teste de UI: todo ciclo e toda competência listada têm rota de abertura;
+- [x] nenhum controle sem `accessibilityRole` + `tabIndex` + `focusable` — a garantia passou a morar
+      em `AppButton`, e não dispersa pelas telas, que foi o que produziu o **O-13**;
+- [x] os três blocos visualmente distintos, com faixa e borda de cor própria;
+- [x] terminologia D8 aplicada **e testada**;
+- [x] **`REPORT_FORMAT_VERSION` 1.3.3 preservada**, e A-05 decidida e registrada **antes** do código;
+- [x] `0001`–`0049` idênticas por blob; cutover **nulo** e `region_weightings` **vazia**, provados
+      por script independente.
+
+**Gate manual declarado, e não cumprido:** contraste em pixel, ordem de foco percebida, navegação
+sem mouse, as três larguras, PDF em leitor real e XLSX no Excel real. Pacote pronto no checkpoint.
 
 ---
 
-### Fase 11 — Homologação e versionamento
+### Fase 11 — Homologação controlada e release candidate ⛔ **NÃO INICIADA** (NO-GO, 02/08/2026)
 
-**Entrega:** bump para **1.3.5** · documentação canônica, **incluindo o débito da 1.3.4** ·
-homologação.
+> **NO-GO, e a razão é objetiva.** Não existe project ref identificado como
+> homologação/disposable/temporário em nenhuma configuração local ou documento. O único ref
+> vinculado (`supabase/.temp/project-ref`) é o **staging congelado**, que não pode ser mutado.
+>
+> Parou-se depois da Fase 10. Nenhum projeto foi criado, nenhum ambiente foi improvisado, o staging
+> **não foi consultado**. A ausência do ambiente **não invalida a Fase 10**.
 
-**Critério de saída**
-- [ ] fases 1–10 com critérios cumpridos;
-- [ ] **decisão nominal dos quatro drafts de produção** (A-03);
-- [ ] pendências A-01, A-02, A-04, A-05 resolvidas ou conscientemente adiadas;
-- [ ] fixture aprovada e liberada, **ou** ambiente de homologação separado;
-- [ ] só então: bump, build, publicação.
+**Entrega:** homologação em ambiente remoto **separado** · fixture sintética nova · os quatro papéis
+em runtime real · CSV, XLSX e PDF em aplicativo real · release candidate congelado · bump para
+**1.3.5**.
+
+**Bloqueio de entrada:** um project ref de homologação, distinto de `qcixfsdyfpankpatbays` e de
+`plnbgdabciwygsmnyddy`, com autorização explícita do proprietário.
+
+**Critério de saída:** os 25 gates do escopo integrado. Prompt autônomo em
+`PROMPT-PROXIMA-SESSAO.md`.
+
+---
+
+### Fase 12 — Produção e documentação pública
+
+**Não pertence a esta sessão nem à Fase 11.** Exige autorização literal do proprietário sobre um
+release candidate homologado, e o plano selado da Fase 11.
+
+**Entrega:** merge em `main` · migrations em produção · deploy no domínio produtivo · atualização
+dos **seis artefatos públicos** · decisão nominal dos quatro drafts · backfill real · ativação do
+cutover, se e quando A-02 for definida.
 
 ---
 

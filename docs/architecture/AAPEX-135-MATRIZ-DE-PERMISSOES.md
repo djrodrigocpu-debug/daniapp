@@ -240,8 +240,8 @@ como controle em nenhum ponto.
 | ~~**O-16**~~ ✅ | **Fechado pela 0045** — fronteira de modelo antes da de escopo nos dois wrappers |
 | ~~**O-17**~~ ✅ | **Fechado pela 0045** — `authenticated` retinha `REFERENCES` e `TRIGGER` nas seis tabelas de catálogo de 0036–0038, e criava gatilho em `public.themes`. Medido, não presumido |
 | ~~**O-18**~~ ✅ | **FECHADO pela 0046** em 02/08/2026. As três RPCs respondem `avaliacao inexistente ou fora do escopo` para inexistente **e** para fora do alcance, com o mesmo SQLSTATE. A fronteira uniformizada é o **escopo**, e só ele: quem alcança a operação já vê a linha por RLS e continua recebendo `sem permissao` quando não é o autor. `app.submit_evaluation_legacy` e `app.official_audit_report_legacy` **não foram tocadas** |
-| **A-10** ⭐ | **Bloqueio de homologação.** A pontuação mensal é provisória. Não impede concluir a autorização |
-| **A-11** ⭐ | **NOVA, aberta.** Regra de pontuação do eixo de **desempenho**. Ver Decisões Empresariais §5 |
+| ~~**A-10**~~ ✅ | **RESOLVIDA em 02/08/2026.** Deixou de ser bloqueio de homologação |
+| ~~**A-11**~~ ✅ | **RESOLVIDA em 02/08/2026** |
 
 ## 10. Permissões acrescentadas pelas Fases 7, 8 e 9 (02/08/2026)
 
@@ -260,6 +260,23 @@ região** (D7); o cutover é parâmetro **nacional** — desligar a auditoria se
 
 **A exportação do GC também não é inferência:** está na linha *"Exportar"* de §6, que concede aos
 quatro papéis, cada um no próprio escopo. Quem recorta é `app.dashboard_operations`, no servidor.
+
+## 11. Permissões acrescentadas pela Fase 10 (02/08/2026)
+
+| Ação | ADMIN | REGIONAL | COORDENADOR | GC |
+|---|---|---|---|---|
+| **Emitir o Relatório Oficial da Auditoria Mensal** | ✅ global | ✅ região | ✅ coordenação | ✅ seus parceiros |
+
+**Não é inferência:** está na linha *"Consultar aprovada + PDF"* de §4, que concede aos quatro
+papéis, cada um no próprio escopo. Quem recorta é `app.has_operation_access`, no **passo 2** de
+`get_monthly_audit_report_data` — antes de a função dizer qualquer coisa sobre o objeto.
+
+A RPC recusa, nesta ordem: ator · **escopo** · modelo · estado · snapshot. O passo do escopo usa a
+**mesma frase** para o inexistente e para o alheio, e isso foi medido lado a lado.
+
+**A trilha reusa `log_official_audit_report_export` (0035)**, e isso é deliberado: ela não tem
+guarda de modelo, deriva o snapshot do próprio servidor e recusa código de integridade que não seja
+hexadecimal. Um segundo registrador daria dois eventos para o mesmo fato.
 
 **Todas as recusas destas fases foram medidas com retrato do banco antes e depois** — nas baterias
 `weekly_audit_cutover`, `dashboard_matrix_weighting` e `export_dataset`. E a bateria da Fase 6 foi
