@@ -34,6 +34,7 @@ import {
   MonthlyAuditSummary,
   MonthlyPlanInput,
 } from '../../domain/monthlyAudit/types';
+import { MonthlyAuditReportInput } from '../../domain/report/monthlyAuditReport';
 import { SupabaseEvidenceRepository } from './EvidenceRepository';
 
 // ---------------------------------------------------------------------------
@@ -329,6 +330,51 @@ export class SupabaseMonthlyAuditRepository implements MonthlyAuditRepository {
     return ok(toAudit(data as RawAudit));
   }
 
+  /**
+   * O contrato do relatório mensal, como a RPC 0051 o devolve.
+   *
+   * NÃO coage `processScore` com `Number()`: `Number(null)` é `0`, e transformar
+   * "nenhum critério aplicável" em "zero por cento" seria dizer, sobre o
+   * parceiro, algo que ninguém afirmou. É a lição L-04 na última camada antes
+   * do papel.
+   */
+  async getReportData(evaluationId: string): Promise<Result<MonthlyAuditReportInput>> {
+    const { data, error } = await this.client.rpc('get_monthly_audit_report_data', {
+      p_evaluation_id: evaluationId,
+    });
+    if (error) return err(fail('Falha ao carregar o Relatório Oficial da Auditoria Mensal.', error));
+    const raw = data as Record<string, any>;
+    const s = raw.summary ?? {};
+    return ok({
+      identity: raw.identity,
+      summary: {
+        processScore: s.processScore === null || s.processScore === undefined
+          ? null : Number(s.processScore),
+        sufficient: Boolean(s.sufficient),
+        insufficiencyReasons: s.insufficiencyReasons ?? [],
+        totalCriteria: Number(s.totalCriteria ?? 0),
+        applicableCriteria: Number(s.applicableCriteria ?? 0),
+        conformCount: Number(s.conformCount ?? 0),
+        nonConformCount: Number(s.nonConformCount ?? 0),
+        notApplicableCount: Number(s.notApplicableCount ?? 0),
+        notEvaluatedCount: Number(s.notEvaluatedCount ?? 0),
+        plansByStatus: Object.fromEntries(
+          Object.entries(s.plansByStatus ?? {}).map(([k, v]) => [k, Number(v)]),
+        ),
+        ruleVersions: s.ruleVersions ?? { processScoreRule: '', reportFormatVersion: '' },
+      },
+      content: (raw.content ?? []).map((c: Record<string, any>) => ({
+        ...c,
+        evidences: (c.evidences ?? []).map((e: Record<string, any>) => ({
+          name: e.name, mimeType: e.mimeType, sizeBytes: Number(e.sizeBytes ?? 0),
+        })),
+        plans: c.plans ?? [],
+      })),
+      integrity: raw.integrity,
+      generatedAt: raw.generatedAt,
+    });
+  }
+
   async getSnapshot(evaluationId: string): Promise<Result<MonthlyAuditSnapshot>> {
     const { data, error } = await this.client.rpc('get_monthly_audit_snapshot', {
       p_evaluation_id: evaluationId,
@@ -366,4 +412,5 @@ export class UnavailableMonthlyAuditRepository implements MonthlyAuditRepository
   submitAudit(_e: string) { return this.refuse<MonthlyAudit>(); }
   validateAudit(_e: string, _d: 'approved' | 'returned', _n: string) { return this.refuse<MonthlyAudit>(); }
   getSnapshot(_e: string) { return this.refuse<MonthlyAuditSnapshot>(); }
+  getReportData(_e: string) { return this.refuse<MonthlyAuditReportInput>(); }
 }

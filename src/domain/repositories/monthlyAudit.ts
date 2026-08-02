@@ -9,6 +9,7 @@
  * VALORES, não exceções.
  */
 import { Result } from '../errors/result';
+import { MonthlyAuditReportInput } from '../report/monthlyAuditReport';
 import {
   CriterionAnswerPatch,
   MaterializedCriterion,
@@ -94,4 +95,14 @@ export interface MonthlyAuditRepository {
    * não produz PDF — o contrato do novo documento não foi congelado (A-05).
    */
   getSnapshot(evaluationId: string): Promise<Result<MonthlyAuditSnapshot>>;
+
+  /**
+   * Os dados do **Relatório Oficial da Auditoria Mensal** (1.3.5, RPC 0051).
+   *
+   * Só responde por auditoria `monthly_criteria` **aprovada**, e lê SOMENTE o
+   * snapshot. É deliberadamente separado de `getSnapshot`: aquele devolve o
+   * payload congelado inteiro, para a tela de detalhe; este devolve o CONTRATO
+   * do documento, que é o que o PDF assina.
+   */
+  getReportData(evaluationId: string): Promise<Result<MonthlyAuditReportInput>>;
 }
