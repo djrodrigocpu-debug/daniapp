@@ -289,6 +289,21 @@ continuam podendo ser criadas. Guarda em `start_evaluation` recusa `frequency = 
 
 **Estrutura criada; cutover não ativado.** A data é a pendência **A-02**.
 
+> ✅ **IMPLEMENTADO na 0047**, com **duas diferenças** em relação ao desenhado acima, e as duas
+> registradas:
+>
+> 1. **`value` ganhou `client_readable boolean not null default false` e `description text`.** A
+>    coluna de visibilidade existe para que *"`authenticated` apenas com leitura mínima"* seja
+>    verificável pelo banco — a policy é `using (client_readable)` — em vez de virar disciplina, que
+>    foi o que o achado **O-17** mostrou não bastar;
+> 2. **"sem data" é JSON null (`'null'::jsonb`), não SQL NULL.** `value` é `not null` de propósito, e
+>    um CHECK por chave garante que o valor do cutover só possa ser JSON null ou uma string
+>    `YYYY-MM-DD`. Data malformada **não chega a existir** na tabela, e portanto não chega à guarda.
+>
+> A guarda em `start_evaluation` recusa `weekly` quando a data existe, já venceu **e** não há ciclo
+> semanal reaproveitável naquela operação — a terceira condição impede que ativar o cutover deixe
+> rascunhos órfãos, que D5 precisa que continuem abrindo.
+
 ## 8. Ponderação por região
 
 ```
@@ -308,6 +323,23 @@ region_weightings
 **Nenhuma linha é semeada** — D10 diz que **não há peso padrão aprovado** (pendência A-04). Sem
 linha ativa para a região, o servidor devolve `"Ponderação não configurada"`, entrega os dois eixos
 e **não calcula** índice consolidado. Faltando um módulo: dados insuficientes, **sem renormalizar**.
+
+> ✅ **IMPLEMENTADO na 0048**, com **três acréscimos** ao desenho acima:
+>
+> 1. **`effective_to date`** — `null` significa vigente. Publicar uma versão nova **fecha** a
+>    anterior aqui, e isso não é reescrever histórico: é registrar quando ela deixou de valer. Os
+>    pesos publicados **nunca** mudam, e um gatilho recusa alterá-los;
+> 2. **`status app.catalog_status` + `published_by`/`published_at`** — o mesmo ciclo
+>    rascunho → publicado do catálogo, em vez de `active boolean`. Um `boolean` não distingue
+>    "ainda não publicado" de "publicado e encerrado";
+> 3. **um índice único parcial por região** (`status = 'published' and effective_to is null`) e um
+>    gatilho de **vigência sem sobreposição** — "uma publicada e vigente por região" passa a ser
+>    propriedade do banco, e não do código que escreve.
+>
+> ⭐ **E uma pendência nova, A-11.** O índice ponderado precisa de um número em cada eixo. O mensal
+> tem um, provisório (A-10). O eixo de **desempenho não tinha nenhum**: a Gestão Assistida produz
+> *status* por indicador, não nota. Adotada a **mesma forma** de A-10, declarada **provisória**, e a
+> proveniência viaja em toda resposta. Ver Decisões Empresariais §5.
 
 ## 9. Resumo das estruturas
 

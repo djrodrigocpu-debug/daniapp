@@ -34,10 +34,11 @@ por si.
 | ~~0043~~ ✅ | `action_plan_monthly_source` | **APLICADA LOCALMENTE.** `monthly_criterion_answer_id` (**não** `monthly_audit_id` — ver ADR-135-003, D-Q), CHECK com as três origens, gatilho de coerência, `save_action_plan` estendida | 0042 |
 | ~~0044~~ ✅ | `monthly_audit_rpcs` | **APLICADA LOCALMENTE.** `start_monthly_audit` com **período por parâmetro** (fecha O-06), respostas, evidências, submissão, `validate_evaluation` com ramo mensal, consulta e as duas fronteiras legadas | 0043 |
 | ~~0045~~ ✅ | `authorization_hardening` | **APLICADA LOCALMENTE.** Correção mínima de dois defeitos reais achados pela auditoria da Fase 6: os *wrappers* `submit_evaluation` e `get_official_audit_report_data` passam a verificar escopo **antes** da fronteira de modelo (**O-16**); e as seis tabelas de catálogo de 0036–0038 passam a ter `authenticated` com **exatamente `SELECT`** (**O-17**). **Não cria tabela, coluna, tipo, gatilho, policy nem índice** | 0044 |
-| **0046** | `system_settings_and_cutover` | `system_settings`; semente `weekly_audit_cutover_date = null`; guarda **inerte** em `start_evaluation` | 0045 |
-| **0047** | `region_weightings` | tabela com CHECK `soma = 100`; **nenhuma linha semeada** | 0036 |
-| **0048** | `dashboard_and_export_rpcs` | agregações e datasets de exportação, todos com escopo server-side | 0039–0047 |
-| **0049** | `ui_projections_135` | novas views `ui_*` e colunas nas existentes | 0048 |
+| ~~0046~~ ✅ | `authorization_uniform_legacy_errors` | **APLICADA LOCALMENTE.** Fecha o achado **O-18**: `submit_evaluation`, `remove_evidence` e `reserve_evidence_upload` respondem `avaliacao inexistente ou fora do escopo` para inexistente **e** para fora do alcance. As duas de evidência viram wrapper por `pg_get_functiondef`. **Não cria tabela, coluna, tipo, gatilho, policy nem índice** | 0045 |
+| ~~0047~~ ✅ | `system_settings_and_cutover` | **APLICADA LOCALMENTE.** `system_settings` (com `client_readable` e CHECK de forma por chave); semente `weekly_audit_cutover_date` = **JSON null**; `get_system_settings`; `admin_set_weekly_audit_cutover`; guarda **inerte** em `start_evaluation`, que vira wrapper | 0046 |
+| ~~0048~~ ✅ | `region_weightings_and_dashboard` | **APLICADA LOCALMENTE.** `region_weightings` versionada com CHECK `soma = 100` e **nenhuma linha semeada**; dois gatilhos (vigência sem sobreposição, versão publicada imutável); `catalog_save_region_weighting_draft`; `catalog_publish_region_weighting`; `get_weighting_status`; `get_dashboard_aggregates`; `get_matrix_dataset`. **A ponderação e as agregações vieram JUNTAS**, e não em duas migrations: a Matriz consulta as duas na mesma função | 0039–0047 |
+| ~~0049~~ ✅ | `export_dataset` | **APLICADA LOCALMENTE.** `export_dataset(module, filters)` como porta única, com quatro corpos internos e **colunas tipadas**. Só funções — nenhuma estrutura | 0048 |
+| **0050** | `ui_projections_135` | novas views `ui_*` e colunas nas existentes — **ainda não escrita**; era o antigo 0049 do plano | 0049 |
 
 > **Os quatro últimos foram RENUMERADOS**, e só eles: a Auditoria Mensal consumiu três migrations
 > em vez de uma, porque o modelo precisou de tabelas de resposta e de vínculo de evidência que os
@@ -46,8 +47,21 @@ por si.
 > Números são **propostos**, não reservados. A ordem real será confirmada na sessão de
 > implementação, conforme o [Plano de Implementação](AAPEX-135-PLANO-DE-IMPLEMENTACAO.md).
 
-> **Estado real em 02/08/2026:** 0036–0045 escritas e aplicadas **somente em PGlite local**.
-> Nenhuma foi enviada a staging ou produção. Próximo número livre: **0046**.
+> **Estado real em 02/08/2026 (fim das Fases 7–9):** **0036–0049** escritas e aplicadas **somente em
+> PGlite local**. Nenhuma foi enviada a staging ou produção. Próximo número livre: **0050**.
+>
+> **Uma armadilha nova, e ela custou um teste vermelho antes do commit.** Na resolução de filtros,
+> `p_filters ? 'statuses'` é verdadeiro para `statuses: []` — e o `in (select ...)` sobre um array
+> vazio não casa com nada. Resultado: **uma lista vazia esvaziava o painel inteiro em silêncio**,
+> parecendo "não há dado no período". Lista vazia é **ausência de filtro**, não conjunto vazio, e a
+> distinção passou a morar em `app.filter_len`. O sintoma seria interpretado como falta de operação,
+> não como defeito de contrato — que é a pior classe de bug num painel.
+>
+> **Uma escolha de teardown que não é sobre enum.** `system_settings` entrou em
+> `supabase/rollback/0001_core_schema.down.sql` **não** por ter coluna de enum de `app`, mas porque
+> guarda **estado de configuração**: sobrevivendo ao teardown, uma data de cutover gravada por um
+> teste vazaria para o teste seguinte, já que o `on conflict do nothing` da semente não a
+> reescreveria. `region_weightings` entrou pelo motivo clássico (usa `app.catalog_status`).
 >
 > **Duas armadilhas novas, descobertas pela auditoria da Fase 6.**
 >

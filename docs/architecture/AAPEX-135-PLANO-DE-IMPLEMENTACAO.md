@@ -309,43 +309,129 @@ Fase 9.**
 
 ---
 
-### Fase 7 — Cutover parametrizável (criado, **não ativado**)
+### Gate 0 — Achado **O-18** ✅ **FECHADO** (02/08/2026)
 
-**Entrega:** migration 0043 · `system_settings` · `weekly_audit_cutover_date = null` · guarda
-**inerte** em `start_evaluation`.
+> Não é uma fase do plano original: é a dívida que a Fase 6 registrou e não pôde pagar, e que
+> precisava ser paga **antes** da Fase 7 — a Fase 7 transforma `start_evaluation` em wrapper, e
+> empilhar wrapper sobre um caminho que ainda vaza existência só afastaria o conserto.
 
-**Critério de saída**
-- [ ] com data nula, `start_evaluation` **bit a bit idêntico** ao atual (teste 7);
-- [ ] com data preenchida e vencida, `weekly` recusado;
-- [ ] **cutover permanece DESATIVADO** ao fim da fase.
+**Entregue:** migration **0046** · `submit_evaluation`, `remove_evidence` e
+`reserve_evidence_upload` passam a responder `avaliacao inexistente ou fora do escopo`, com
+`insufficient_privilege`, tanto para UUID inexistente quanto para UUID fora do alcance.
+
+A frase **não é nova**: é a de 0031 e 0035. E a fronteira uniformizada é o **escopo**, e só ele —
+quem alcança a operação já enxerga a linha por RLS, e continua recebendo `sem permissao` quando não
+é o autor.
+
+**Wrapper, nunca cópia.** As duas RPCs de evidência foram **movidas** para `app.*_legacy` por
+`pg_get_functiondef`. `app.submit_evaluation_legacy` e `app.official_audit_report_legacy` **não
+foram tocadas** — RT-01 intacto.
+
+**Critério de saída — verificado** (`src/db/legacy_error_uniformity.integration.test.ts`, 25 casos)
+- [x] teste **vermelho** anterior documentado — 10 de 25 falhando no commit `0966afd`;
+- [x] as três RPCs, com UUID inexistente e com UUID alheio, dão a **mesma frase e o mesmo SQLSTATE**;
+- [x] auditoria **mensal** alheia indistinguível do inexistente — o modelo deixou de ser observável;
+- [x] **zero efeito lateral** em toda recusa, contra um retrato de 14 campos;
+- [x] o caminho autorizado **não muda**: envio, fronteira de modelo, mensagens de estado e de item;
+- [x] as cinco guardas de 0025/0027 conferidas **dentro** do `prosrc` da função legada.
 
 ---
 
-### Fase 8 — Ponderação, Dashboard e Matriz
+### Fase 7 — Cutover parametrizável ✅ **CRIADO E NÃO ATIVADO** (02/08/2026)
 
-**Entrega:** migrations 0044–0045 · `region_weightings` com CHECK `soma = 100`, **sem semente** ·
-`get_dashboard_aggregates` · Matriz com eixos renomeados.
+**Entregue:** migration **0047** (e não 0043 — a numeração real seguiu o que as fases anteriores
+consumiram) · `public.system_settings` com `key`, `value jsonb`, `client_readable`, `description`,
+`updated_at`, `updated_by` · semente `weekly_audit_cutover_date` = **JSON null** ·
+`app.weekly_audit_cutover_date()` · `public.get_system_settings()` ·
+`public.admin_set_weekly_audit_cutover(date, boolean)` · `start_evaluation` transformada em
+**wrapper**.
 
-**Critério de saída**
-- [ ] sem ponderação configurada → dois eixos + **“Ponderação não configurada”**, **sem** índice;
-- [ ] pesos que não somam 100 → recusados;
-- [ ] módulo ausente → dados insuficientes, **sem renormalizar**;
-- [ ] cinco quadrantes preservados;
-- [ ] agregações **server-side**, respeitando escopo;
-- [ ] **cada gráfico com alternativa tabular acessível**.
+**Duas decisões de desenho, registradas:**
+
+1. **"sem data" é JSON null, não SQL null.** `value` é `not null` de propósito, e um CHECK por chave
+   garante que o valor do cutover só possa ser JSON null ou `YYYY-MM-DD`. Data malformada **não
+   chega a existir** na tabela, e portanto não chega à guarda;
+2. **`client_readable`** existe para que *"leitura mínima"* seja verificável pelo banco em vez de
+   por disciplina — a mesma disciplina que o **O-17** mostrou não bastar. A policy é
+   `using (client_readable)`, e chave futura nasce invisível porque o default é `false`.
+
+**A guarda NÃO bloqueia ciclo semanal reaproveitável.** `start_evaluation` é idempotente; sem essa
+condição, ativar o cutover deixaria os rascunhos semanais **órfãos** — e D5 dá aos quatro drafts de
+produção a saída *"concluir como legado"*, que só existe se o rascunho continuar abrindo.
+
+**Critério de saída — verificado** (`src/db/weekly_audit_cutover.integration.test.ts`, 38 casos)
+- [x] com data nula, `start_evaluation` idêntico ao atual, **inclusive na idempotência**;
+- [x] com data futura, `weekly` permitido; com data vencida **ou de hoje**, recusado com mensagem
+      nominal;
+- [x] `monthly` **nunca** afetado; Gestão Assistida e Auditoria Mensal por critérios intocadas;
+- [x] histórico semanal legível; rascunho e devolvida continuam abrindo;
+- [x] escopo **antes** do cutover: quem não alcança a operação recebe `operacao fora do escopo`;
+- [x] não-ADMIN não configura; escrita direta recusada **até para o ADMIN**; `anon` e `PUBLIC` fora;
+- [x] `updated_by` derivado por gatilho; trilha com o valor de antes e o de depois;
+- [x] **cutover DESATIVADO ao fim**, provado **duas vezes**: dentro da suíte e por script
+      independente sobre as 47 migrations.
 
 ---
 
-### Fase 9 — Exportação CSV/XLSX
+### Fase 8 — Ponderação, Dashboard e Matriz ✅ **CONCLUÍDA** (02/08/2026)
 
-**Entrega:** `export_dataset(modulo, filtros)` · CSV e XLSX · cinco abas.
+**Entregue:** migration **0048** · `public.region_weightings` versionada, com vigência, **sem uma
+linha semeada** · `catalog_save_region_weighting_draft` · `catalog_publish_region_weighting` ·
+`get_weighting_status` · `get_dashboard_aggregates` · `get_matrix_dataset` · domínio, policy,
+repositório, adapters e a tela `ManagementDashboardScreen`.
 
-**Critério de saída**
-- [ ] quatro módulos exportáveis com os oito filtros;
-- [ ] abas exatas: `Gestao_Assistida`, `Auditoria_Mensal`, `Planos`, `Resumo`, `Filtros_Aplicados`;
-- [ ] **CSV injection neutralizada** em `=` `+` `-` `@` (teste 10);
-- [ ] **sem fórmulas** no XLSX; números e datas como tipos próprios;
-- [ ] escopo e filtros **server-side**; exportar não contorna a RLS (testes 11, 35).
+**Os quadrantes foram INVENTARIADOS, não inventados.** Os limites saíram de
+`src/domain/dashboard/performanceMatrix.ts` e de `app.score_traffic_light` (0004): processo bom ⟺
+semáforo verde (≥ 80); desempenho bom ⟺ todos os indicadores medidos no alvo, com um vermelho
+vencendo. Os cinco nomes de D10 preservados letra por letra. O que muda é **de onde** cada eixo vem.
+
+> ⭐ **PENDÊNCIA NOVA: A-11.** O eixo de **desempenho** não tem número definido em documento
+> nenhum — a Gestão Assistida produz *status*, não nota. Adotado o mesmo caminho que a Fase 5
+> adotou para A-10: a **mesma forma** de proporção simples (`conforme / (conforme + atencao +
+> nao_conforme) × 100`, com `sem_dado` fora dos dois lados), declarada **PROVISÓRIA** e registrada
+> como pendência empresarial nova. **Não é decisão tomada.** A proveniência viaja em toda resposta
+> com `proporcao-simples-desempenho/A-11-pendente` e as três pendências abertas nomeadas.
+
+**Critério de saída — verificado** (`src/db/dashboard_matrix_weighting.integration.test.ts`, 55 casos)
+- [x] sem ponderação → dois eixos + **“Ponderação não configurada”**, **sem** índice;
+- [x] pesos 99 e 101 recusados pela RPC **e** pelo CHECK, inclusive contra superusuário;
+- [x] módulo ausente → dados insuficientes, **sem renormalizar** — medido com um parceiro que teria
+      índice 100 se houvesse renormalização;
+- [x] cinco quadrantes preservados, com os limites de 0004 conferidos no próprio banco;
+- [x] agregações **server-side**, com ordenação explícita e determinismo medido;
+- [x] filtro alheio recusado com a frase do inexistente; filtro **parcialmente** alheio devolve o
+      permitido; filtro desconhecido recusado **por nome**;
+- [x] **cada gráfico com alternativa tabular acessível**, sempre presente — não um modo que se ativa.
+
+---
+
+### Fase 9 — Exportação CSV/XLSX ✅ **CONCLUÍDA** (02/08/2026)
+
+**Entregue:** migration **0049** · `export_dataset(module, filters)` como **porta única**, com
+quatro corpos internos · escritores `csv.ts` e `xlsx.ts` · `ExportRepository` · fluxo mínimo de
+exportação no painel gerencial.
+
+**Colunas tipadas são segurança, não estética.** Cada dataset declara `type ∈ {text, number, date,
+boolean}`: é o que permite o XLSX preservar tipos **e** a neutralização de CSV injection aplicar-se
+somente a `text` — sem o tipo, prefixar todo campo iniciado por `-` corromperia todo número negativo
+real.
+
+**Critério de saída — verificado** (`export_dataset.integration.test.ts` 33 casos ·
+`exportWriters.test.ts` 39 casos)
+- [x] quatro módulos exportáveis com os oito filtros; módulo e filtro desconhecidos recusados **por
+      nome**, e filtro com tipo errado também;
+- [x] abas exatas e **nesta ordem**: `Gestao_Assistida`, `Auditoria_Mensal`, `Planos`, `Resumo`,
+      `Filtros_Aplicados` — módulo ausente **não some**, vira aba com aviso;
+- [x] **CSV injection neutralizada** em `=` `+` `-` `@`, inclusive atrás de espaço, tabulação,
+      quebra de linha e caractere de controle — e **sem corromper** número negativo, data ou
+      booleano;
+- [x] **zero fórmulas e zero hyperlinks** no XLSX, medidos por varredura de todas as partes do zip;
+      content-type de pasta **sem macros**;
+- [x] escopo e filtros **server-side** — **teste 35 na forma canônica**, nos quatro módulos: parceiro
+      fora do escopo responde como o inexistente, zero linhas voltam com o erro, e o retrato de nove
+      campos do banco fica idêntico;
+- [x] nenhum segredo no arquivo: sem URL assinada, token, e-mail ou caminho de objeto; solicitante
+      pelo **nome de exibição**.
 
 ---
 

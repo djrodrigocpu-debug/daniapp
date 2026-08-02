@@ -209,7 +209,7 @@ Acrescentam-se aos 18 já existentes, no mesmo formato
 | 32 ✅ | Alterar critério materializado de auditoria criada | recusado | `permission denied for table evaluation_criteria` (grant) · `auditoria aprovada nao aceita alteracao` (gatilho) |
 | 33 ✅ | `anon` em cada uma das **25 RPCs novas** | recusa antes do corpo | `permission denied for function <nome>` |
 | 34 ✅ | `anon` em cada uma das **11 tabelas novas** | sem privilégio | `permission denied for table <nome>` |
-| 35 ⚠️ | Exportar fora do escopo | só o permitido | **medido na forma disponível**: `operacao fora do escopo` nas RPCs de listagem, **conjunto vazio** na leitura direta. `export_dataset` é da **Fase 9 e não existe** — a forma canônica continua devida |
+| 35 ✅ | Exportar fora do escopo | recusa uniforme, zero linhas | **FORMA CANÔNICA MEDIDA em 02/08/2026** (Fase 9). Nos **quatro** módulos de `export_dataset`, um parceiro fora do escopo responde `operacao inexistente ou fora do escopo` — **a mesma frase** de um UUID que não existe. Zero linhas voltam junto com o erro, e o retrato de nove campos do banco fica idêntico. `src/db/export_dataset.integration.test.ts` |
 | 36 ✅ | Gravar `overdue` manualmente | recusado | `vencido e derivado da data, nao e escolha manual` — pela RPC **e** pela escrita direta |
 
 ### 8.1 Ordem de verificação — conferida, e um defeito encontrado
@@ -239,5 +239,28 @@ como controle em nenhum ponto.
 | ~~**O-11**~~ ✅ | **Fechado** na Fase 5 e **reprovado** na Fase 6 |
 | ~~**O-16**~~ ✅ | **Fechado pela 0045** — fronteira de modelo antes da de escopo nos dois wrappers |
 | ~~**O-17**~~ ✅ | **Fechado pela 0045** — `authenticated` retinha `REFERENCES` e `TRIGGER` nas seis tabelas de catálogo de 0036–0038, e criava gatilho em `public.themes`. Medido, não presumido |
-| **O-18** ⚠️ | **NOVO, aberto.** `submit_evaluation`, `remove_evidence` e `reserve_evidence_upload` distinguem `avaliacao inexistente` de `sem permissao`. É de 0006/0025/0027/0028, **anterior à 1.3.5**, e corrigi-lo exige tocar corpo legado e atualizar testes que hoje afirmam essas frases. A 0045 garantiu o que cabia a esta fase: o **wrapper não acrescenta informação** |
+| ~~**O-18**~~ ✅ | **FECHADO pela 0046** em 02/08/2026. As três RPCs respondem `avaliacao inexistente ou fora do escopo` para inexistente **e** para fora do alcance, com o mesmo SQLSTATE. A fronteira uniformizada é o **escopo**, e só ele: quem alcança a operação já vê a linha por RLS e continua recebendo `sem permissao` quando não é o autor. `app.submit_evaluation_legacy` e `app.official_audit_report_legacy` **não foram tocadas** |
 | **A-10** ⭐ | **Bloqueio de homologação.** A pontuação mensal é provisória. Não impede concluir a autorização |
+| **A-11** ⭐ | **NOVA, aberta.** Regra de pontuação do eixo de **desempenho**. Ver Decisões Empresariais §5 |
+
+## 10. Permissões acrescentadas pelas Fases 7, 8 e 9 (02/08/2026)
+
+| Ação | ADMIN | REGIONAL | COORDENADOR | GC |
+|---|---|---|---|---|
+| Configurar **cutover** da auditoria semanal | ✅ | ❌ | ❌ | ❌ |
+| Ler parâmetros do sistema (`client_readable`) | ✅ | ✅ | ✅ | ✅ |
+| **Configurar ponderação regional** | ✅ global | ✅ **da própria região** | ❌ | ❌ |
+| Consultar estado da ponderação | ✅ global | ✅ região | ✅ coordenação | ✅ seus parceiros |
+| Painel gerencial e Matriz | ✅ global | ✅ região | ✅ coordenação | ✅ seus parceiros |
+| **Exportar** (quatro módulos, CSV e XLSX) | ✅ global | ✅ região | ✅ coordenação | ✅ seus parceiros |
+
+**O cutover é ADMIN-only e não é inferência.** O Regional administra o **catálogo da própria
+região** (D7); o cutover é parâmetro **nacional** — desligar a auditoria semanal de uma região só não
+é uma operação que exista.
+
+**A exportação do GC também não é inferência:** está na linha *"Exportar"* de §6, que concede aos
+quatro papéis, cada um no próprio escopo. Quem recorta é `app.dashboard_operations`, no servidor.
+
+**Todas as recusas destas fases foram medidas com retrato do banco antes e depois** — nas baterias
+`weekly_audit_cutover`, `dashboard_matrix_weighting` e `export_dataset`. E a bateria da Fase 6 foi
+**estendida** para cobrir a superfície nova: **13 tabelas e 32 RPCs**, e não uma bateria paralela.

@@ -106,7 +106,7 @@ export function DashboardScreen() {
       </Pressable>
 
       <SectionTitle
-        title="Painel gerencial (1.3.5)"
+        title="Painel gerencial"
         subtitle="Agregações server-side dos dois módulos novos, com filtros, ponderação regional e alternativa tabular em cada gráfico."
       />
       <Pressable

@@ -222,6 +222,7 @@ Registradas para não serem inventadas depois.
 | **A-05** | **Nova `REPORT_FORMAT_VERSION`** | Só após o contrato canônico do novo PDF ser congelado |
 | **A-06** | **Escopo do “Resumo” na exportação** | As abas estão nomeadas; o conteúdo do Resumo não foi especificado |
 | **A-10** ⭐ | **Regra de pontuação da Auditoria Mensal** | Critérios **não têm peso** — os dez campos de D4 não incluem um. A Fase 5 adotou **proporção simples de conformidade**, com `nao_aplicavel` fora dos dois lados, e a declarou **provisória**. Não é ponderação e não é o Índice de Excelência. Ver [ADR-135-003 §4, D-O](../architecture/ADR-135-003-AUDITORIA-MENSAL-MATERIALIZADA.md) |
+| **A-11** ⭐ | **Regra de pontuação do eixo de DESEMPENHO (Gestão Assistida)** | **NOVA, aberta em 02/08/2026 na Fase 8.** O índice ponderado de D10 precisa de um número em cada eixo. O mensal tem um, provisório (A-10). O eixo de desempenho **não tinha nenhum**: a Gestão Assistida produz *status* por indicador, não nota. Adotada a **mesma forma** de A-10 — `conforme / (conforme + atencao + nao_conforme) × 100`, com `sem_dado` fora dos dois lados — e **declarada provisória**. `atencao` conta como não conformidade porque D2 a trata como desvio que exige plano; não há decisão que a torne meia conformidade. **Não é decisão tomada, é pendência registrada** |
 | **A-07** | **Definição operacional de “região” do Gerente Regional** | `user_scopes.region_id` existe; falta confirmar se a autoridade regional se resolve só por ele |
 | ~~**A-08**~~ ✅ | ~~Temas e indicadores são globais ou por região?~~ | **RESOLVIDA em 01/08/2026** — modelo híbrido. Ver §6 |
 | ~~**A-09**~~ ✅ | ~~Confirmar as flags de módulo na *versão* do indicador~~ | **RESOLVIDA por consequência de A-08** — ficam na versão da **configuração regional**. Ver §6 |
@@ -254,3 +255,20 @@ operação da região, não semântica do indicador. Ver ADR-135-001 §4, decis�
 
 > **Não havia mais bloqueio de entrada para a Fase 1.** As demais pendências permitem avançar com o
 > comportamento conservador já especificado (falhar explicitamente, não calcular, manter inerte).
+
+## 7. Estado das decisões depois das Fases 7, 8 e 9 (02/08/2026)
+
+Registro do que foi **implementado** e do que **continua pendente**. Nenhuma pendência foi fechada
+nesta sessão, e nenhuma foi preenchida por inferência.
+
+| Decisão | Situação |
+|---|---|
+| **D5 — cutover** | ✅ **estrutura entregue e DESATIVADA** (migration 0047). `weekly_audit_cutover_date` = JSON null, provado por duas medições independentes. **A-02 continua aberta**, e **A-03** também: os quatro drafts de produção não receberam decisão nominal |
+| **D9 — exportação** | ✅ **entregue** (0049 + escritores). Quatro módulos, dois formatos, oito filtros, cinco abas exatas, CSV injection neutralizada, XLSX sem fórmula. **A-06 continua aberta**: a aba `Resumo` traz um *"Resumo técnico provisório"* derivado dos outros três módulos, e nada além |
+| **D10 — Dashboard e Matriz** | ✅ **entregue** (0048 + domínio + tela mínima). Agregações server-side, cinco quadrantes preservados com os limites que já existiam, alternativa tabular em cada gráfico. **A-04 continua aberta**: `region_weightings` nasceu **vazia**, e sem ponderação publicada não há índice |
+| **A-10 — pontuação mensal** | ⚠️ **continua PROVISÓRIA**. `app.monthly_audit_score` **não foi tocada**. O Dashboard exibe o eixo de processo por essa regra e **diz, em texto e com papel de alerta**, que ela aguarda decisão empresarial |
+| **A-11 — pontuação de desempenho** | ⭐ **NOVA e aberta.** Ver §5 |
+
+**O que esta sessão deliberadamente NÃO fez:** ativar o cutover, definir data, decidir os quatro
+drafts, semear peso, aprovar A-10, fechar A-06, gerar PDF novo, alterar `REPORT_FORMAT_VERSION` ou
+fazer bump de versão. A versão continua **1.3.4** e o build continua **8**.
