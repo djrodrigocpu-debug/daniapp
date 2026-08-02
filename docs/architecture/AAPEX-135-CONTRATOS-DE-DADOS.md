@@ -1,7 +1,15 @@
 # AAPEx 1.3.5 — Contratos de Dados
 
-**Status:** proposta técnica · **nenhuma migration escrita**
-**Data:** 01/08/2026 · base `8ffc49a`, migrations 0001–0035, **próximo número livre: 0036**
+**Status:** parcialmente IMPLEMENTADO · §2, §3, §4 e §5 executados nas migrations 0036–0041
+**Data:** 01/08/2026 · base `8ffc49a`, migrations 0001–0041, **próximo número livre: 0042**
+
+> ⚠️ **Onde este documento foi superado pela implementação.** §2, §3 e §6 foram escritos antes de
+> A-08 e ficam superados pelo [ADR-135-001](ADR-135-001-ESCOPO-GLOBAL-REGIONAL.md) §4. O §4 (Gestão
+> Assistida) foi implementado nas 0039/0041 com **mais** campos do que o proposto — sete FKs de
+> proveniência em vez de duas, e `diagnosis` na própria entrada. O §5 (origem dos planos) foi
+> implementado na 0040 na alternativa **A**, com duas diferenças registradas em
+> [ADR-135-002](ADR-135-002-PLANOS-DA-GESTAO-ASSISTIDA.md): `monthly_audit_id` **ainda não existe**
+> (fica no residual da Fase 4) e o vínculo é **um-para-um**, por índice único parcial.
 **Fonte canônica:** [Decisões Empresariais](../business/AAPEX-135-DECISOES-EMPRESARIAIS.md) · [Modelo Operacional](../business/AAPEX-135-MODELO-OPERACIONAL.md)
 
 Modelo de dados proposto. Toda estrutura aqui é **aditiva**: nada existente é reescrito.

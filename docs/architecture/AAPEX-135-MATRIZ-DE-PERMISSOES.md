@@ -66,6 +66,18 @@ catálogo são *admin-only*; D7 concede ao Gerente Regional gestão **dentro da 
 ¹ *A execução é do GC responsável pelo parceiro. Se a operação exigir que outro papel registre em
 nome do GC, isso é regra de negócio ainda não declarada — não presumir.*
 
+> ✅ **IMPLEMENTADO em 01/08/2026** (migrations 0039–0041). A execução é guardada por
+> `app.is_assisted_operator(operation_id)`: exige o papel `channel_manager` **e** vínculo com aquela
+> operação. A leitura usa `app.has_operation_access`, que é o alcance da linha *"Consultar ciclos"*.
+>
+> **`app.is_admin()` NÃO é atalho aqui, e isso é testado.** Um administrador que tente abrir,
+> registrar ou fechar recebe *"apenas o gerente de canal responsavel executa a Gestao Assistida"* —
+> a mesma recusa que um coordenador ou um regional. É a leitura literal da nota ¹: ter permissão
+> administrativa não é ser o responsável operacional pelo parceiro.
+>
+> **A escrita direta não existe:** as tabelas novas não têm policy de `INSERT`/`UPDATE`/`DELETE`, e
+> `authenticated` só recebe `SELECT`. Toda escrita passa por RPC `security definer`.
+
 **O GC não edita metas, temas ou definições.** Ele consome o catálogo; não o altera.
 
 ## 4. Matriz — Auditoria Mensal
@@ -182,9 +194,9 @@ Acrescentam-se aos 18 já existentes, no mesmo formato
 | 25 | Excluir tema com histórico | recusado por gatilho |
 | 26 | Excluir indicador com histórico | recusado por gatilho |
 | 27 | Publicar indicador auditável **sem critério ativo** | recusado |
-| 28 | Abrir 2º ciclo semanal na mesma semana | recusado pela unicidade |
-| 29 | Fechar ciclo com desvio **sem** diagnóstico/plano | recusado |
-| 30 | GC abre ciclo em parceiro de outro GC | fora do escopo |
+| ~~28~~ ✅ | Abrir 2º ciclo semanal na mesma semana | recusado pela unicidade — **verde** |
+| ~~29~~ ✅ | Fechar ciclo com desvio **sem** diagnóstico/plano | recusado — **verde** |
+| ~~30~~ ✅ | GC abre ciclo em parceiro de outro GC | fora do escopo — **verde** |
 | 31 | GC valida o **próprio** plano concluído | **recusado por regra de ator** (fecha O-11) |
 | 32 | Alterar critério materializado de auditoria criada | recusado |
 | 33 | `anon` em cada RPC nova | HTTP 401 |

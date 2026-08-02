@@ -129,47 +129,93 @@ indicador auditável sem critério ativo” · RPCs de gestão de critério.
 
 ---
 
-### Fase 3 — Gestão Assistida: núcleo e regra de status 🔜 **PRÓXIMA**
+### Fase 3 — Gestão Assistida: unidade VERTICAL ✅ **CONCLUÍDA** (01/08/2026)
 
-> **Próximo número de migration livre: 0039.** As Fases 1 e 2 consumiram 0036, 0037 e 0038.
+> **A Fase 3 foi entregue VERTICAL, absorvendo o mínimo indispensável da Fase 4.** Decisão do
+> proprietário, registrada em [ADR-135-002](ADR-135-002-PLANOS-DA-GESTAO-ASSISTIDA.md).
+>
+> **Por que.** O fechamento do ciclo exige plano de ação para todo desvio (D2). O vínculo íntegro do
+> plano estava planejado para a Fase 4. A separação deixava só duas saídas, ambas proibidas por D6:
+> plano como texto solto, ou UUID sem verificação. Entregar as duas juntas era a única forma de o
+> fechamento validar contra algo que o banco conhece.
 
-**Entrega:** migrations 0039–0040 · enums novos · `assisted_cycles` com **unique
-`(operation_id, week_start_date)`** · `assisted_cycle_entries` com os 16 campos ·
-`app.assisted_status_of(...)` · materialização de `rule_version` · guarda de desvio no fechamento ·
-RPCs `open_assisted_cycle`, `save_assisted_entry`, `close_assisted_cycle`.
+**Entregue de fato:** migrations **0039, 0040 e 0041** · `assisted_cycles` com unique
+`(operation_id, week_start_date)` e CHECK de segunda-feira · `assisted_cycle_entries` com os campos
+de D1 e sete FKs de proveniência · `app.assisted_status_of`, `app.assisted_week_start`,
+`app.assisted_today`, `app.assisted_rule_version`, `app.is_assisted_operator` · cinco gatilhos ·
+`action_plans.assisted_entry_id` + `source` + CHECK + índice único parcial · `save_action_plan`
+estendida · RPCs `open_assisted_cycle`, `save_assisted_entry`, `close_assisted_cycle`,
+`get_assisted_cycle`, `list_assisted_cycles` · domínio, policy, repositórios e a tela
+`AssistedCycleScreen` · **1651 testes verdes** (eram 1488).
 
-**Critério de saída**
-- [ ] dois ciclos na mesma semana para o mesmo parceiro → **recusa do servidor** (teste 28);
-- [ ] `open_assisted_cycle` **idempotente**: reabrir devolve o mesmo ciclo;
-- [ ] `week_start_date` é sempre segunda, em `America/Sao_Paulo`;
-- [ ] status calculado **server-side**, conferindo com a tabela de D2;
-- [ ] `target_band` → **falha explícita**, nunca comportamento inventado (A-01);
-- [ ] fechar com desvio sem diagnóstico/plano/responsável/prazo → **recusado** (teste 29);
-- [ ] alterar meta depois do fechamento **não muda** o status histórico;
-- [ ] `sem_dado` distinto de não conformidade;
-- [ ] teste negativo **30** verde.
+**Ordem das migrations, e por quê.** 0040 (planos) vem **antes** de 0041 (RPCs) porque
+`close_assisted_cycle` valida contra `action_plans.assisted_entry_id`. A divisão sugerida
+originalmente exigiria uma migration referenciando coluna inexistente.
+
+**Critério de saída — verificado** (`src/db/assisted_management.integration.test.ts`, 67 casos)
+
+- [x] dois ciclos na mesma semana → **recusa da constraint do banco**, não da aplicação (teste 28);
+- [x] `open_assisted_cycle` idempotente: reabrir devolve o mesmo ciclo, e a trilha registra a
+      abertura **uma vez**;
+- [x] `week_start_date` é sempre segunda, em `America/Sao_Paulo`, com CHECK no banco;
+- [x] status calculado server-side, conferindo com a tabela de D2 — e **impossível de forjar**:
+      `UPDATE` direto gravando `conforme` é sobrescrito pelo gatilho;
+- [x] `target_band` → falha explícita citando **A-01**, sem conversão (A-01 **continua aberta**);
+- [x] fechar com desvio sem diagnóstico/plano/responsável/prazo → recusado, com o indicador
+      nomeado na mensagem (teste 29);
+- [x] alterar a meta na configuração regional depois do fechamento **não muda** o status histórico;
+- [x] `sem_dado` distinto de não conformidade — e **impede o fechamento**, sem virar não
+      conformidade (regra provisória, ver §8 abaixo);
+- [x] GC abre ciclo só nos próprios parceiros; ADMIN, REGIONAL e COORDENADOR **consultam e não
+      executam** (teste 30);
+- [x] `anon` e `PUBLIC` sem grant nas tabelas novas; `authenticated` só com `SELECT`; RLS forçada.
+
+**Regra provisória declarada — `sem_dado` no fechamento.** Nenhum documento canônico define o que
+fazer com item obrigatório sem resultado no momento de fechar. Adotado o comportamento
+conservador: **salvar rascunho é permitido, fechar não**. Não se converte ausência em não
+conformidade (Modelo Operacional §2.4 é expresso), e não se fecha com lacuna silenciosa. Se a
+decisão empresarial vier a permitir, o lugar de mudá-la é `close_assisted_cycle`, e só ele.
 
 ---
 
-### Fase 4 — Planos: origem com integridade referencial
+### Fase 4 — Planos: origem com integridade referencial ⚠️ **PARCIALMENTE ABSORVIDA** pela Fase 3
 
-**Entrega:** migration 0041 · `assisted_entry_id`, `monthly_audit_id`, `source` + CHECK ·
-`save_action_plan` estendida.
+> **Nada foi renumerado.** A Fase 4 continua sendo a Fase 4; o que mudou é **quanto** dela já foi
+> entregue, e por quê.
 
-**Critério de saída**
-- [ ] `source` inconsistente com as FKs → **recusado pelo CHECK** (teste 6 de migração);
-- [ ] planos existentes com `source = 'legacy'` **por default**, sem `UPDATE` semântico;
-- [ ] os 6 estados de D6 preservados; anti-auto-validação intacta;
-- [ ] `overdue` segue derivado; gravação manual recusada (teste 36);
+**Já entregue na 0040:** `app.action_source` (com os três valores de D6) · `assisted_entry_id` com
+FK · CHECK de exclusividade · índice único parcial (um plano por item) ·
+`app.guard_action_plan_assisted_link` (coerência de operação, imutabilidade do vínculo, recusa de
+vínculo em ciclo fechado) · `save_action_plan` estendida · `ui_action_plans` com `source` e
+`assistedEntryId`.
+
+**Escopo residual, ainda devido:**
+
+- [ ] coluna `monthly_audit_id` com FK a `evaluations`;
+- [ ] relaxar o CHECK para aceitar a terceira origem — hoje `source = 'monthly_audit'` é **recusado**,
+      deliberadamente: aceitá-lo sem coluna de origem seria um plano afirmando vir da Auditoria
+      Mensal sem que o banco pudesse verificar de qual;
 - [ ] **teste dirigido do O-11**: plano em `completed`, criador tenta validar → recusa **por regra de
       ator**, não por máquina de estados (teste 31).
+
+**Critério de saída — parcialmente verificado**
+- [x] `source` inconsistente com as FKs → recusado pelo CHECK (teste 6 de migração);
+- [x] planos existentes com `source = 'legacy'` **por default de coluna**, sem `UPDATE` semântico;
+- [x] os estados de D6 preservados; anti-auto-validação intacta — provada sobre um plano da Gestão
+      Assistida;
+- [x] `overdue` segue derivado; gravação manual recusada (teste 36);
+- [ ] teste dirigido do **O-11** — pertence à fase de autorização e **não foi feito aqui**.
 
 ---
 
 ### Fase 5 — Auditoria Mensal por competência
 
+> **Próximo número de migration livre: 0042.** As Fases 1–3 consumiram 0036–0041.
+
 **Entrega:** migration 0042 · `start_monthly_audit(operation_id, competence)` com **período por
-parâmetro** · `evaluation_criteria` + materialização · guarda de imutabilidade.
+parâmetro** · `evaluation_criteria` + materialização · guarda de imutabilidade · **e o residual da
+Fase 4** (`monthly_audit_id` + terceira perna do CHECK), que é pré-requisito de plano com origem
+mensal.
 
 **Critério de saída**
 - [ ] **auditoria de competência passada registrável pelo caminho oficial — fecha o O-06**;

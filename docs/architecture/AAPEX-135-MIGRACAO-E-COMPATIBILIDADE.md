@@ -27,9 +27,9 @@ por si.
 | **0036** | `themes_and_versions` | `themes`, `theme_versions`, guardas de exclusão com histórico, RLS + grants restritos | — |
 | **0037** | `indicator_theme_and_module_flags` | 5 colunas em `indicator_versions`; defaults `include_in_assisted_management = true`, `include_in_monthly_audit = false` | 0036 |
 | **0038** | `audit_criteria_and_versions` | `audit_criteria`, `audit_criteria_versions`, guarda “não publicar indicador auditável sem critério ativo” | 0037 |
-| **0039** | `assisted_management_core` | enums novos, `assisted_cycles` (**unique `(operation_id, week_start_date)`**), `assisted_cycle_entries` | 0037 |
-| **0040** | `assisted_status_rule` | `app.assisted_status_of(...)`, materialização de `rule_version`, guarda de desvio no fechamento | 0039 |
-| **0041** | `action_plan_source` | 3 colunas + CHECK de exclusividade; backfill `source = 'legacy'` por **default**, sem `UPDATE` semântico | 0039 |
+| ~~0039~~ ✅ | `assisted_management_core` | **APLICADA LOCALMENTE.** Enums, `app.assisted_week_start`, `app.assisted_today`, `app.assisted_status_of`, `app.assisted_rule_version`, `app.is_assisted_operator`, `assisted_cycles` (**unique `(operation_id, week_start_date)`** + CHECK de segunda-feira), `assisted_cycle_entries`, cinco gatilhos, RLS forçada | 0037 |
+| ~~0040~~ ✅ | `action_plan_assisted_source` | **APLICADA LOCALMENTE.** `app.action_source`, `assisted_entry_id` + `source` + CHECK, índice único parcial, gatilho de coerência, `save_action_plan` estendida, `ui_action_plans` +2 colunas. **Nome e ordem diferem do proposto:** os planos precisam existir antes das RPCs, porque `close_assisted_cycle` valida contra `assisted_entry_id` | 0039 |
+| ~~0041~~ ✅ | `assisted_management_rpcs` | **APLICADA LOCALMENTE.** DTOs, `open_assisted_cycle`, `save_assisted_entry`, `close_assisted_cycle`, `get_assisted_cycle`, `list_assisted_cycles`, trilha | 0040 |
 | **0042** | `monthly_audit_competence` | `start_monthly_audit` com **período por parâmetro** (fecha O-06); `evaluation_criteria` + materialização; guarda de imutabilidade | 0038 |
 | **0043** | `system_settings_and_cutover` | `system_settings`; semente `weekly_audit_cutover_date = null`; guarda **inerte** em `start_evaluation` | 0042 |
 | **0044** | `region_weightings` | tabela com CHECK `soma = 100`; **nenhuma linha semeada** | 0036 |
@@ -38,6 +38,16 @@ por si.
 
 > Números são **propostos**, não reservados. A ordem real será confirmada na sessão de
 > implementação, conforme o [Plano de Implementação](AAPEX-135-PLANO-DE-IMPLEMENTACAO.md).
+
+> **Estado real em 01/08/2026:** 0036–0041 escritas e aplicadas **somente em PGlite local**.
+> Nenhuma foi enviada a staging ou produção. Próximo número livre: **0042**.
+>
+> **Uma ressalva de reversibilidade que a §9 não previa:** o teardown do harness
+> (`supabase/rollback/0001_core_schema.down.sql`, **fora de `migrations/`**) precisou conhecer as
+> tabelas e os enums novos. Sem isso as tabelas sobreviviam ao `drop schema app cascade`, mas
+> perdiam as colunas tipadas pelos enums, e o `create table if not exists` da reaplicação não as
+> recriava. O sintoma era opaco e aparecia numa RPC sem relação com o assunto. Toda migration nova
+> que crie tabela com coluna de enum de `app` precisa entrar nesse arquivo.
 
 ## 3. Compatibilidade
 
