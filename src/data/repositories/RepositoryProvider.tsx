@@ -46,6 +46,11 @@ import {
   UnavailableCatalogRepository,
 } from './CatalogRepository';
 import type { CatalogRepository } from '../../domain/repositories/catalog';
+import {
+  SupabaseAssistedRepository,
+  UnavailableAssistedRepository,
+} from './AssistedRepository';
+import type { AssistedRepository } from '../../domain/repositories/assisted';
 
 export interface Repositories {
   operations: OperationsRepository;
@@ -65,6 +70,12 @@ export interface Repositories {
    * por região, versionamento e vigência são do servidor.
    */
   catalog: CatalogRepository;
+  /**
+   * Gestão Assistida semanal (AAPEx 1.3.5, D1). Mesma escolha do catálogo: sem
+   * backend corporativo o adapter RECUSA tudo. Idempotência da semana, cálculo
+   * de status, imutabilidade do fechamento e vínculo do plano são do servidor.
+   */
+  assisted: AssistedRepository;
   /** Origem efetiva dos dados operacionais. */
   source: 'supabase' | 'local';
 }
@@ -87,6 +98,7 @@ function buildRepositories(): Repositories {
       performance: new SupabasePerformanceRepository(client),
       evidence,
       catalog: new SupabaseCatalogRepository(client),
+      assisted: new SupabaseAssistedRepository(client),
       source: 'supabase',
     };
   }
@@ -103,6 +115,7 @@ function buildRepositories(): Repositories {
     performance: new LocalPerformanceRepository(localStore),
     evidence,
     catalog: new UnavailableCatalogRepository(),
+    assisted: new UnavailableAssistedRepository(),
     source: 'local',
   };
 }
