@@ -105,4 +105,20 @@ export interface MonthlyAuditRepository {
    * do documento, que é o que o PDF assina.
    */
   getReportData(evaluationId: string): Promise<Result<MonthlyAuditReportInput>>;
+
+  /**
+   * Registra na trilha a exportação que REALMENTE aconteceu.
+   *
+   * É a MESMA RPC do relatório legado (`log_official_audit_report_export`,
+   * 0035), e isso é deliberado: ela não tem guarda de modelo, deriva o snapshot
+   * do servidor e recusa código de integridade que não seja hexadecimal. Criar
+   * um segundo registrador daria dois eventos para o mesmo fato, e eles
+   * divergiriam no primeiro conserto.
+   *
+   * Devolve `false` em vez de lançar: falhar a trilha não pode derrubar uma
+   * entrega que já chegou ao usuário.
+   */
+  logReportExport(dados: {
+    evaluationId: string; snapshotId: string; reportVersion: string; integrityCode: string;
+  }): Promise<boolean>;
 }

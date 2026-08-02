@@ -375,6 +375,19 @@ export class SupabaseMonthlyAuditRepository implements MonthlyAuditRepository {
     });
   }
 
+  async logReportExport(dados: {
+    evaluationId: string; snapshotId: string; reportVersion: string; integrityCode: string;
+  }): Promise<boolean> {
+    const { data, error } = await this.client.rpc('log_official_audit_report_export', {
+      p_evaluation_id: dados.evaluationId,
+      p_snapshot_id: dados.snapshotId,
+      p_report_version: dados.reportVersion,
+      p_integrity_code: dados.integrityCode,
+    });
+    if (error) return false;
+    return (data as { logged?: boolean } | null)?.logged === true;
+  }
+
   async getSnapshot(evaluationId: string): Promise<Result<MonthlyAuditSnapshot>> {
     const { data, error } = await this.client.rpc('get_monthly_audit_snapshot', {
       p_evaluation_id: evaluationId,
@@ -413,4 +426,5 @@ export class UnavailableMonthlyAuditRepository implements MonthlyAuditRepository
   validateAudit(_e: string, _d: 'approved' | 'returned', _n: string) { return this.refuse<MonthlyAudit>(); }
   getSnapshot(_e: string) { return this.refuse<MonthlyAuditSnapshot>(); }
   getReportData(_e: string) { return this.refuse<MonthlyAuditReportInput>(); }
+  logReportExport() { return Promise.resolve(false); }
 }

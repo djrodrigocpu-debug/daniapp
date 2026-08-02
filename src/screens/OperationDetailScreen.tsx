@@ -141,7 +141,10 @@ export function OperationDetailScreen({ route, navigation }: NativeStackScreenPr
         de 1.3.4 e passa a se chamar pelo próprio nome: dois botões chamados
         "Gestão Assistida" mandariam o operador ao lugar errado.
       */}
-      <SectionTitle title="Gestão Assistida" subtitle="Ciclo semanal: resultado consultado na fonte oficial da operação, status calculado, diagnóstico e plano de ação." />
+      <View style={styles.blocoAtual}>
+        <Text style={styles.blocoRotulo} accessibilityRole="header">Operação atual</Text>
+      </View>
+      <SectionTitle title="Gestão Assistida" subtitle="Ciclo semanal: o resultado é consultado no relatório oficial da operação (fonte externa), e o AAPEx calcula o status, registra o diagnóstico e o plano de ação." />
       <AppButton title="Abrir semana atual" onPress={() => navigation.navigate('AssistedCycle', { operationId: activeOperation.id })} style={{ marginBottom: spacing.xl }} />
 
       <SectionTitle title="Visita produtiva" subtitle="Metas, realizado, prioridades, diagnóstico, plano de ação e retroalimentação em um único fluxo." />
@@ -186,13 +189,31 @@ export function OperationDetailScreen({ route, navigation }: NativeStackScreenPr
       )}
       <View style={{ marginBottom: spacing.xl }} />
 
-      <SectionTitle title="Avaliação operacional" subtitle="Checklists semanal e mensal permanecem disponíveis para os processos de excelência. Histórico legado." />
+      {/*
+        TERCEIRO BLOCO — o HISTÓRICO SEMANAL LEGADO, e ele é visualmente
+        separado dos dois de cima. O Modelo Operacional §6 exige que a interface
+        distinga três coisas, e a tabela de terminologia de §9 fixa o nome deste
+        bloco — qualquer sinônimo informal está proibido, e confundi-lo com a
+        Gestão Assistida, também.
+
+        A faixa não é adorno: sem uma marca visual, "Auditoria semanal" (legado)
+        e "Gestão Assistida" (atual) ficam a uma rolagem de distância e parecem
+        dois nomes para a mesma coisa.
+      */}
+      <View style={styles.blocoLegado}>
+        <Text style={styles.blocoRotulo} accessibilityRole="header">Histórico semanal legado</Text>
+        <Text style={styles.blocoNota}>
+          Modelo anterior à 1.3.5, preservado e somente leitura no que já foi aprovado.
+          Não se confunde com a Gestão Assistida nem com a Auditoria Mensal.
+        </Text>
+      </View>
+      <SectionTitle title="Checklists do modelo legado" subtitle="Permanecem disponíveis para os processos de excelência enquanto o cutover não ocorrer." />
       <View style={styles.buttonRow}>
-        <AppButton title="Auditoria semanal" onPress={() => void launch('weekly')} style={styles.flexButton} />
-        <AppButton title="Auditoria mensal" onPress={() => void launch('monthly')} variant="secondary" style={styles.flexButton} />
+        <AppButton title="Checklist semanal legado" onPress={() => void launch('weekly')} style={styles.flexButton} />
+        <AppButton title="Checklist mensal legado" onPress={() => void launch('monthly')} variant="secondary" style={styles.flexButton} />
       </View>
 
-      <SectionTitle title="Histórico recente" subtitle="Ciclos registrados para este Parceiro AACE." />
+      <SectionTitle title="Histórico legado recente" subtitle="Ciclos do modelo anterior registrados para este Parceiro AACE." />
       {history.length ? history.map((evaluation) => (
         <View key={evaluation.id} style={styles.historyCard}>
           <View style={styles.historyTop}>
@@ -204,7 +225,22 @@ export function OperationDetailScreen({ route, navigation }: NativeStackScreenPr
           </View>
           <View style={styles.historyFooter}>
             <Text style={styles.historyStatus}>{evaluation.status === 'draft' ? 'Rascunho' : evaluation.status === 'submitted' ? 'Aguardando validação' : evaluation.status === 'approved' ? 'Aprovada' : 'Devolvida'}</Text>
-            {['draft', 'returned'].includes(evaluation.status) && <AppButton title={evaluation.status === 'returned' ? 'Corrigir' : 'Continuar'} compact onPress={() => navigation.navigate('Evaluation', { operationId, evaluationId: evaluation.id })} />}
+            {/*
+              O-12 no BLOCO LEGADO. Antes, só rascunho e devolvida tinham botão:
+              uma avaliação aprovada ficava listada sem rota, exatamente o padrão
+              que o achado descreve. Agora TODO item listado tem ação — o que
+              muda é o verbo, e o `variant` diz se é leitura ou edição.
+            */}
+            <AppButton
+              title={
+                evaluation.status === 'returned' ? 'Corrigir'
+                  : evaluation.status === 'draft' ? 'Continuar'
+                    : 'Ver avaliação'
+              }
+              compact
+              variant={['draft', 'returned'].includes(evaluation.status) ? 'primary' : 'secondary'}
+              onPress={() => navigation.navigate('Evaluation', { operationId, evaluationId: evaluation.id })}
+            />
           </View>
         </View>
       )) : <Text style={styles.noHistory}>Nenhuma avaliação registrada.</Text>}
@@ -222,6 +258,19 @@ function InfoRow({ icon, label, value, last }: { icon: keyof typeof Ionicons.gly
 }
 
 const styles = StyleSheet.create({
+  blocoAtual: {
+    borderLeftWidth: 4, borderLeftColor: colors.primary,
+    paddingLeft: spacing.md, marginBottom: spacing.md,
+  },
+  blocoLegado: {
+    borderLeftWidth: 4, borderLeftColor: colors.inkMuted,
+    paddingLeft: spacing.md, marginTop: spacing.xl, marginBottom: spacing.md, gap: 4,
+  },
+  blocoRotulo: {
+    color: colors.ink, fontSize: 12, fontWeight: '700',
+    textTransform: 'uppercase', letterSpacing: 0.6,
+  },
+  blocoNota: { color: colors.inkMuted, fontSize: 11, lineHeight: 16 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md, paddingVertical: spacing.xl },
   centeredText: { color: colors.inkMuted, fontSize: 13, textAlign: 'center' },
   identityCard: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg, marginBottom: spacing.md },

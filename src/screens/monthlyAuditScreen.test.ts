@@ -34,10 +34,37 @@ describe('caminho até a tela', () => {
   });
 
   it('os três blocos estão visualmente separados (Modelo Operacional §6)', () => {
-    // Gestão Assistida · Auditoria Mensal · histórico legado.
+    // Gestão Assistida · Auditoria Mensal · histórico semanal legado.
     expect(detalhe).toMatch(/<SectionTitle title="Gestão Assistida"/);
     expect(detalhe).toMatch(/<SectionTitle title="Auditoria Mensal"/);
-    expect(detalhe).toMatch(/<SectionTitle title="Avaliação operacional"[^/]*legado/i);
+    // REFORÇADO PELA FASE 10: a separação deixou de ser só um título e passou a
+    // ser uma FAIXA com rótulo próprio e borda de cor distinta. Sem ela,
+    // "Checklist semanal legado" e "Gestão Assistida" ficam a uma rolagem de
+    // distância e parecem dois nomes para a mesma coisa.
+    expect(detalhe).toMatch(/styles\.blocoAtual/);
+    expect(detalhe).toMatch(/styles\.blocoLegado/);
+    expect(detalhe).toMatch(/>Histórico semanal legado</);
+    expect(detalhe).toMatch(/>Operação atual</);
+  });
+
+  it('a terminologia D8 é aplicada no detalhe do parceiro', () => {
+    // "Relatório oficial da operação" é a FONTE EXTERNA. O bloco legado se
+    // chama "histórico semanal legado", nunca "auditorias antigas".
+    expect(detalhe).toMatch(/relatório oficial da operação \(fonte externa\)/);
+    expect(detalhe).toMatch(/Histórico semanal legado/);
+    expect(detalhe).not.toMatch(/auditorias antigas/i);
+    // E o legado não se apresenta como "Auditoria semanal", que confundiria
+    // com a Gestão Assistida.
+    expect(detalhe).not.toMatch(/title="Auditoria semanal"/);
+    expect(detalhe).toMatch(/title="Checklist semanal legado"/);
+  });
+
+  it('O-12 no bloco LEGADO: todo item listado tem ação, inclusive o aprovado', () => {
+    // Antes, só rascunho e devolvida tinham botão — uma avaliação aprovada
+    // ficava listada sem rota, que é exatamente o padrão do achado.
+    expect(detalhe).toMatch(/title=\{\s*evaluation\.status === 'returned' \? 'Corrigir'/);
+    expect(detalhe).toMatch(/: 'Ver avaliação'/);
+    expect(detalhe).not.toMatch(/\['draft', 'returned'\]\.includes\(evaluation\.status\) &&/);
   });
 });
 
@@ -70,19 +97,48 @@ describe('O-12 — a auditoria aprovada é alcançável', () => {
   });
 });
 
-describe('o novo PDF NÃO é fingido', () => {
-  it('não há botão de PDF na auditoria mensal', () => {
-    expect(tela).not.toMatch(/title="[^"]*PDF/i);
-    expect(tela).not.toMatch(/gerarPdf|exportPdf|sharePdf/i);
+describe('o novo PDF existe, e SÓ para auditoria aprovada', () => {
+  // ATUALIZADO PELA FASE 10 (A-05 congelada em 02/08/2026). Este bloco media a
+  // ausência deliberada do botão; passa a medir a PRESENÇA CONDICIONAL dele.
+  // A propriedade de fundo é a mesma: nunca oferecer um botão que produziria
+  // documento incompatível — antes porque o formato não existia, agora porque
+  // a auditoria pode não estar aprovada.
+
+  it('o botão gera o Relatório Oficial da Auditoria Mensal', () => {
+    expect(tela).toMatch(/title="Gerar Relatório Oficial da Auditoria Mensal"/);
+    expect(tela).toMatch(/exportarRelatorioMensal\(/);
+    expect(tela).toMatch(/renderMonthlyAuditReportPdf/);
   });
 
-  it('a ausência é EXPLICADA, não silenciosa', () => {
-    expect(tela).toMatch(/documento oficial em PDF desta auditoria ainda não está disponível/);
+  it('a CHAMADA do botão vive dentro do bloco `approved`, e em nenhum outro', () => {
+    // A função é declarada junto com as outras ações, no topo do componente; o
+    // que precisa estar confinado é o ponto de CHAMADA. Fora de `approved` o
+    // servidor recusaria (0051), e a interface espelha a regra em vez de
+    // oferecer o que será negado.
+    const chamadas = [...tela.matchAll(/onPress=\{\(\) => void exportarPdf\(/g)];
+    expect(chamadas).toHaveLength(1);
+    const i = tela.indexOf('{approved && (');
+    expect(i).toBeGreaterThan(0);
+    expect(chamadas[0].index!).toBeGreaterThan(i);
+  });
+
+  it('a terminologia D8 é aplicada: o PDF do AAPEx não é a fonte externa', () => {
+    expect(tela).toMatch(/Relatório Oficial da Auditoria Mensal/);
+    expect(tela).toMatch(/relatório oficial da operação/);
+  });
+
+  it('o sucesso e a falha da exportação são ANUNCIADOS', () => {
+    expect(tela).toMatch(/exportOk/);
+    expect(tela).toMatch(/accessibilityLiveRegion="polite"/);
   });
 
   it('a REPORT_FORMAT_VERSION legada não é reutilizada', () => {
     expect(tela).not.toMatch(/1\.3\.3/);
     expect(tela).not.toMatch(/REPORT_FORMAT_VERSION/);
+  });
+
+  it('nenhuma pendência fechada continua anunciada na tela', () => {
+    expect(tela).not.toMatch(/A-05|A-10/);
   });
 });
 

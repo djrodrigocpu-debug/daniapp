@@ -61,6 +61,11 @@ import {
   validateAnswer,
 } from '../domain/monthlyAudit/policy';
 import { decideMonthlyScreenState } from '../domain/monthlyAudit/screenState';
+import {
+  exportarRelatorioMensal, motivoDoErroMensal, MENSAGENS_MENSAL,
+} from '../domain/report/exportarRelatorioMensal';
+import { renderMonthlyAuditReportPdf } from '../domain/report/pdf/renderMonthlyAuditReport';
+import { entregarPdf } from '../utils/entregarPdf';
 import { colors, radius, spacing } from '../theme';
 import { RootStackParamList } from '../types';
 
@@ -92,6 +97,8 @@ export function MonthlyAuditScreen({ route }: Props) {
   const [busy, setBusy] = useState(false);
   /** Erro da ÚLTIMA ação — separado do erro de carga. */
   const [actionError, setActionError] = useState<string | null>(null);
+  /** Confirmação da exportação. Sucesso também precisa ser anunciado. */
+  const [exportOk, setExportOk] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -115,6 +122,42 @@ export function MonthlyAuditScreen({ route }: Props) {
     const res = await monthlyAudit.startAudit(operationId, competence);
     if (res.ok) setAudit(res.value);
     else setActionError(res.error.message);
+    setBusy(false);
+  }
+
+  /**
+   * O PDF do Relatório Oficial da Auditoria Mensal.
+   *
+   * A ORDEM vive no domínio puro (`exportarRelatorioMensal`); aqui só se ligam
+   * as peças. A recusa do servidor é TRADUZIDA em causa — nunca repassada crua,
+   * porque ela pode carregar nome de função ou identificador.
+   */
+  async function exportarPdf(current: MonthlyAudit) {
+    setBusy(true);
+    setActionError(null);
+    setExportOk(null);
+    const r = await exportarRelatorioMensal({
+      obterDados: async () => {
+        const res = await monthlyAudit.getReportData(current.id);
+        return res.ok
+          ? { ok: true as const, value: res.value }
+          : (() => {
+            const motivo = motivoDoErroMensal(res.error.message);
+            return { ok: false as const, motivo, message: MENSAGENS_MENSAL[motivo] };
+          })();
+      },
+      renderizar: (modelo) => renderMonthlyAuditReportPdf(modelo),
+      entregar: entregarPdf(),
+      registrar: (dados) => monthlyAudit.logReportExport(dados),
+    });
+    if (r.ok) {
+      setExportOk(
+        `Relatório gerado: ${r.fileName}.`
+        + (r.registrado ? '' : ' O documento saiu, mas a trilha não registrou a exportação.'),
+      );
+    } else {
+      setActionError(r.message);
+    }
     setBusy(false);
   }
 
@@ -335,15 +378,37 @@ export function MonthlyAuditScreen({ route }: Props) {
             <Text style={styles.validatorNote}>Parecer: {current.validatorNote}</Text>
           )}
           {/*
-            NÃO há botão de PDF. O contrato do documento oficial da Auditoria
-            Mensal ainda não foi congelado (pendência A-05), e reutilizar o PDF
-            legado produziria um relatório sem uma resposta sequer. Botão que
-            gera documento incompatível é pior que botão ausente.
+            O BOTÃO SÓ EXISTE AQUI, dentro de `approved`. Auditoria em rascunho,
+            enviada ou devolvida NÃO oferece PDF — e o servidor recusaria de
+            qualquer forma (0051). A interface espelha a regra para não oferecer
+            o que será negado; ela não é a barreira.
+
+            Este é o documento produzido pelo AAPEx. NÃO confundir com o
+            "relatório oficial da operação", que é a fonte EXTERNA consultada
+            pelo Gerente de Canal antes da visita (terminologia D8).
           */}
-          <Text style={styles.pdfPending}>
-            O documento oficial em PDF desta auditoria ainda não está disponível: o formato
-            correspondente a este modelo não foi definido.
-          </Text>
+          <View style={styles.pdfBlock}>
+            <Text style={styles.pdfTitle}>Relatório Oficial da Auditoria Mensal</Text>
+            <Text style={styles.pdfHint}>
+              Documento em PDF gerado a partir do snapshot oficial imutável, no formato 1.3.5.
+              O conteúdo não muda se o catálogo, o critério ou o plano mudarem depois.
+            </Text>
+            <AppButton
+              title="Gerar Relatório Oficial da Auditoria Mensal"
+              onPress={() => void exportarPdf(current)}
+              loading={busy}
+              disabled={busy}
+            />
+            {exportOk !== null && (
+              <Text
+                style={styles.pdfOk}
+                accessibilityRole="alert"
+                accessibilityLiveRegion="polite"
+              >
+                {exportOk}
+              </Text>
+            )}
+          </View>
         </View>
       )}
     </Screen>
@@ -754,5 +819,11 @@ const styles = StyleSheet.create({
   },
   closedNoteText: { color: colors.ink, fontSize: 11, lineHeight: 17 },
   validatorNote: { color: colors.ink, fontSize: 11, lineHeight: 17, fontStyle: 'italic' },
-  pdfPending: { color: colors.inkMuted, fontSize: 10, lineHeight: 15 },
+  pdfBlock: {
+    marginTop: spacing.md, paddingTop: spacing.md,
+    borderTopWidth: 1, borderTopColor: colors.border, gap: spacing.xs,
+  },
+  pdfTitle: { color: colors.ink, fontSize: 13, fontWeight: '700' },
+  pdfHint: { color: colors.inkMuted, fontSize: 11, lineHeight: 16, marginBottom: spacing.xs },
+  pdfOk: { color: colors.ink, fontSize: 11, lineHeight: 16, marginTop: spacing.xs },
 });
