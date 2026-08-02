@@ -469,7 +469,7 @@ sem mouse, as três larguras, PDF em leitor real e XLSX no Excel real. Pacote pr
 
 ---
 
-### Fase 11 — Homologação controlada e release candidate ✅ **HOMOLOGADA** · ⛔ **RC não congelado** (02/08/2026)
+### Fase 11 — Homologação controlada e release candidate ✅ **CONCLUÍDA · RC CONGELADA em 1.3.5 · build 9** (02/08/2026)
 
 > **O bloqueio de entrada caiu.** O proprietário provisionou **AAPEx 1.3.5 Homologacao**
 > (`qjvpkaurihjvzktlinhp`, ca-central-1) e autorizou a execução. O staging congelado
@@ -491,10 +491,19 @@ não produtivo com dado real · **2.305 testes verdes em 136 arquivos**.
 antes das migrations 0036–0051 e não continha nenhuma tabela nem RPC da 1.3.5. Nunca quebrou o
 build porque os repositórios usam `SupabaseClient` sem o genérico. Foi **regenerado**.
 
-**Continua bloqueado — e é o que falta para a Fase 12:** gates **14** (XLSX no Excel real),
-**15** (PDF em leitor real) e **17** (acessibilidade com teclado e leitor de tela reais) exigem
-aplicativo de mesa e **não foram executados**. Por isso o gate **25** não fechou: **sem bump, o
-aplicativo continua 1.3.4 · build 8**.
+**Gates humanos cumpridos em 02/08/2026**, com confirmação expressa do proprietário: **14**
+(XLSX no Microsoft Excel real), **15** (PDF no Adobe Acrobat Reader real) e **17**
+(acessibilidade). Fechados também o **4** (upgrade equivalente da 1.3.4 — esquema idêntico ao
+do zero em 13 categorias) e o **13** (CSV, com a injeção de fórmula neutralizada e conferida
+no Excel). Com os 25 gates reconciliados, o gate **25** fechou: **release candidate congelada
+em 1.3.5 · build 9**.
+
+**Ressalva do gate 17:** a Etapa B (leitor de tela) **não foi exercitada** — NVDA ausente e o
+Narrador não executado. O gate foi aprovado com **escopo reduzido a teclado**, por decisão do
+proprietário, e a verificação de leitor de tela fica como **dívida conhecida da 1.3.5**.
+
+**Para a Fase 12** falta apenas a autorização literal do proprietário sobre este release
+candidate.
 
 ---
 

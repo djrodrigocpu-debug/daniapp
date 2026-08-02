@@ -1,12 +1,21 @@
 # AAPEx 1.3.5 — Fase 11: homologação controlada em ambiente remoto separado
 
-> **Status: HOMOLOGAÇÃO CONCLUÍDA · RELEASE CANDIDATE NÃO CONGELADO.**
-> Os gates automatizáveis (1–13, 16, 19–24) foram cumpridos e estão comprovados abaixo.
-> Os gates **14, 15 e 17** dependem de aplicativo de mesa real (Excel, leitor de PDF,
-> leitor de tela) e **não foram executados** — portanto o **bump para 1.3.5 (gate 25)
-> continua bloqueado** e o aplicativo permanece **1.3.4 · build 8**.
+> # FASE 11 CONCLUÍDA · RELEASE CANDIDATE CONGELADA
+>
+> Os **25 gates** do contrato estão cumpridos. Os gates humanos **14, 15 e 17** foram
+> executados em aplicativos reais do Windows, com confirmação expressa do proprietário.
+> O gate **25** fechou: o aplicativo passa a ser **1.3.5 · build 9**.
+>
+> **Ressalva registrada no gate 17:** a Etapa B (leitor de tela) **não foi exercitada** —
+> ver §17.3. O gate foi aprovado com **escopo reduzido a teclado**, por decisão do
+> proprietário, e a pendência fica como dívida conhecida da 1.3.5.
 
 Data: 02/08/2026 · branch `aapex-1.3.5-assisted-management-monthly-audit`
+
+**Histórico do veredito.** Antes dos gates humanos este documento dizia
+*"HOMOLOGAÇÃO TÉCNICA REMOTA CONCLUÍDA · HOMOLOGAÇÃO HUMANA PENDENTE"*. A mudança para
+*"FASE 11 CONCLUÍDA · RELEASE CANDIDATE CONGELADA"* só ocorreu depois das três
+aprovações expressas registradas em §17.
 
 ---
 
@@ -330,19 +339,225 @@ Bundle `dist/` servido em `127.0.0.1:4173`. Login real como Coordenador do Norte
 
 ---
 
-## 13. O que NÃO foi feito — e por quê
+## 13. Gate 4 — upgrade equivalente à 1.3.4
 
-| Gate | Situação |
+O gate 3 provou instalação do zero. Este prova a outra metade, e é a que importa para
+produção: **produção não é banco novo.**
+
+Em PGlite, sem tocar projeto remoto algum, dois bancos foram construídos e comparados:
+
+- **A)** do zero, `0001`–`0051`;
+- **B)** base 1.3.4 (`0001`–`0035`) e **depois** o upgrade da 1.3.5 (`0036`–`0051`).
+
+| Categoria | Do zero | Após upgrade | |
+|---|---:|---:|---|
+| COLUMN · CONSTRAINT · ENUM · FUNCGRANT · FUNCTION · GRANT · INDEX · POLICY · RLSENABLED · SCHEMAGRANT · TABLE · TRIGGER · VIEW | 13 categorias | 13 categorias | **hash idêntico em todas** |
+
+`GATE 4: UPGRADE EQUIVALENTE — o esquema após 0001-0035 + 0036-0051 é IDÊNTICO ao do zero.`
+
+## 14. Gate 13 — CSV, e a mitigação de injeção
+
+Baixado pela interface real: `aapex-assisted-20260802.csv` · 1.247 bytes ·
+SHA-256 `C7C5413ABE90F1D1F54BEF2C48082B76BE3057090394ADB810F64968910ADD81`.
+
+Separador `;`, datas legíveis, escopo respeitado — e a **PARCEIRA BETA sai com `Realizado`
+vazio** e `sem_dado`, nunca zero.
+
+**A mitigação de CSV injection não estava sendo exercitada**: a fixture não tinha um único
+texto iniciado por `=` `+` `-` `@`. Em vez de declarar verde um item não testado, a condição
+foi **criada** — um diagnóstico começando com `=SOMA(...)+HYPERLINK(...)` foi gravado pela
+RPC real, no ciclo em rascunho da BETA.
+
+Resultado, nas três camadas:
+
+| Camada | Comportamento |
 |---|---|
-| **14 — XLSX no Excel real** | **PENDENTE.** Não há Excel dirigível nesta sessão. O contrato proíbe afirmar que abriu. |
-| **15 — PDF em leitor real** | **PENDENTE.** Mesma razão. O PDF é gerado e tem teste de unidade, mas ninguém o abriu num leitor de verdade. |
-| **17 — acessibilidade** | **PARCIAL.** `src/screens/accessibilityAudit.test.ts` roda; navegação por teclado e leitor de tela reais não foram exercitados (lição L-10: varredura estática não é prova de acessibilidade). |
-| **25 — release candidate** | **BLOQUEADO** por 14, 15 e 17. **Sem bump: 1.3.4 · build 8.** |
-| Backfill do catálogo legado | Não executado, conforme proibição ativa. |
-| Cutover | `weekly_audit_cutover_date` continua **JSON null**. |
-| Peso empresarial real (A-04) | Não semeado. A ponderação do Norte é **sintética e marcada como fixture**. |
-| Os 40 códigos | Não consultados: exigiriam o staging congelado. Dívida mantida. |
-| Quatro drafts de produção | Produção **não consultada**. |
+| Servidor | **devolve o texto cru**, como o operador digitou — não é ele quem neutraliza |
+| Escritor de CSV | emite `"'=SOMA(A1:A9)+HYPERLINK(""…"")"` — apóstrofo à frente, aspas internas dobradas |
+| Microsoft Excel | **mostra como texto e não calcula nada** — confirmado por observação humana |
+
+## 15. Os gates humanos — 14, 15 e 17
+
+### 15.1 Gate 14 — XLSX no Microsoft Excel real
+
+**Aplicativo:** Microsoft Excel (Windows) · **Arquivo:** `aapex-summary-20260802.xlsx` ·
+7.900 bytes · 02/08/2026 17:32:50 ·
+SHA-256 `7E5AB83D459339C6F8F855943014713231074DBCEC0326CADABEF358D7C16612`
+
+| # | Item | Resultado |
+|---|---|---|
+| 1 | Abre sem corrupção, reparo ou conteúdo ilegível | ✅ |
+| 2 | Cinco abas com os nomes e a ordem do D9 | ✅ |
+| 3 | **SEM DADO permanece célula vazia, nunca zero** (BETA: C3, J3, Q3) | ✅ |
+| 4 | A-11 = 72,22 · A-10 = 66,67 | ✅ |
+| 5 | Escopo: só ALFA e BETA, nenhum parceiro do Sul | ✅ |
+| 6 | Acentuação portuguesa correta | ✅ |
+| 7 | Datas como data (`2026-07-27`), não serial | ✅ |
+| 8 | Nenhum `####`, `#VALOR!`, `#REF!`, `#N/D` | ✅ |
+| 9 | Zero fórmulas no pacote | ✅ |
+| 10 | `Filtros_Aplicados` descreve o próprio recorte | ✅ |
+
+**Não previsto no D9, logo não avaliado:** congelamento de painéis, autofiltro, largura de
+coluna e impressão.
+
+**Duas correções de rota, registradas porque ensinam:**
+
+1. A varredura automática afirmou "cinco abas ok" **antes** de o humano olhar. Quando o
+   proprietário reportou quatro, a hipótese automática foi tratada como suspeita, não como
+   verdade — e o diagnóstico do pacote OOXML (Content_Types, workbook.xml, rels, sheet5)
+   foi refeito do zero. Era leitura do painel no navegador, não do Excel. **A varredura não
+   substituiu a conferência humana, e não podia.**
+2. Uma primeira extração de células, com filtro furado, sugeriu que `Nota de desempenho`
+   da BETA valia `0`. O XML bruto provou o contrário: a célula é **vazia**. O alarme falso
+   foi corrigido explicitamente antes de qualquer conclusão.
+
+**Confirmação do proprietário:** `GATE 14 APROVADO`
+
+### 15.2 Gate 15 — PDF em leitor real
+
+**Aplicativo:** Adobe Acrobat Reader (Windows) ·
+**Arquivo:** `AAPEx-Auditoria-Mensal-PARCEIRA_ALFA_FIXTURE-2026-07-2bf02a15.pdf` ·
+15.039 bytes · **4 páginas** · 02/08/2026 17:41:03 ·
+SHA-256 `382A777A409F15DF4B886504240DCEBA3562D9114CDF6DD342E49F2CE6B72995`
+
+**Rastreabilidade:** versão **1.3.5** · snapshot `a26a8263-d4d4-4451-9cc0-0fb44df4e547` ·
+entidade sintética PARCEIRA ALFA FIXTURE, competência 2026-07 · trilha
+`evaluation.report_exported · 1.3.5 · por Coordenador Norte F11 · 17:40:56` · código de
+integridade `2BF0 2A15 93EF 92D5 2229`, cujo prefixo aparece **no próprio nome do arquivo**.
+
+| # | Item | Resultado |
+|---|---|---|
+| 1 | Abre sem erro, reparo ou corrupção · 4 páginas carregam | ✅ |
+| 2 | Título, parceiro, competência, período e identificação corretos | ✅ |
+| 3 | **Pontuação 66,67**, igual à da interface | ✅ |
+| 4 | **Versão do formato 1.3.5** e regra `conformidade-simples-processo/1.3.5` | ✅ |
+| 5 | Código de integridade coerente com o nome do arquivo | ✅ |
+| 6 | Acentuação e Ç corretos nas quatro páginas | ✅ |
+| 7 | Nada cortado, nada sobreposto, quebras coerentes, sem página vazia | ✅ |
+| 8 | Rodapé `Página X de 4` em todas | ✅ |
+| 9 | Zoom sem artefatos · texto selecionável · impressão legível | ✅ |
+| 10 | **Escopo: só a PARCEIRA ALFA FIXTURE** | ✅ |
+| 11 | Evidência `evidencia-sintetica.png` e plano de ação presentes | ✅ |
+
+O documento afirma, na página 2, exatamente o que a A-10 exige:
+*"Quando não há critério aplicável, não existe pontuação — e a ausência não equivale a zero."*
+
+**O 1.3.3 permanece separado e preservado:** `get_official_audit_report_data` recusa o modelo
+mensal com *"a Auditoria Mensal por criterios tem formato proprio"*.
+
+**Confirmação do proprietário:** `GATE 15 APROVADO`
+
+### 15.3 Gate 17 — teclado e leitor de tela
+
+**Navegador:** Google Chrome (Windows) · **Aplicação:** `http://localhost:4173`, bundle de
+homologação · **Leitor de tela:** NVDA **não instalado** nesta máquina.
+
+#### Etapa A — navegação somente por teclado: **CUMPRIDA**
+
+| # | Item | Resultado |
+|---|---|---|
+| 1 | Login inteiro por teclado, com `Enter` no botão | ✅ |
+| 2 | Foco visível em todos os elementos, inclusive cartões e barra de abas | ✅ |
+| 3 | Ordem de foco lógica | ✅ |
+| 4 | Percurso funcional completo **sem tocar no mouse** (painel → parceiro → auditoria → volta → abas → Ações) | ✅ |
+| 5 | Sem armadilha de teclado | ✅ |
+| 6 | Sem salto inesperado de foco | ✅ |
+| 7 | Barra de abas alcançável e acionável | ✅ |
+| 8 | **Diálogo**: foco entra, `Tab` circula dentro, `Esc` fecha, foco **retorna ao botão de origem** | ✅ |
+| 9 | Campo numérico com rótulo compreensível, preenchível só por teclado | ✅ |
+| 10 | Mensagem de erro alcançável, em português claro, **sinalizada por texto e não só por cor** | ✅ |
+
+> **Registro honesto:** a leitura estática do `ActionPlanModal` mostrou que ele **não** declara
+> `autoFocus` nem `accessibilityViewIsModal`, e eu previa falha no item 8. A observação humana
+> mostrou o contrário — o `Modal` do react-native-web já faz o aprisionamento de foco e o `Esc`.
+> **A observação humana prevaleceu sobre a hipótese do código.**
+
+> **Nota de percurso:** o diálogo só existe depois que um indicador tem resultado. Para
+> alcançá-lo foi registrado um resultado pelo fluxo legado — o que, de quebra, criou o
+> "histórico legado mínimo" que o contrato da fixture pedia e ainda faltava.
+
+#### Etapa B — leitor de tela: **NÃO EXERCITADA**
+
+O Narrador do Windows **não foi executado**. Em particular, **não foi verificado** se os status
+*conforme · atenção · não conforme · sem dado* são compreensíveis sem depender da cor.
+
+**Decisão do proprietário:** reduzir o escopo do gate a teclado, com a Etapa B registrada como
+**dívida conhecida da 1.3.5**. A decisão foi tomada com a consequência posta à mesa (a
+alternativa era manter o gate 25 bloqueado e o app em 1.3.4/build 8).
+
+**Confirmação do proprietário:** `GATE 17 APROVADO` (escopo reduzido)
+
+## 16. Reconciliação dos 25 gates
+
+| # | Gate | Situação |
+|---|---|---|
+| 1 | Ambiente separado confirmado | ✅ `qjvpkaurihjvzktlinhp`, com guarda executável |
+| 2 | Baseline remoto antes de qualquer migration | ✅ 51 locais, 0 remotas |
+| 3 | Migrations do zero | ✅ `0001`–`0051`, Local = Remote |
+| 4 | Upgrade equivalente da 1.3.4 | ✅ §13, 13 categorias com hash idêntico |
+| 5 | Fixture sintética nova | ✅ 2 regiões, 9 usuários, 4 parceiros, `.example` |
+| 6 | Os quatro papéis em runtime real, com relogin | ✅ inclusive gate de primeiro acesso |
+| 7 | Gestão Assistida | ✅ idempotência concorrente, 4 status, fechamento imutável |
+| 8 | Auditoria Mensal | ✅ evidência, plano obrigatório, snapshot, imutabilidade |
+| 9 | Evidências | ✅ upload físico, leitura cruzada negada |
+| 10 | Planos | ✅ motor único, três origens, vencido derivado |
+| 11 | Dashboard | ✅ agregações server-side |
+| 12 | Matriz | ✅ dois eixos, quadrantes, sem índice sem ponderação |
+| 13 | CSV | ✅ §14, com injeção neutralizada e conferida no Excel |
+| 14 | **XLSX no Excel REAL** | ✅ §15.1 — `GATE 14 APROVADO` |
+| 15 | **PDF em leitor REAL** | ✅ §15.2 — `GATE 15 APROVADO` |
+| 16 | Segurança (O-16/17/18) | ✅ RLS, negativas por privilégio, wrappers |
+| 17 | **Acessibilidade** | ✅ §15.3 — `GATE 17 APROVADO`, **escopo reduzido a teclado** |
+| 18 | Responsividade 375/768/1366 | ✅ sem rolagem horizontal |
+| 19 | Cutover nulo | ✅ `weekly_audit_cutover_date` = JSON null |
+| 20 | `region_weightings` sem peso empresarial | ✅ 1 linha, **sintética**, marcada como fixture |
+| 21 | Suíte completa | ✅ **2.305 verdes em 136 arquivos** |
+| 22 | Typecheck | ✅ |
+| 23 | Build | ✅ `expo export --platform web` |
+| 24 | Preview não produtivo | ✅ `127.0.0.1:4173`, dado real da homologação |
+| 25 | **Release candidate congelado** | ✅ **1.3.5 · build 9** |
+
+## 17. O release candidate
+
+**Regra aplicada** (contrato da Fase 11, §12): bump para **1.3.5**; `buildNumber` e
+`versionCode` para o **próximo livre** — "esperado 9, VERIFICAR".
+
+**Verificado, não presumido.** A série histórica de `app.json` é monotônica e casada com a
+versão: 1.2.0→3 · 1.3.0→4 · 1.3.1→5 · 1.3.2→6 · 1.3.3→7 · 1.3.4→8. Logo **1.3.5 → 9**.
+
+| Arquivo | De | Para |
+|---|---|---|
+| `app.json` `expo.version` | 1.3.4 | **1.3.5** |
+| `app.json` `ios.buildNumber` | "8" | **"9"** |
+| `app.json` `android.versionCode` | 8 | **9** |
+| `app.json` `extra.release` | 1.3.4 | **1.3.5** |
+| `app.json` `extra.releaseName` | Ambiente e persistência no Perfil | **Gestão Assistida e Auditoria Mensal** |
+| `package.json` · `VERSION` · `release-manifest.json` | 1.3.4 | **1.3.5** |
+| `package-lock.json` | 1.3.2 *(estava defasado)* | **1.3.5** |
+
+**Preservados, como o contrato exige:**
+
+- `REPORT_FORMAT_VERSION = '1.3.3'` — intacta;
+- `MONTHLY_REPORT_FORMAT_VERSION = '1.3.5'` — intacta;
+- `1.3.4-quadrants-1` — **regra de quadrante**, não versão: não foi tocada.
+
+**Revalidação pós-bump:** testes focados 107/107 · suíte **2.305 em 136** · `tsc --noEmit` ✅ ·
+build web ✅ · migrations 51/51 sincronizadas · varredura de segredos limpa · bundle com
+**1 único JWT** (`role: anon`, ref da homologação) e **zero** referências a staging ou produção ·
+tela de login anunciando `VERSÃO 1.3.5`.
+
+## 18. O que continua devido
+
+| Item | Situação |
+|---|---|
+| **Gate 17 · Etapa B** | leitor de tela **não exercitado** — dívida conhecida da 1.3.5 |
+| Backfill do catálogo legado | não executado, conforme proibição ativa |
+| Cutover (A-02) | `weekly_audit_cutover_date` continua **JSON null** |
+| Peso empresarial real (A-04) | não semeado; a ponderação do Norte é **sintética** |
+| Os 40 códigos | não consultados: exigiriam o staging congelado |
+| Quatro drafts de produção (A-03) | produção **não consultada** |
+| A-01 | aberta, e agora **confirmada em runtime** |
+| A-07 | sem mudança |
 
 ## 14. Pendências que a homologação confirmou
 
@@ -360,8 +575,8 @@ Bundle `dist/` servido em `127.0.0.1:4173`. Login real como Coordenador do Norte
 projeto de homologação   qjvpkaurihjvzktlinhp  (51 migrations, Local = Remote)
 staging qcixfsdyfpankpatbays   INTOCADO
 producao plnbgdabciwygsmnyddy  INTOCADA
-versão                   1.3.4 · build 8   (sem bump)
-REPORT_FORMAT_VERSION            1.3.3
+versão                   1.3.5 · build 9   RELEASE CANDIDATE CONGELADA
+REPORT_FORMAT_VERSION            1.3.3   (preservada)
 MONTHLY_REPORT_FORMAT_VERSION    1.3.5
 weekly_audit_cutover_date        JSON null
 region_weightings                1 linha, SINTÉTICA (Norte)
@@ -369,4 +584,9 @@ migrations                       0001–0051 · próximo livre 0052
 testes                           2305 verdes em 136 arquivos
 ```
 
-Sem push. Sem merge. Sem deploy de produção.
+Sem push. Sem merge. Sem deploy de produção. A CLI permanece vinculada à homologação,
+por decisão do proprietário: religá-la ao staging congelado recriaria o risco que
+originou o NO-GO.
+
+**A Fase 12 não pertence a esta sessão** e exige autorização literal do proprietário sobre
+este release candidate.

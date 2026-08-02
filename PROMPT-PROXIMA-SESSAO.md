@@ -1,29 +1,19 @@
-# PROMPT PARA A PRÓXIMA SESSÃO — AAPEx 1.3.5, fechamento dos gates manuais
+# PROMPT PARA A PRÓXIMA SESSÃO — AAPEx 1.3.5, release candidate congelada
 
 > **Antes de colar:** conferir que a árvore está limpa e que `HEAD` local e
 > `origin/aapex-1.3.5-assisted-management-monthly-audit` apontam para o **mesmo** commit.
 
-> ## ✅ A FASE 11 FOI HOMOLOGADA — e o que falta é curto
+> ## ✅ A FASE 11 ESTÁ CONCLUÍDA — release candidate **1.3.5 · build 9**
 >
-> A homologação controlada rodou em **02/08/2026** contra o projeto
-> **AAPEx 1.3.5 Homologacao** (`qjvpkaurihjvzktlinhp`, ca-central-1), provisionado e
-> autorizado pelo proprietário. Os 51 migrations foram aplicados do zero, Local = Remote,
-> e os fluxos foram exercitados em runtime real. Relatório completo em
+> Os **25 gates** do contrato foram cumpridos em **02/08/2026**, incluindo os três gates
+> humanos, executados em aplicativos reais do Windows com confirmação expressa do
+> proprietário. Relatório completo em
 > `docs/architecture/AAPEX-135-FASE-11-HOMOLOGACAO.md`.
 >
 > **O staging `qcixfsdyfpankpatbays` e a produção `plnbgdabciwygsmnyddy` continuam intocados.**
+> A CLI permanece vinculada à homologação `qjvpkaurihjvzktlinhp`, de propósito.
 >
-> **O release candidate NÃO foi congelado.** Faltam três gates que exigem aplicativo de
-> mesa real e que o contrato proíbe declarar sem execução:
->
-> | Gate | O que falta |
-> |---|---|
-> | **14** | abrir o **XLSX no Excel real** |
-> | **15** | abrir o **PDF em leitor real** |
-> | **17** | acessibilidade com **teclado e leitor de tela reais** |
->
-> Enquanto os três não forem cumpridos, **não faça o bump**: o aplicativo continua
-> **1.3.4 · build 8**.
+> **Não há push nem merge.** A branch existe apenas localmente à frente da origem.
 
 ---
 
@@ -33,10 +23,11 @@
 branch     aapex-1.3.5-assisted-management-monthly-audit
 main       8ffc49a  (= origin/main), INTACTA
 árvore     limpa
-versão     1.3.4 · build 8            (SEM bump — gate 25 bloqueado)
+versão     1.3.5 · build 9        RELEASE CANDIDATE CONGELADA
 REPORT_FORMAT_VERSION          1.3.3   (PRESERVAR)
 MONTHLY_REPORT_FORMAT_VERSION  1.3.5
 weekly_audit_cutover_date      JSON null
+region_weightings              1 linha, SINTÉTICA (Norte)
 migrations 0001-0051 · próximo livre 0052
 testes     2305 verdes em 136 arquivos
 homologação  qjvpkaurihjvzktlinhp — 51 migrations, fixture sintética preservada
@@ -48,21 +39,24 @@ homologação  qjvpkaurihjvzktlinhp — 51 migrations, fixture sintética preser
 
 | Prova | Resultado |
 |---|---|
-| Local × Remote | 51/51; COLUMN, ENUM, GRANT, INDEX, **POLICY**, TABLE, TRIGGER e VIEW com **hash idêntico** |
+| Local × Remote | 51/51; nove categorias de catálogo com **hash idêntico** |
+| **Upgrade da 1.3.4** | `0001-0035` + `0036-0051` dá esquema **idêntico** ao do zero |
 | Auth, RLS e isolamento | os quatro papéis, nas duas direções, inclusive Storage |
-| Gestão Assistida | idempotência com **6 aberturas concorrentes**, SEM DADO ≠ zero, fechamento imutável |
-| Auditoria Mensal | evidência física, plano obrigatório, snapshot único, imutabilidade |
+| Gestão Assistida | 6 aberturas concorrentes = 1 ciclo · SEM DADO ≠ zero · fechamento imutável |
+| Auditoria Mensal | evidência física · plano obrigatório · snapshot único · imutabilidade |
 | **A-10** | 66,67 · **denominador zero → NULO** |
 | **A-11** | **72,22** ponderado (aritmética seria 50) · SEM DADO → NULO |
-| **A-06** | Resumo sem ranking, com proveniência das regras |
-| Relatórios | 1.3.3 preservada e **recusando** o modelo mensal; 1.3.5 validada a partir do snapshot |
-| Preview | dado real do novo Supabase, sem erro de console, 375/768/1366 px |
+| **A-06** | Resumo sem ranking, com proveniência e A-04 declarada |
+| CSV / XLSX / PDF | conferidos por humano no **Excel** e no **Adobe Reader** reais |
+| Injeção de fórmula | neutralizada com apóstrofo; o Excel trata como texto |
+| Teclado | percurso funcional completo sem mouse, com diálogo e `Esc` |
 
-## Pendências que continuam abertas
+## Pendências abertas
 
 | # | Pendência |
 |---|---|
-| **A-01** | regra de status para `target_band` — **confirmada em runtime**: o servidor recusa publicá-lo na Gestão Assistida |
+| **Gate 17 · Etapa B** | **leitor de tela NÃO exercitado** — dívida conhecida da 1.3.5 |
+| **A-01** | regra de status para `target_band` — **confirmada em runtime** |
 | **A-02** | data de cutover — continua **nula** |
 | **A-03** | decisão nominal dos quatro drafts de produção |
 | **A-04** | **pesos empresariais reais** — a ponderação da homologação é **sintética** |
@@ -70,28 +64,39 @@ homologação  qjvpkaurihjvzktlinhp — 51 migrations, fixture sintética preser
 | **BACKFILL** | catálogo legado sem configuração regional |
 | **40 códigos** | remedição contra staging — exige a frase literal de autorização |
 
+## A próxima fase é a 12, e ela exige autorização literal
+
+A Fase 12 é **produção e documentação pública**: merge em `main` · migrations em produção ·
+deploy no domínio produtivo · atualização dos **seis artefatos públicos** · decisão nominal dos
+quatro drafts · backfill real · ativação do cutover, se e quando A-02 for definida.
+
+**Ela não começa sem autorização literal do proprietário sobre esta release candidate.**
+
 ---
 
 ## Variante curta
 
 ```
-Continue a AAPEx 1.3.5. A Fase 11 (homologacao controlada) esta CONCLUIDA:
-leia docs/architecture/AAPEX-135-FASE-11-HOMOLOGACAO.md antes de qualquer coisa.
+Continue a AAPEx 1.3.5. A Fase 11 esta CONCLUIDA e a release candidate esta
+CONGELADA em 1.3.5 build 9. Leia
+docs/architecture/AAPEX-135-FASE-11-HOMOLOGACAO.md antes de qualquer coisa.
 
-O que falta para o release candidate sao TRES gates manuais, e so eles:
-  14 - abrir o XLSX no Excel REAL
-  15 - abrir o PDF em leitor REAL
-  17 - acessibilidade com teclado e leitor de tela REAIS
-Se o aplicativo nao estiver disponivel, NAO afirme que abriu: registre como
-pendente. Sem os tres, NAO faca o bump — o app continua 1.3.4 build 8.
+Os 25 gates foram cumpridos em 02/08/2026, inclusive os tres humanos (XLSX no
+Excel real, PDF no Adobe Reader real, acessibilidade). RESSALVA: o gate 17 foi
+aprovado com ESCOPO REDUZIDO A TECLADO — o leitor de tela NAO foi exercitado e
+fica como divida conhecida.
 
-Homologacao ja provisionada: qjvpkaurihjvzktlinhp (51 migrations, fixture
-sintetica preservada, duas Edge Functions publicadas). PROIBIDO tocar o staging
-congelado qcixfsdyfpankpatbays e a producao plnbgdabciwygsmnyddy.
+Homologacao provisionada: qjvpkaurihjvzktlinhp (51 migrations, fixture sintetica
+preservada, duas Edge Functions publicadas, CLI ainda vinculada a ela).
+PROIBIDO tocar o staging congelado qcixfsdyfpankpatbays e a producao
+plnbgdabciwygsmnyddy.
 
 A-05, A-06, A-10 e A-11 estao CONGELADAS e sao canonicas; nao reabrir.
 REPORT_FORMAT_VERSION 1.3.3 preservada; MONTHLY_REPORT_FORMAT_VERSION 1.3.5.
 Cutover NULO. A-01, A-02, A-03, A-04 e A-07 seguem abertas.
+
+A Fase 12 (producao) EXIGE autorizacao literal do proprietario sobre esta
+release candidate. Sem essa frase, nao inicie.
 
 Restricoes: sem merge em main, sem push de main, migrations aditivas, autoria
 exclusiva do proprietario e sem mencao a IA.
