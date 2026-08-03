@@ -192,6 +192,13 @@ ponderada e a aritmética coincidem, e o cenário passaria sem provar a A-11.
 
 ## 7. Reset — `RESETAR_SIMULACAO_AAPEX_135`
 
+> **Estado de execução, sem ambiguidade:** este procedimento **JÁ FOI EXECUTADO**
+> — no **início**, para esvaziar a homologação e abrir espaço para a fixture
+> sintética. Foi ele que removeu a fixture da Fase 11 deste banco.
+>
+> A **limpeza final** do laboratório, essa sim, **NÃO foi executada**: só rodou
+> em dry-run. Ver §12 para a distinção completa entre as duas coisas.
+
 ```powershell
 # dry-run: mostra o que seria removido, não altera nada
 scripts\simulacao\Reset-SimulacaoAAPEx135.ps1
@@ -284,7 +291,7 @@ em toda tela e não depende de sessão, repositório nem rota. Condicionada por
 
 | # | Lacuna | Situação |
 |---|---|---|
-| **L-1** | **Não existe UI administrativa para definir critérios mensais.** Os 26 critérios foram criados por RPC (`catalog_create_criterion` / `catalog_publish_criterion_version`) com o JWT do administrador | **A ausência é de INTERFACE, não de regra.** O administrador **não consegue** configurar critérios pelo aplicativo hoje. Classificado como lacuna funcional para decisão futura; **nada foi implementado nesta branch** |
+| **L-1** | **Não existe UI administrativa para definir critérios mensais.** Os 26 critérios foram criados por RPC (`catalog_create_criterion` / `catalog_publish_criterion_version`) com o JWT do administrador | **PENDENTE — RESSALVA EXPRESSA DO PROPRIETÁRIO (03/08/2026).** Ver §13 |
 | **L-2** | A CLI Supabase reaponta o vínculo para produção sozinha | mitigado pelas três camadas (§2). Vale para **qualquer** sessão futura |
 | **L-3** | String da faixa sobrevive no bundle de produção | §9 — não renderiza; registrado |
 | **L-4** | Restore do backup não ensaiado | §8 |
@@ -313,13 +320,56 @@ o mesmo achado já documentado na Fase 11 §4.
 
 - `main` **não** foi tocada — permanece em `a79a4a0`;
 - nenhum merge, nenhuma tag, nenhum Release;
-- produção e staging **intocados**;
-- **nenhuma limpeza executada.** O reset foi criado e exercitado em dry-run.
+- produção e staging **intocados**.
 
-A limpeza depende da frase literal:
+### Reset inicial × limpeza final — são coisas diferentes
+
+Dizer apenas "nenhuma limpeza executada" seria **impreciso**, e a distinção
+importa para quem for auditar este laboratório depois:
+
+| | Quando | Situação |
+|---|---|---|
+| **Reset inicial** | antes da construção, 03/08/2026 | **EXECUTADO de verdade.** Rodou para esvaziar a homologação e dar lugar à fixture sintética. Removeu a fixture da Fase 11 (293 linhas: 9 identidades, 4 parceiros, 2 auditorias aprovadas, 2 snapshots), preservando migrations, os 12 indicadores canônicos, o marcador e o Storage. Foi **reexecutado** durante a construção, para refazer o provisionamento a partir de base limpa |
+| **Limpeza final** | agora | **APENAS SIMULADA.** Só o modo dry-run foi rodado, para conferir o inventário do que seria removido. **Nada foi apagado.** O laboratório está **íntegro** |
+
+O que autoriza o backup da §8 a existir é exatamente o primeiro: a fixture da
+Fase 11 foi **de fato removida** deste banco, e só sobrevive no backup lógico.
+
+A limpeza final depende da frase literal:
 
 ```
 AUTORIZO LIMPEZA DA SIMULAÇÃO AAPEX 1.3.5
 ```
 
 Nenhuma outra frase autoriza. A aprovação do laboratório **não** autoriza apagá-lo.
+
+---
+
+## 13. Veredito do proprietário — aprovado COM RESSALVA
+
+Em 03/08/2026 o proprietário respondeu:
+
+> `SIMULAÇÃO AAPEX 1.3.5 APROVADA COM RESSALVA L-1.`
+
+**Aprovado:** o conjunto sintético, os cálculos, os históricos e os escopos de
+acesso.
+
+**Ressalva L-1 — o que NÃO pode ser declarado:**
+
+> A configuração dos critérios mensais **pelo administrador através da
+> interface** permanece **PENDENTE** e **não deve ser declarada exercitada**.
+
+Isto vale para todo relatório, resumo ou release note futuro. O que este
+laboratório provou sobre critérios mensais foi:
+
+| Provado | **NÃO provado** |
+|---|---|
+| As **RPCs** de criação e publicação de critério funcionam sob RLS, com o JWT do administrador | Que exista **tela** para o administrador fazer isso |
+| A ordem obrigatória (rascunho → critérios → publicação da config) é imposta pelo servidor | Que um administrador **sem acesso a RPC** consiga configurar critérios |
+| A Auditoria Mensal materializa e pontua corretamente sobre os critérios publicados | Qualquer fluxo de interface para **definir** esses critérios |
+
+Escrever "o administrador configura os critérios mensais" seria afirmar o que
+**ninguém verificou** — e, pior, o que hoje **não é possível pelo aplicativo**.
+
+A auditoria independente que corria em paralelo foi **interrompida por decisão
+do proprietário** e **não** está registrada como concluída nem aprovada.
