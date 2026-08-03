@@ -325,10 +325,45 @@ e porque o Administrador não é quem abre ciclo. Ver §6-A e §7.
 | Auditoria Mensal | **DESLIGADA** — `audit_criteria = 0` |
 | Cutover | **DESATIVADO** — `weekly_audit_cutover_date` JSON null |
 | Ponderação | **VAZIA** — `region_weightings = 0` |
-| Os quatro rascunhos | **INTACTOS** |
-| Auditoria Semanal | **operável** — `weeklyAuditClosed: false` |
+| Os quatro rascunhos de 29/07 | **INTACTOS** — 4, ainda `draft`, respostas inalteradas |
+| Auditoria Semanal | **operável, e agora provado em uso real** — ver §11 |
 | Homologação `qjvpkaurihjvzktlinhp` | **sem nenhuma escrita**; CLI religada a ela ao final |
 | Staging `qcixfsdyfpankpatbays` | **INTOCADO** |
 | Backups | `producao-pre-135-20260802-2013` e `producao-pre-135-ativacao-20260802-2146` (+ espelho) |
 | Credenciais | **nenhuma criada, lida, redefinida ou armazenada** |
 | Fase 13 | **não iniciada** |
+
+---
+
+## 11. Um fato novo durante o smoke, e ele prova mais do que a minha checagem
+
+Às **01:55 UTC de 03/08/2026** (22:55 local), durante o smoke do Administrador, o aplicativo
+**criou uma nova Auditoria Semanal** ao abrir a ficha de um parceiro:
+
+| | |
+|---|---|
+| Evento na trilha | `evaluation.created` · `evaluation` · **success** |
+| Ator | conta de **administrador** |
+| Registro | `Semana de 03/08/2026`, `weekly`, `legacy_template`, **`draft`** |
+| Respostas | **+16** `not_evaluated` (48 → 64) |
+| `audit_logs` | **0 → 1** — o **primeiro evento de trilha que a produção já teve** |
+| `evaluations` | **4 → 5** |
+
+**Não é defeito, e não é efeito do backfill.** É o fluxo legado da Auditoria Semanal fazendo o
+que sempre fez: com `weekly_audit_cutover_date` nulo, `start_evaluation` abre o ciclo semanal
+para quem tem acesso à operação. A guarda de cutover da 0047 é **inerte** enquanto a data for
+nula, e ela é nula por decisão (A-02 = A).
+
+**O que isso melhora no registro:** a minha prova de que "a Auditoria Semanal continua operável"
+era de leitura (`weeklyAuditClosed: false`). Esta é **de uso real, em produção, depois do
+backfill** — mais forte. O backfill não interferiu no caminho legado, como o contrato exigia.
+
+**Os quatro rascunhos originais permanecem intactos**, conforme A-03: seguem 4, ainda em
+`draft`, e as respostas deles não mudaram — as 2 `green` e a 1 `not_applicable` continuam lá.
+As 61 `not_evaluated` são as 45 originais mais as 16 do registro novo.
+
+> **Diferença de permissão que vale registrar:** no fluxo **legado**, `start_evaluation` exige
+> apenas `app.has_operation_access` — por isso um administrador consegue abrir Auditoria
+> Semanal. Na **Gestão Assistida**, `app.is_assisted_operator` exige `channel_manager` com
+> vínculo, e o administrador **não** consegue abrir ciclo. Os dois modelos convivem de
+> propósito, e confundi-los gera falso diagnóstico.

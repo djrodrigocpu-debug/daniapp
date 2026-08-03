@@ -44,7 +44,9 @@ MONTHLY_REPORT_FORMAT_VERSION  1.3.5
 producao      plnbgdabciwygsmnyddy   0001-0051, Local = Remote 51/51
                                      tema GERAL + 13 config. regionais PUBLICADAS
                                      region_weightings 0 · audit_criteria 0
-                                     cutover JSON null · 4 avaliacoes em draft
+                                     cutover JSON null · 5 avaliacoes em draft
+                                     (4 originais de 29/07 + 1 aberta no smoke de 02/08)
+                                     audit_logs = 1 (primeiro evento real da producao)
 homologacao   qjvpkaurihjvzktlinhp   51 migrations, fixture sintetica — CLI vinculada a ela
 staging       qcixfsdyfpankpatbays   CONGELADO e INTOCADO
 ```
