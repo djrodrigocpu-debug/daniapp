@@ -205,14 +205,71 @@ get_weighting_status() -> configured: false · "Ponderacao nao configurada"
 
 ---
 
+## 6-A. Uma região, três unidades — confirmado pelo responsável
+
+Confirmação expressa em 02/08/2026: **não existem regiões separadas; tudo é a mesma região.**
+
+| Unidade | Região | Parceiros |
+|---|---|---|
+| `PR CAPITAL` | `RPS` | 4 |
+| `PR INTERIOR` | `RPS` | 6 |
+| `SANTA CATARINA` | `RPS` | 4 |
+
+**Paraná e Santa Catarina são nomes de UNIDADE, nunca de região.** Isso importa porque a
+configuração operacional da 1.3.5 tem chave `(region_id, indicator_definition_id)` — é **por
+região**. Logo, o único conjunto de 13 configurações publicado atende **as 14 operações**, no PR
+e em SC igualmente. Configurar "por estado" criaria estrutura que o modelo não tem.
+
+### O alcance de cada papel, medido em produção
+
+| Papel | Operações | Configurações | Consultar ciclo |
+|---|---:|---:|---|
+| **Admin** | **14/14** | **13/13** | **global** |
+| Regional | 14/14 | 13/13 | permitido |
+| Coordenador | 4 | 13/13 | só na coordenadoria |
+| Gerente de Canal | 2 | 13/13 | só nos seus parceiros |
+
+> **O Administrador vê tudo, mas não lança nada na Gestão Assistida.**
+> `app.is_assisted_operator` exige papel `channel_manager` **e** vínculo com a operação;
+> `app.is_admin()` **deliberadamente não é atalho**, e isso é testado. Abrir, registrar e fechar
+> ciclo é exclusivo do GC responsável — leitura por `app.has_operation_access`, execução por
+> `app.is_assisted_operator`. Está na Matriz de Permissões §3.
+>
+> **Consequência que gera falso defeito:** um admin que abra a ficha de um parceiro vê o bloco
+> da Gestão Assistida **vazio enquanto nenhum GC tiver aberto o primeiro ciclo**. Não é falha de
+> escopo nem de backfill. Fazer o admin lançar seria a regra de negócio da nota ¹ da matriz —
+> *"ainda não declarada, não presumir"* — e portanto **mudança funcional**, fora da 12-B.
+
+---
+
 ## 7. O que NÃO foi exercitado, e por quê
 
-**A projeção do ciclo da Gestão Assistida em produção.** `get_assisted_cycle` devolve nulo
-porque nenhum ciclo está aberto, e abrir um criaria dado operacional em nome de um gerente de
-canal real — que ninguém pediu. A lógica de projeção está coberta pela suíte automatizada
-contra PGlite com as mesmas migrations; **em produção, quem a exercita é o smoke humano.**
+**A projeção do ciclo da Gestão Assistida em produção, pela interface, com um Gerente de
+Canal.** `get_assisted_cycle` devolve nulo porque `assisted_cycles = 0`, e só o GC responsável
+pode abrir o primeiro ciclo.
 
-Fica declarado como **não exercitado**, não como verde.
+**Limitação declarada pelo responsável em 02/08/2026:** as credenciais dos Gerentes de Canal
+não foram localizadas, e o responsável **não autorizou** redefinir senha de usuário real nem
+criar conta artificial em produção apenas para o teste. A decisão é acertada — as duas
+alternativas eram pior do que a lacuna: uma altera credencial de terceiro, a outra injeta dado
+sintético em base real.
+
+**O que ficou provado no lugar, e o que não ficou:**
+
+| Camada | Situação |
+|---|---|
+| Regra de projeção, cálculo e status | ✅ suíte automatizada, 2.305 testes contra PGlite com as mesmas 51 migrations |
+| Autorização e alcance dos quatro papéis em produção | ✅ por impersonação de papel, com as contas reais |
+| Configuração visível ao GC em produção | ✅ 13/13 lidas com as claims de um GC real |
+| **Abertura e preenchimento de ciclo pela interface, em produção** | ❌ **NÃO EXERCITADO** |
+
+Fica declarado como **não exercitado**, não como verde. **O primeiro ciclo real de Gestão
+Assistida em produção ainda não existe**, e a primeira vez que um GC abrir a tela será a
+primeira execução real desse caminho.
+
+> É o mesmo tipo de lacuna já registrada na 1.3.3, quando o Relatório Oficial em PDF nunca havia
+> rodado sobre dado real de produção. Registrar vale mais do que mascarar: quem ler depois
+> precisa saber que essa prova é devida.
 
 ---
 
@@ -232,3 +289,46 @@ Fica declarado como **não exercitado**, não como verde.
 **A ordem obrigatória foi respeitada:** `BACKFILL → A-04 → A-02 → A-03`. O backfill foi
 executado; as três seguintes foram decididas como *não ativar*, o que é uma decisão tomada, e
 não uma etapa pulada.
+
+---
+
+## 9. Smoke humano
+
+**Caminho A — Administrador**, escolhido pelo responsável. Confirmado em 02/08/2026:
+
+| # | Ponto | Resultado |
+|---|---|---|
+| 1 | Login | ✅ |
+| 2 | **VERSÃO 1.3.5** | ✅ |
+| 3 | Dashboard carrega | ✅ |
+| 4 | As **14 operações** das três unidades | ✅ |
+| 5 | As **13 configurações** | ✅ |
+
+**Confirmação do proprietário:** *"caminho A, admin, tudo feito e ok"*.
+
+Registrado com a redação literal que ele usou — não a frase-modelo `SMOKE ATIVAÇÃO APROVADO`.
+Ele já havia instruído, na mensagem anterior, a concluir a fase depois deste smoke.
+
+**A ausência de ciclo preenchido foi antecipada e aceita** como esperada, por `assisted_cycles = 0`
+e porque o Administrador não é quem abre ciclo. Ver §6-A e §7.
+
+---
+
+## 10. Estado final
+
+| | |
+|---|---|
+| Produção `plnbgdabciwygsmnyddy` | `0001–0051`, Local = Remote **51/51** |
+| Catálogo ativado | tema `GERAL` + **13 configurações** publicadas na região `RPS` |
+| Cobertura | as **14 operações**, nas três unidades |
+| Gestão Assistida | **ATIVA** |
+| Auditoria Mensal | **DESLIGADA** — `audit_criteria = 0` |
+| Cutover | **DESATIVADO** — `weekly_audit_cutover_date` JSON null |
+| Ponderação | **VAZIA** — `region_weightings = 0` |
+| Os quatro rascunhos | **INTACTOS** |
+| Auditoria Semanal | **operável** — `weeklyAuditClosed: false` |
+| Homologação `qjvpkaurihjvzktlinhp` | **sem nenhuma escrita**; CLI religada a ela ao final |
+| Staging `qcixfsdyfpankpatbays` | **INTOCADO** |
+| Backups | `producao-pre-135-20260802-2013` e `producao-pre-135-ativacao-20260802-2146` (+ espelho) |
+| Credenciais | **nenhuma criada, lida, redefinida ou armazenada** |
+| Fase 13 | **não iniciada** |

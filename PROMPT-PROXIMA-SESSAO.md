@@ -18,6 +18,11 @@
 > **Gestão Assistida ATIVA. Auditoria Mensal DESLIGADA. Cutover DESATIVADO.
 > Ponderação VAZIA. Os quatro rascunhos INTACTOS** — tudo por decisão expressa.
 >
+> Smoke pelo **Caminho A (Administrador)**: versão, dashboard, 14 operações e 13
+> configurações confirmados. **LIMITAÇÃO REGISTRADA:** a abertura de ciclo pela interface,
+> com um Gerente de Canal, **NÃO foi exercitada em produção** — credenciais de GC não
+> localizadas, e o responsável não autorizou redefinir senha real nem criar conta sintética.
+>
 > **A Fase 13 NÃO foi iniciada.**
 
 ---
@@ -77,6 +82,7 @@ staging       qcixfsdyfpankpatbays   CONGELADO e INTOCADO
 | **A-01** | regra de status para `target_band` | **inerte**: 10 `higher_better`, 3 `lower_better`, zero `target_band` |
 | **A-07** | autoridade regional | sem mudança |
 | **Gate 17 · Etapa B** | **leitor de tela não exercitado** | dívida conhecida da 1.3.5 |
+| **1º ciclo real** 🔴 | **nunca aberto** | `assisted_cycles = 0`. A abertura pela interface, por um GC, **nunca rodou em produção** |
 | **40 códigos** | remedição | exigiria o staging congelado |
 
 > **A-02, A-03 e A-04 não estão pendentes por esquecimento: foram decididas como
@@ -135,8 +141,11 @@ vazia). Nao sao esquecimento; reabri-las e decisao nova. A-01 esta INERTE (zero
 target_band). O que bloqueia a Auditoria Mensal e a ausencia de CRITERIOS
 mensais, que nao existem em producao.
 
-RESSALVA: o gate 17 Etapa B (leitor de tela) NAO foi exercitado; dispensado
-pelo responsavel. Nao declarar "25/25 sem ressalvas".
+RESSALVAS: o gate 17 Etapa B (leitor de tela) NAO foi exercitado; dispensado
+pelo responsavel. Nao declarar "25/25 sem ressalvas". E a abertura do PRIMEIRO
+CICLO de Gestao Assistida pela interface, com um Gerente de Canal, NUNCA rodou
+em producao (assisted_cycles = 0): o smoke foi pelo Administrador, que consulta
+mas nao lanca. Essa prova continua devida.
 
 Migrations aditivas apenas, proximo numero livre 0052. Autoria exclusiva do
 proprietario e sem mencao a IA. A Fase 13 NAO foi iniciada.
