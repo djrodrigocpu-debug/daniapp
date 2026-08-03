@@ -1,16 +1,17 @@
 # AAPEx 1.3.5 — Fase 12: publicação controlada em produção
 
-> # BANCO DE PRODUÇÃO MIGRADO · 0001–0051 RECONCILIADAS
+> # FASE 12 CONCLUÍDA · AAPEx 1.3.5 PUBLICADA EM PRODUÇÃO
 >
 > As dezesseis migrations pendentes foram aplicadas em `plnbgdabciwygsmnyddy` em
 > 02/08/2026, depois de backup lógico integral verificado. O esquema resultante é
 > **idêntico ao homologado** em dez categorias de catálogo. Nenhuma linha histórica
-> foi alterada.
+> foi alterada. O merge `--no-ff` entrou em `main` (`ba6b7bf`), o deployment de produção
+> está **Ready** e o proprietário confirmou o smoke: **`SMOKE PRODUÇÃO APROVADO`**.
 >
 > **Exceção formal registrada:** `EXCEÇÃO DE ACESSIBILIDADE ACEITA PELO RESPONSÁVEL ·
 > LEITOR DE TELA NÃO EXECUTADO` — ver §9.
 
-Data: 02/08/2026 · branch `aapex-1.3.5-assisted-management-monthly-audit`
+Data: 02/08/2026 · branch `aapex-1.3.5-assisted-management-monthly-audit` → `main`
 
 ---
 
@@ -288,3 +289,147 @@ permanece congelada **com essa exceção formal**. Não se afirma "25/25 sem res
 25 gates fechados, **um deles com escopo reduzido a teclado**.
 
 A dívida continua conhecida, registrada e aberta na 1.3.5.
+
+---
+
+## 10. Git, merge e publicação
+
+| | |
+|---|---|
+| Branch | `aapex-1.3.5-assisted-management-monthly-audit`, pushada em `11a10c7` |
+| Método | `git merge --no-ff`, o padrão do projeto (o mesmo da 1.3.3 em `b35600c`) |
+| Conflitos | **nenhum** |
+| Merge | `ba6b7bf` |
+| `main` | `8ffc49a` → **`ba6b7bf`** = `origin/main` |
+| Diff do merge | 113 arquivos, +35.384 / −79 |
+| Autoria | **61 commits**, autor e committer exclusivamente `djrodrigocpu-debug <djrodrigocpu@gmail.com>` |
+| `Co-authored-by` / menção a IA | **zero ocorrências** em todo o intervalo `8ffc49a..HEAD` |
+| Tag / GitHub Release | **não criadas** — o projeto nunca usou tags (`git tag -l` vazio), logo o contrato não as exige |
+
+### Deployment
+
+| | |
+|---|---|
+| Anterior (1.3.4) | `dpl_FrGVVZUyp4RsW6HxZ5WPkXiv96AL` — preservado como alvo de rollback |
+| Novo | **`dpl_J1WfoeQBFtc6UrBooaEwJxskX1Nh`** · target `production` · **● Ready** |
+| Aliases | `daniapp-gamma.vercel.app` · `daniapp-rodrigocpu-debug.vercel.app` · `daniapp-git-main-rodrigocpu-debug.vercel.app` |
+
+> **O deployment de Preview falhou, e isso é o preflight funcionando.** O ambiente
+> Preview não tem as variáveis `EXPO_PUBLIC_SUPABASE_*` (elas existem só em Production),
+> então `check-build-env.mjs` **interrompe o build**. É o comportamento desenhado, e é
+> anterior a esta fase: os quatro Previews anteriores falharam igual.
+
+---
+
+## 11. Validação automatizada em produção
+
+### O bundle realmente servido
+
+Baixado de `https://daniapp-gamma.vercel.app` — não do `dist/` local.
+
+| Verificação | Resultado |
+|---|---|
+| HTTP | **200** no index e no bundle (2.127.942 bytes) |
+| `plnbgdabciwygsmnyddy` | **1** ocorrência |
+| `qcixfsdyfpankpatbays` · `qjvpkaurihjvzktlinhp` | **0 · 0** |
+| JWTs no bundle inteiro | **exatamente 1** — `{iss: supabase, ref: plnbgdabciwygsmnyddy, role: anon}` |
+| `service_role` como valor | **0** |
+| `version` / `release` | **1.3.5** · `releaseName` "Gestão Assistida e Auditoria Mensal" |
+| `1.3.4` | **ausente** |
+| `MONTHLY_REPORT_FORMAT_VERSION` | `1.3.5` (`linha-por-fato/1.3.5`) |
+| `REPORT_FORMAT_VERSION` | **1.3.3** — preservada no bundle publicado |
+| Superfície 1.3.5 | `open_assisted_cycle`, `start_monthly_audit`, `get_monthly_audit_report_data`, `export_dataset`, `get_dashboard_aggregates`, `get_matrix_dataset`, `sem_dado` — todas presentes |
+
+> **`SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET` e `sb_secret_` aparecem uma vez
+> cada, e nenhum é valor.** Os dois primeiros são a **lista de chaves proibidas** de
+> `assertNoPrivilegedSecrets` (`src/config/env.ts`); o terceiro é o detector de formato
+> de chave do próprio SDK do Supabase. O contexto de cada um foi lido e conferido.
+
+### A página, em execução
+
+| | |
+|---|---|
+| Título e rótulo | `AAPEx` · **`APP MOBILE + WEB · VERSÃO 1.3.5`** |
+| Modo | **`Autenticação corporativa (Supabase)`** — não é demonstração |
+| Console | **nenhum erro** |
+| Rede | 200 em index, bundle, fonte e logo; nenhuma requisição falha |
+
+### Sondas negativas — 16 recusas, e duas declaradas não exercitadas
+
+Por impersonação de papel no banco **e** pela superfície HTTP pública real:
+
+| Sonda | Resultado |
+|---|---|
+| `anon` lê `users` · `evaluations` | **0 de 17** e **0 de 4** linhas reais — RLS provada |
+| `anon` lê `assisted_cycles`, `evaluation_criterion_answers`, `region_weightings` | `42501 permission denied` |
+| `anon` executa `get_dashboard_aggregates`, `get_matrix_dataset`, `export_dataset`, `open_assisted_cycle`, `start_monthly_audit`, `get_monthly_audit_report_data` | `42501 permission denied` nas seis |
+| `authenticated` sem claims em `get_dashboard_aggregates` | `autenticacao obrigatoria` |
+| `authenticated` escreve em `audit_logs`, `official_snapshots`, `system_settings`, `region_weightings` | `42501 permission denied` nas quatro |
+| REST público: `users`, `evaluations`, `operations`, `action_plans` como anon | **`[]` nas quatro**, sobre tabelas com 17, 4, 14 e 1 linhas |
+| Auth com credencial inexistente (`.example`) | **400 `invalid_credentials`** |
+| Signup público | **422 `signup_disabled`** — continua desligado |
+
+> **Duas sondas foram corrigidas por passarem pelo motivo errado, e o registro fica.**
+> A primeira versão do roteiro tratava "anon lê 0 linhas" como defeito; é **recusa
+> legítima por RLS**, e é assim que a Fase 11 §6 já a documentava. A segunda tentava
+> escrever em `audit_logs` informando só `id` e recebia `42804: column` — erro de
+> **tipo**, não de privilégio. Trocada por `insert ... default values`, passou a receber
+> o `42501 permission denied for table audit_logs` que se queria provar.
+
+> **Declarado NÃO EXERCITADO, em vez de verde:** `anon` lendo `audit_logs` e
+> `storage.objects` devolve zero — mas **as duas estão vazias em produção**, então o
+> zero não prova isolamento nenhum. Fica registrado como não exercitado.
+
+> **`buildNumber 9` e `versionCode 9` não são observáveis no bundle web**, porque são
+> campos **nativos** do `app.json` e o export web não os embute. Estão declarados no
+> repositório e valem para a build nativa; afirmar que foram "confirmados em produção
+> pelo navegador" seria falso.
+
+---
+
+## 12. Smoke humano
+
+Único gate humano da fase, com cinco pontos:
+
+1. abrir o aplicativo · 2. fazer login · 3. confirmar **VERSÃO 1.3.5** ·
+4. confirmar que o dashboard carrega · 5. abrir um parceiro e confirmar os dados.
+
+**Confirmação do proprietário: `SMOKE PRODUÇÃO APROVADO`** (02/08/2026).
+
+Excel, PDF, CSV, A-10/A-11 manuais, múltiplos breakpoints, percurso por teclado e leitor
+de tela **não foram repetidos**, por decisão do responsável: já foram exercitados na
+homologação da Fase 11.
+
+---
+
+## 13. Estado final dos três ambientes
+
+| Ambiente | Ref | Estado |
+|---|---|---|
+| **Produção** | `plnbgdabciwygsmnyddy` | **0001–0051**, `migration list` 51/51 sem divergência. **AAPEx 1.3.5 publicada** |
+| Homologação | `qjvpkaurihjvzktlinhp` | **51 migrations, fixture sintética — NENHUMA ESCRITA nesta fase.** A CLI foi religada a ela ao final, apenas como vínculo local |
+| Staging congelado | `qcixfsdyfpankpatbays` | **INTOCADO.** Nunca vinculado, nunca consultado, nunca escrito. A guarda abortou toda tentativa de citá-lo |
+
+| | |
+|---|---|
+| `main` = `origin/main` | **`ba6b7bf`** |
+| branch = `origin/branch` | **`11a10c7`** |
+| Árvore | **limpa** |
+| Versão · build | **1.3.5 · 9** |
+| Backup | `E:\AACE_Backups\producao-pre-135-20260802-2013\` — preservado |
+| Credenciais | **nenhuma criada, lida ou transmitida nesta fase.** Nenhum arquivo novo de credencial foi produzido; `AAPEx-homologacao-acesso.txt` **não** foi usado como fonte para produção |
+| Fase 13 | **não iniciada** |
+
+## 14. O que a próxima sessão precisa decidir
+
+Nada disto é dívida técnica — é **decisão empresarial**, e continua aberta por não haver
+dado aprovado:
+
+1. **BACKFILL** — mapear e publicar, região a região, a configuração operacional dos 13
+   indicadores legados. **Bloqueia o cutover.**
+2. **A-02** — a data de cutover. Só depois do backfill.
+3. **A-03** — decisão nominal de cada um dos 4 drafts.
+4. **A-04** — os pesos empresariais reais por região.
+5. **A-01** e **A-07** — sem mudança.
+6. **Gate 17 · Etapa B** — o leitor de tela continua devido.
+7. **Os 40 códigos** — exigem o staging congelado.

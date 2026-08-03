@@ -1,103 +1,117 @@
-# PROMPT PARA A PRÓXIMA SESSÃO — AAPEx 1.3.5, release candidate congelada
+# PROMPT PARA A PRÓXIMA SESSÃO — AAPEx 1.3.5 PUBLICADA EM PRODUÇÃO
 
-> **Antes de colar:** conferir que a árvore está limpa e que `HEAD` local e
-> `origin/aapex-1.3.5-assisted-management-monthly-audit` apontam para o **mesmo** commit.
+> **Antes de colar:** conferir que a árvore está limpa e que `main` local e
+> `origin/main` apontam para o **mesmo** commit.
 
-> ## ✅ A FASE 11 ESTÁ CONCLUÍDA — release candidate **1.3.5 · build 9**
+> ## ✅ A FASE 12 ESTÁ CONCLUÍDA — **AAPEx 1.3.5 em produção**
 >
-> Os **25 gates** do contrato foram cumpridos em **02/08/2026**, incluindo os três gates
-> humanos, executados em aplicativos reais do Windows com confirmação expressa do
-> proprietário. Relatório completo em
-> `docs/architecture/AAPEX-135-FASE-11-HOMOLOGACAO.md`.
+> Publicada em **02/08/2026**. Migrations `0036–0051` aplicadas em
+> `plnbgdabciwygsmnyddy`, merge `--no-ff` em `main`, deployment **Ready** e smoke do
+> proprietário confirmado (**`SMOKE PRODUÇÃO APROVADO`**).
 >
-> **O staging `qcixfsdyfpankpatbays` e a produção `plnbgdabciwygsmnyddy` continuam intocados.**
-> A CLI permanece vinculada à homologação `qjvpkaurihjvzktlinhp`, de propósito.
+> Relatório completo em `docs/architecture/AAPEX-135-FASE-12-PRODUCAO.md`.
 >
-> **Não há push nem merge.** A branch existe apenas localmente à frente da origem.
+> **A Fase 13 NÃO foi iniciada.**
 
 ---
 
 ## Estado a confirmar
 
 ```
-branch     aapex-1.3.5-assisted-management-monthly-audit
-main       8ffc49a  (= origin/main), INTACTA
+main       ba6b7bf  (= origin/main)     merge --no-ff da branch da 1.3.5
+branch     aapex-1.3.5-assisted-management-monthly-audit  = origin, ponta 11a10c7
 árvore     limpa
-versão     1.3.5 · build 9        RELEASE CANDIDATE CONGELADA
-REPORT_FORMAT_VERSION          1.3.3   (PRESERVAR)
-MONTHLY_REPORT_FORMAT_VERSION  1.3.5
-weekly_audit_cutover_date      JSON null
-region_weightings              1 linha, SINTÉTICA (Norte)
+versão     1.3.5 · build 9              PUBLICADA
 migrations 0001-0051 · próximo livre 0052
 testes     2305 verdes em 136 arquivos
-homologação  qjvpkaurihjvzktlinhp — 51 migrations, fixture sintética preservada
+REPORT_FORMAT_VERSION          1.3.3   (PRESERVAR)
+MONTHLY_REPORT_FORMAT_VERSION  1.3.5
+
+producao      plnbgdabciwygsmnyddy   0001-0051, Local = Remote 51/51
+homologacao   qjvpkaurihjvzktlinhp   51 migrations, fixture sintetica — CLI vinculada a ela
+staging       qcixfsdyfpankpatbays   CONGELADO e INTOCADO
 ```
 
 **Diante de divergência não compreendida: PARE.**
 
-## O que a Fase 11 provou (não repetir)
+## O que a Fase 12 provou (não repetir)
 
 | Prova | Resultado |
 |---|---|
-| Local × Remote | 51/51; nove categorias de catálogo com **hash idêntico** |
-| **Upgrade da 1.3.4** | `0001-0035` + `0036-0051` dá esquema **idêntico** ao do zero |
-| Auth, RLS e isolamento | os quatro papéis, nas duas direções, inclusive Storage |
-| Gestão Assistida | 6 aberturas concorrentes = 1 ciclo · SEM DADO ≠ zero · fechamento imutável |
-| Auditoria Mensal | evidência física · plano obrigatório · snapshot único · imutabilidade |
-| **A-10** | 66,67 · **denominador zero → NULO** |
-| **A-11** | **72,22** ponderado (aritmética seria 50) · SEM DADO → NULO |
-| **A-06** | Resumo sem ranking, com proveniência e A-04 declarada |
-| CSV / XLSX / PDF | conferidos por humano no **Excel** e no **Adobe Reader** reais |
-| Injeção de fórmula | neutralizada com apóstrofo; o Excel trata como texto |
-| Teclado | percurso funcional completo sem mouse, com diálogo e `Esc` |
+| Backup de produção | 52 arquivos, 192 linhas, verificado relendo do disco |
+| **PITR** | **DESABILITADO** e sem backup físico — o export lógico é o único recurso |
+| Migrations em produção | `0036–0051`, `migration list` **51/51 sem divergência** |
+| Esquema × homologado | **idêntico em 10 categorias**, com `c=38 f=116 p=45 u=27` |
+| Dado histórico | **inalterado** — 4 avaliações, 48 respostas, 0 snapshots, 1 plano, 0 trilha |
+| Bundle servido | **1 único JWT** (`ref` de produção, `role: anon`), zero refs proibidos |
+| Página em produção | `VERSÃO 1.3.5` · `Autenticação corporativa (Supabase)` · sem erro |
+| Sondas negativas | 16 recusas; anon lê `[]` via REST em tabelas com 17/4/14/1 linhas |
+| Signup público | **desligado** (`signup_disabled`) |
 
-## Pendências abertas
+## Pendências abertas — todas são DECISÃO EMPRESARIAL
 
-| # | Pendência |
-|---|---|
-| **Gate 17 · Etapa B** | **leitor de tela NÃO exercitado** — dívida conhecida da 1.3.5 |
-| **A-01** | regra de status para `target_band` — **confirmada em runtime** |
-| **A-02** | data de cutover — continua **nula** |
-| **A-03** | decisão nominal dos quatro drafts de produção |
-| **A-04** | **pesos empresariais reais** — a ponderação da homologação é **sintética** |
-| **A-07** | autoridade regional apenas por `user_scopes.region_id` |
-| **BACKFILL** | catálogo legado sem configuração regional |
-| **40 códigos** | remedição contra staging — exige a frase literal de autorização |
+| # | Pendência | Estado em produção |
+|---|---|---|
+| **BACKFILL** 🔴 | configuração regional do catálogo legado | 13 indicadores globais, **0 configurações**. **Bloqueia o cutover** |
+| **A-02** | data de cutover | `weekly_audit_cutover_date` = **JSON null** |
+| **A-03** | decisão nominal dos 4 drafts | 4 avaliações em `draft`, **intactas** |
+| **A-04** | pesos empresariais reais | `region_weightings` **vazia** |
+| **A-01** | regra de status para `target_band` | aberta, com falha explícita |
+| **A-07** | autoridade regional | sem mudança |
+| **Gate 17 · Etapa B** | **leitor de tela não exercitado** | dívida conhecida da 1.3.5 |
+| **40 códigos** | remedição | exigiria o staging congelado |
 
-## A próxima fase é a 12, e ela exige autorização literal
+> **Nada disso pode ser arbitrado.** Tema, meta, tolerância, peso, ordem, flags de módulo
+> e critérios são decisão de cada região. Um backfill inventado produziria uma operação
+> que ninguém aprovou, com aparência de configurada.
 
-A Fase 12 é **produção e documentação pública**: merge em `main` · migrations em produção ·
-deploy no domínio produtivo · atualização dos **seis artefatos públicos** · decisão nominal dos
-quatro drafts · backfill real · ativação do cutover, se e quando A-02 for definida.
+## Ordem obrigatória, se a próxima sessão for ativar a 1.3.5
 
-**Ela não começa sem autorização literal do proprietário sobre esta release candidate.**
+```
+1. BACKFILL (mapeamento nominal, região a região, publicado)
+2. A-04  (pesos reais)      -> sem ele nao ha indice ponderado
+3. A-02  (data de cutover)  -> so DEPOIS do backfill
+4. A-03  (os quatro drafts, um a um)
+```
+
+Desligar a Auditoria Semanal antes do backfill deixaria as regiões **sem indicador
+operável nenhum**.
+
+## Restrições permanentes
+
+- **Staging `qcixfsdyfpankpatbays` continua CONGELADO.** Não vincular, não consultar.
+- Migrations **aditivas** apenas; próximo número livre **0052**.
+- Autoria exclusiva `djrodrigocpu-debug <djrodrigocpu@gmail.com>`; **nenhuma menção a IA**.
+- Sem force-push, sem rebase, sem amend, sem reescrita de histórico.
+- `REPORT_FORMAT_VERSION 1.3.3` **preservada**; `MONTHLY_REPORT_FORMAT_VERSION 1.3.5`.
+- **RT-16:** `score` é **anulável**. Todo `Number(score)` sem checar `null` reintroduz o
+  defeito que a 1.3.5 existe para eliminar.
 
 ---
 
 ## Variante curta
 
 ```
-Continue a AAPEx 1.3.5. A Fase 11 esta CONCLUIDA e a release candidate esta
-CONGELADA em 1.3.5 build 9. Leia
-docs/architecture/AAPEX-135-FASE-11-HOMOLOGACAO.md antes de qualquer coisa.
+Continue a AAPEx 1.3.5. A FASE 12 esta CONCLUIDA: a 1.3.5 esta PUBLICADA EM
+PRODUCAO desde 02/08/2026. Leia
+docs/architecture/AAPEX-135-FASE-12-PRODUCAO.md antes de qualquer coisa.
 
-Os 25 gates foram cumpridos em 02/08/2026, inclusive os tres humanos (XLSX no
-Excel real, PDF no Adobe Reader real, acessibilidade). RESSALVA: o gate 17 foi
-aprovado com ESCOPO REDUZIDO A TECLADO — o leitor de tela NAO foi exercitado e
-fica como divida conhecida.
+main = origin/main = ba6b7bf. Producao plnbgdabciwygsmnyddy em 0001-0051,
+Local = Remote 51/51. Deployment Ready, smoke do proprietario aprovado.
+Backup em E:\AACE_Backups\producao-pre-135-20260802-2013 (PITR DESABILITADO —
+esse export e o unico recurso de recuperacao).
 
-Homologacao provisionada: qjvpkaurihjvzktlinhp (51 migrations, fixture sintetica
-preservada, duas Edge Functions publicadas, CLI ainda vinculada a ela).
-PROIBIDO tocar o staging congelado qcixfsdyfpankpatbays e a producao
-plnbgdabciwygsmnyddy.
+PROIBIDO tocar o staging congelado qcixfsdyfpankpatbays. A CLI ficou vinculada
+a homologacao qjvpkaurihjvzktlinhp, sem nenhuma escrita.
 
-A-05, A-06, A-10 e A-11 estao CONGELADAS e sao canonicas; nao reabrir.
-REPORT_FORMAT_VERSION 1.3.3 preservada; MONTHLY_REPORT_FORMAT_VERSION 1.3.5.
-Cutover NULO. A-01, A-02, A-03, A-04 e A-07 seguem abertas.
+CONTINUAM ABERTAS, e sao DECISAO EMPRESARIAL, nao divida tecnica: o BACKFILL do
+catalogo legado (13 indicadores globais, 0 configuracoes regionais), A-02
+(cutover segue JSON null), A-03 (4 drafts intactos), A-04 (ponderacao vazia),
+A-01 e A-07. A ordem obrigatoria e BACKFILL -> A-04 -> A-02 -> A-03.
 
-A Fase 12 (producao) EXIGE autorizacao literal do proprietario sobre esta
-release candidate. Sem essa frase, nao inicie.
+RESSALVA: o gate 17 Etapa B (leitor de tela) NAO foi exercitado; dispensado
+pelo responsavel. Nao declarar "25/25 sem ressalvas".
 
-Restricoes: sem merge em main, sem push de main, migrations aditivas, autoria
-exclusiva do proprietario e sem mencao a IA.
+Migrations aditivas apenas, proximo numero livre 0052. Autoria exclusiva do
+proprietario e sem mencao a IA. A Fase 13 NAO foi iniciada.
 ```
