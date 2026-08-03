@@ -56,7 +56,14 @@ describe('caminho até a tela', () => {
     // E o legado não se apresenta como "Auditoria semanal", que confundiria
     // com a Gestão Assistida.
     expect(detalhe).not.toMatch(/title="Auditoria semanal"/);
-    expect(detalhe).toMatch(/title="Checklist semanal legado"/);
+    // ATUALIZADO NA FASE 12-B (02/08/2026): o botão "Checklist semanal legado"
+    // era exigido aqui enquanto o modelo legado estava em operação. Ele foi
+    // REMOVIDO junto com o mensal, por decisão do proprietário — o cutover da
+    // 0052 fecha as duas frequências no servidor. A terminologia que sobrevive
+    // é a do HISTÓRICO, que continua visível e somente leitura.
+    // A ausência dos botões é medida em `legacyCheckoutRemoved.test.ts`.
+    expect(detalhe).not.toMatch(/title="Checklist semanal legado"/);
+    expect(detalhe).not.toMatch(/title="Checklist mensal legado"/);
   });
 
   it('O-12 no bloco LEGADO: todo item listado tem ação, inclusive o aprovado', () => {

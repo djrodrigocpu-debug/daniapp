@@ -281,3 +281,70 @@ hexadecimal. Um segundo registrador daria dois eventos para o mesmo fato.
 **Todas as recusas destas fases foram medidas com retrato do banco antes e depois** — nas baterias
 `weekly_audit_cutover`, `dashboard_matrix_weighting` e `export_dataset`. E a bateria da Fase 6 foi
 **estendida** para cobrir a superfície nova: **13 tabelas e 32 RPCs**, e não uma bateria paralela.
+
+---
+
+## 12. Matriz — Auditoria Semanal/Mensal LEGADA (lacuna fechada em 02/08/2026)
+
+**Esta seção nasceu de um defeito real.** Até 02/08/2026 esta matriz cobria catálogo, Gestão
+Assistida, Auditoria Mensal, planos e painel — e **não tinha uma linha sequer sobre o modelo
+legado**. Quando um clique de administrador criou uma avaliação em produção, não havia
+documento contra o qual confrontar o comportamento. A regra existia só no código, desde as
+migrations `0006` e `0031`.
+
+### O que a regra SEMPRE foi, e ninguém tinha escrito
+
+| Ação | ADMIN | REGIONAL | COORDENADOR | GC |
+|---|---|---|---|---|
+| Iniciar checklist legado (`start_evaluation`) | ✅¹ | ✅¹ | ✅¹ | ✅¹ |
+| Responder itens | ✅¹ | ✅¹ | ✅¹ | ✅¹ |
+| Enviar (`submit_evaluation`) | ✅¹ | ✅¹ | ✅¹ | ✅¹ |
+| Validar (`validate_evaluation`) | ✅¹ | ✅¹ | ✅¹ | ❌ auto-validação |
+| Consultar histórico | ✅ global | ✅ região | ✅ coordenação | ✅ seus parceiros |
+
+¹ *A guarda é `app.has_operation_access(operation_id)` — **alcance da operação**, e nada mais.
+Diferente da Gestão Assistida, o modelo legado **nunca** exigiu papel específico para iniciar.*
+
+> **O contraste que gera falso diagnóstico, e vale decorar:**
+>
+> | | Iniciar exige | Consequência |
+> |---|---|---|
+> | **Legado** | `has_operation_access` | o **admin abre** checklist |
+> | **Gestão Assistida** | `is_assisted_operator` (papel `channel_manager` **+** vínculo) | o **admin NÃO abre** ciclo |
+>
+> Os dois modelos convivem de propósito. Confundi-los faz um bloco vazio na tela do
+> administrador parecer defeito de escopo, quando é a regra funcionando.
+
+### O estado a partir de 02/08/2026
+
+**O modelo legado está FECHADO.** A migration `0052` estende o cutover às duas frequências e
+remove a cláusula de escape: `start_evaluation` recusa **qualquer** abertura nova, para
+**qualquer** papel, com
+
+```
+modelo legado encerrado em 02/08/2026: use a Gestao Assistida (semanal)
+ou a Auditoria Mensal por criterios
+```
+
+Medido em produção: **4 recusas em 4 tentativas** — administrador e gerente de canal, semanal e
+mensal.
+
+**A consulta ao histórico permanece**, com o mesmo alcance da tabela acima. Desligar não é
+apagar.
+
+### Expurgo administrativo — permissão nova da 0052
+
+| Ação | ADMIN | REGIONAL | COORDENADOR | GC | anon |
+|---|---|---|---|---|---|
+| `admin_purge_legacy_evaluations` | ✅ | ❌ | ❌ | ❌ | ❌ sem grant |
+
+E o administrador **também é recusado** se houver qualquer avaliação fora de rascunho,
+snapshot oficial, validação, diagnóstico, arquivo de evidência ou plano vinculado. **A
+permissão não basta: o estado precisa autorizar.** Provado em homologação, onde a RPC recusou
+por existirem 2 aprovadas.
+
+### A lacuna que continua aberta
+
+Se o modelo legado for algum dia **reaberto**, a pergunta *"quem deveria poder iniciar
+checklist legado?"* volta — e ela **nunca foi decidida empresarialmente**, só herdada do
+código. Não reabrir sem decidir.

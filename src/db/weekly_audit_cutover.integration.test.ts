@@ -214,7 +214,7 @@ describe('Fase 7 — cutover parametrizável, criado e NÃO ativado (0047)', () 
       await configurar(-1, true);
       const m = await recusaSemEfeito(() =>
         rpc(ID.uGcA, `select public.start_evaluation($1,$2,$3) as r`, [ID.opA, 'weekly', ID.uGcA]));
-      expect(m).toMatch(/^auditoria semanal encerrada em \d{2}\/\d{2}\/\d{4}: registre a semana pela Gestao Assistida$/);
+      expect(m).toMatch(/^modelo legado encerrado em \d{2}\/\d{2}\/\d{4}: use a Gestao Assistida \(semanal\) ou a Auditoria Mensal por criterios$/);
 
       await configurar(null);
       expect(await valorCru()).toBeNull();
@@ -224,40 +224,43 @@ describe('Fase 7 — cutover parametrizável, criado e NÃO ativado (0047)', () 
       await configurar(0, true);
       const m = await recusaSemEfeito(() =>
         rpc(ID.uGcA, `select public.start_evaluation($1,$2,$3) as r`, [ID.opA, 'weekly', ID.uGcA]));
-      expect(m).toMatch(/^auditoria semanal encerrada em /);
+      expect(m).toMatch(/^modelo legado encerrado em /);
 
       await configurar(null);
     });
 
-    it('RASCUNHO semanal existente continua abrindo — nenhum draft fica órfão', async () => {
+    it('RASCUNHO semanal existente TAMBEM e recusado — a clausula de escape saiu na 0052', async () => {
       const antes = await rpc<{ id: string }>(
         ID.uGcA, `select public.start_evaluation($1,$2,$3) as r`, [ID.opA, 'weekly', ID.uGcA]);
+      expect(antes.id).toBeTruthy();
 
       await configurar(-1, true);
 
-      const depois = await rpc<{ id: string; status: string }>(
-        ID.uGcA, `select public.start_evaluation($1,$2,$3) as r`, [ID.opA, 'weekly', ID.uGcA]);
-      expect(depois.id).toBe(antes.id);
-      expect(depois.status).toBe('draft');
-
-      // E a operação SEM rascunho, na mesma configuração, é recusada — a guarda
-      // não virou inerte, ela só respeita a idempotência.
+      // ANTES da 0052 este caminho passava, para nao orfanar rascunho. A decisao
+      // de 02/08/2026 (Fase 12-B, opcao 4) EXPURGA os rascunhos e exige impedir
+      // "a abertura de QUALQUER novo checklist legado" — entao o escape saiu.
       const m = await recusaSemEfeito(() =>
-        rpc(ID.uGcB, `select public.start_evaluation($1,$2,$3) as r`, [ID.opB, 'weekly', ID.uGcB]));
-      expect(m).toMatch(/^auditoria semanal encerrada em /);
+        rpc(ID.uGcA, `select public.start_evaluation($1,$2,$3) as r`, [ID.opA, 'weekly', ID.uGcA]));
+      expect(m).toMatch(/^modelo legado encerrado em /);
+
+      // E o rascunho que ja existia continua LA, legivel: fechar a porta nao
+      // apaga nada. Quem apaga e o expurgo administrativo, e so sob pedido.
+      const ainda = await db.query<{ n: number }>(
+        `select count(*)::int as n from public.evaluations where id = $1`, [antes.id]);
+      expect(ainda[0].n).toBe(1);
 
       await configurar(null);
     });
 
-    it('avaliação semanal DEVOLVIDA também continua abrindo', async () => {
+    it('avaliação semanal DEVOLVIDA também é recusada depois do cutover', async () => {
       const ev = await rpc<{ id: string }>(
         ID.uGcA, `select public.start_evaluation($1,$2,$3) as r`, [ID.opA, 'weekly', ID.uGcA]);
       await db.exec(`update public.evaluations set status='returned' where id='${ev.id}'`);
 
       await configurar(-1, true);
-      const de = await rpc<{ id: string }>(
-        ID.uGcA, `select public.start_evaluation($1,$2,$3) as r`, [ID.opA, 'weekly', ID.uGcA]);
-      expect(de.id).toBe(ev.id);
+      const m = await recusaSemEfeito(() =>
+        rpc(ID.uGcA, `select public.start_evaluation($1,$2,$3) as r`, [ID.opA, 'weekly', ID.uGcA]));
+      expect(m).toMatch(/^modelo legado encerrado em /);
 
       await configurar(null);
     });
@@ -277,11 +280,15 @@ describe('Fase 7 — cutover parametrizável, criado e NÃO ativado (0047)', () 
       await configurar(null);
     });
 
-    it('MONTHLY nunca é afetado, nem com a data vencida', async () => {
+    it('MONTHLY legado TAMBEM e recusado — a 0052 fecha as DUAS frequencias', async () => {
+      // Ate a 0051 a guarda so olhava `weekly`, porque D5 falava da "Auditoria
+      // Semanal". A decisao de 02/08/2026 tira o MODELO LEGADO INTEIRO de
+      // operacao, e um cutover que fechasse so a semanal deixaria o checklist
+      // mensal legado aberto.
       await configurar(-1, true);
-      const ev = await rpc<{ frequency: string }>(
-        ID.uGcA, `select public.start_evaluation($1,$2,$3) as r`, [ID.opA, 'monthly', ID.uGcA]);
-      expect(ev.frequency).toBe('monthly');
+      const m = await recusaSemEfeito(() =>
+        rpc(ID.uGcA, `select public.start_evaluation($1,$2,$3) as r`, [ID.opA, 'monthly', ID.uGcA]));
+      expect(m).toMatch(/^modelo legado encerrado em /);
 
       await configurar(null);
     });

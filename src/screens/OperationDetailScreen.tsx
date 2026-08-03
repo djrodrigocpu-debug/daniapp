@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { alertDialog } from '../utils/dialog';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
@@ -22,7 +21,7 @@ import { formatDate, getMaturity, trafficLightColor } from '../utils/format';
 
 export function OperationDetailScreen({ route, navigation }: NativeStackScreenProps<RootStackParamList, 'OperationDetail'>) {
   const { operationId } = route.params;
-  const { listByOperation, startEvaluation, getCurrentDraft } = useEvaluations();
+  const { listByOperation } = useEvaluations();
   // A identidade canônica é public.operations.id, e é `useOperations()` (via
   // `ui_operations`) quem a busca de verdade — a mesma fonte que já preenche a
   // lista. `EvaluationsProvider.getOperation` lê do store local de
@@ -88,15 +87,13 @@ export function OperationDetailScreen({ route, navigation }: NativeStackScreenPr
   const activeOperation = operation;
   const delta = activeOperation.currentScore - activeOperation.previousScore;
 
-  async function launch(frequency: 'weekly' | 'monthly') {
-    const existing = getCurrentDraft(activeOperation.id);
-    if (existing && existing.frequency !== frequency) {
-      alertDialog('Rascunho existente', 'Há uma avaliação em andamento para este Parceiro AACE. Finalize ou envie o rascunho atual antes de iniciar outro ciclo.');
-      return;
-    }
-    const id = await startEvaluation(activeOperation.id, frequency);
-    if (id) navigation.navigate('Evaluation', { operationId: activeOperation.id, evaluationId: id });
-  }
+  // Os botões "Checklist semanal legado" e "Checklist mensal legado" foram
+  // REMOVIDOS na Fase 12-B (02/08/2026). O modelo legado saiu de operação: a
+  // semana é registrada pela Gestão Assistida e o mês pela Auditoria Mensal por
+  // critérios. O servidor recusa a abertura pelo cutover da 0052 — a interface
+  // não é a guarda, só deixa de oferecer o caminho.
+  //
+  // O histórico legado continua VISÍVEL logo abaixo, e continua somente leitura.
 
   return (
     <Screen>
@@ -207,12 +204,6 @@ export function OperationDetailScreen({ route, navigation }: NativeStackScreenPr
           Não se confunde com a Gestão Assistida nem com a Auditoria Mensal.
         </Text>
       </View>
-      <SectionTitle title="Checklists do modelo legado" subtitle="Permanecem disponíveis para os processos de excelência enquanto o cutover não ocorrer." />
-      <View style={styles.buttonRow}>
-        <AppButton title="Checklist semanal legado" onPress={() => void launch('weekly')} style={styles.flexButton} />
-        <AppButton title="Checklist mensal legado" onPress={() => void launch('monthly')} variant="secondary" style={styles.flexButton} />
-      </View>
-
       <SectionTitle title="Histórico legado recente" subtitle="Ciclos do modelo anterior registrados para este Parceiro AACE." />
       {history.length ? history.map((evaluation) => (
         <View key={evaluation.id} style={styles.historyCard}>
@@ -293,12 +284,6 @@ const styles = StyleSheet.create({
   infoText: { flex: 1 },
   infoLabel: { color: colors.inkMuted, fontSize: 11 },
   infoValue: { color: colors.ink, fontSize: 13, fontWeight: '700', marginTop: 3 },
-  // `flexWrap` é o que impede a linha de estourar a viewport a 375 px: os dois
-  // botões passam a empilhar em vez de forçar rolagem horizontal do documento.
-  buttonRow: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginBottom: spacing.xl,
-  },
-  flexButton: { flex: 1 },
   historyCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.md },
   historyTop: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md },
   historyTitle: { color: colors.ink, fontSize: 15, fontWeight: '800' },

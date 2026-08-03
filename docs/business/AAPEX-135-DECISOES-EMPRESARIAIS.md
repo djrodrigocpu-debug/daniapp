@@ -449,3 +449,82 @@ não são nomeadas aqui: nome de parceiro é dado real e não se versiona.
 **A-07** (autoridade regional) — sem mudança.
 **Critérios da Auditoria Mensal** — não definidos; bloqueiam M=B.
 **Os 40 códigos** — não necessários à ativação; não foram criados preventivamente.
+
+---
+
+## 10. Fase 12-B, segunda rodada — o modelo legado sai de operação (02/08/2026)
+
+**Esta seção SUPERSEDE A-02 e A-03 da §9, no mesmo dia.** O registro anterior fica como
+está: a decisão mudou por um fato novo, e apagar o histórico da decisão seria pior do que
+mostrar a virada.
+
+### O fato novo
+
+No smoke do Administrador, um clique no botão **"Checklist semanal legado"** gravou em
+produção uma avaliação, 16 respostas e o primeiro evento de trilha que aquele banco já
+teve. O proprietário rejeitou — corretamente — a leitura de que isso fosse "prova
+positiva" e mandou apurar.
+
+**A apuração desmentiu parte do diagnóstico inicial e confirmou o resto:**
+
+| Hipótese | Veredito |
+|---|---|
+| "a navegação/consulta grava" | **FALSO** — os dois `useEffect` da ficha só leem |
+| "o botão cria sem confirmação" | **VERDADEIRO** — criava na hora, e o rótulo parecia navegação |
+| "o admin não podia criar" | **PARCIAL** — o sistema autoriza desde a `0006`/`0031`; nenhum documento declarava |
+
+Descobriu-se também que **a Matriz de Permissões nunca teve seção para a Auditoria
+Semanal legada** — a linha "consultar global" que se citou era da Gestão Assistida.
+
+### A decisão — opção 4
+
+O proprietário escolheu **tirar o modelo legado de operação e começar com zero dado
+operacional de avaliação**:
+
+| # | Decisão | Como foi materializada |
+|---|---|---|
+| 1 | Desligar os checklists legados **semanal e mensal** | cutover ativado em **02/08/2026**, fuso `America/Sao_Paulo` |
+| 2 | Impedir a abertura de qualquer novo checklist legado | migration **0052** estende a guarda às **duas** frequências e **remove a cláusula de escape** |
+| 3 | Remover os dois botões da interface | `OperationDetailScreen` — botões e função `launch` excluídos |
+| 4 | Limpar as 5 avaliações e as 64 respostas | RPC **`admin_purge_legacy_evaluations`**, auditada |
+| 5 | Começar com zero dado operacional | `evaluations = 0`, `evaluation_answers = 0` |
+| 6 | Gestão Assistida disponível, Mensal desligada | inalterado: 13 configurações ativas, `audit_criteria = 0` |
+
+**Preservado por exigência expressa:** tabelas, catálogo legado (1 modelo, 1 versão, 24
+itens), migrations, estrutura histórica, plano de ação legado, medições e resultados.
+**Nenhuma remoção física de tabela. Nenhuma reestruturação de esquema.**
+
+### O que tornou o expurgo aceitável, e foi medido antes
+
+```
+avaliacoes fora de rascunho .... 0      snapshots oficiais ... 0
+validacoes ..................... 0      diagnosticos ......... 0
+arquivos de evidencia .......... 0      vinculos evidencia ... 0
+planos vinculados a avaliacao .. 0      objetos no Storage ... 0
+```
+
+**Nenhuma auditoria legada jamais foi concluída nesta produção.** O expurgo não destruiu
+resultado oficial algum, porque nunca houve nenhum. Se houvesse, a própria RPC teria
+recusado — e recusou, de fato, em homologação, onde existem 2 aprovadas e 2 snapshots.
+
+### A trilha não foi apagada
+
+`audit_logs.object_id` é `text` **sem FK**, então o evento `evaluation.created` do smoke
+**sobreviveu** ao expurgo. A produção terminou com **três** eventos, e não com zero:
+
+```
+evaluation.created          (02/08 22:55)  — preservado
+weekly_audit_cutover_set    (02/08 23:43)
+legacy_evaluations_purged   (02/08 23:44)  — motivo, 5 apagadas, 64 respostas,
+                                             ids, fuso e ator administrador
+```
+
+### A-01 e A-07
+
+Sem mudança. **A-01 segue inerte** (zero `target_band`).
+
+### O que NÃO foi decidido, e continua aberto
+
+**Quem pode iniciar avaliação no modelo legado** deixou de ser questão prática — o modelo
+está fechado. Mas a **lacuna documental permanece**: se um dia o legado for reaberto, a
+Matriz precisa declarar o que nunca declarou. Fica registrado em §11 da Matriz.
