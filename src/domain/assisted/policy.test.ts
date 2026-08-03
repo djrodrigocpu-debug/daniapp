@@ -121,17 +121,37 @@ describe('a semana empresarial', () => {
 });
 
 describe('regra de status — a tabela de D2, literal', () => {
+  /**
+   * A TOLERÂNCIA É PORCENTAGEM DA META, e este bloco existe para que isso não
+   * volte a se perder. A 1.3.5 nasceu tratando o campo como valor absoluto —
+   * defeito corrigido na 0053 e aqui.
+   *
+   * Os limites abaixo são calculados, não decorados:
+   *   higher_better meta 80 tol 5   ->  80 × 0,95 = 76
+   *   lower_better  meta 10 tol 2   ->  10 × 1,02 = 10,2
+   */
   const casos: Array<[Parameters<typeof statusOf>[0], number, number, number, AssistedIndicatorStatus]> = [
     ['higher_better', 80, 5, 85, 'conforme'],
     ['higher_better', 80, 5, 80, 'conforme'],
     ['higher_better', 80, 5, 79.9, 'atencao'],
-    ['higher_better', 80, 5, 75, 'atencao'],
-    ['higher_better', 80, 5, 74.9, 'nao_conforme'],
+    ['higher_better', 80, 5, 76, 'atencao'],
+    ['higher_better', 80, 5, 75.9, 'nao_conforme'],
+    // O caso que o defeito acertava por acaso: 75 é "atenção" na regra
+    // absoluta (80 − 5) e "não conforme" na regra correta (abaixo de 76).
+    ['higher_better', 80, 5, 75, 'nao_conforme'],
     ['lower_better', 10, 2, 8, 'conforme'],
     ['lower_better', 10, 2, 10, 'conforme'],
     ['lower_better', 10, 2, 10.1, 'atencao'],
-    ['lower_better', 10, 2, 12, 'atencao'],
-    ['lower_better', 10, 2, 12.1, 'nao_conforme'],
+    ['lower_better', 10, 2, 10.2, 'atencao'],
+    ['lower_better', 10, 2, 10.3, 'nao_conforme'],
+    // Idem, do outro lado: 12 era "atenção" com a regra absoluta (10 + 2).
+    ['lower_better', 10, 2, 12, 'nao_conforme'],
+    // Tolerância zero: não existe faixa amarela.
+    ['higher_better', 50, 0, 49.9, 'nao_conforme'],
+    ['lower_better', 50, 0, 50.1, 'nao_conforme'],
+    // Meta zero: percentual de zero é zero, então a faixa amarela some.
+    ['higher_better', 0, 10, 0, 'conforme'],
+    ['higher_better', 0, 10, -0.1, 'nao_conforme'],
   ];
 
   it.each(casos)('%s meta=%d tol=%d realizado=%d → %s', (dir, t, tol, act, esperado) => {
@@ -348,5 +368,28 @@ describe('agrupamento e resumo', () => {
       { ...base, status: 'nao_conforme' },
     ]);
     expect(counts).toEqual({ conforme: 2, atencao: 0, nao_conforme: 1, sem_dado: 0 });
+  });
+});
+
+describe('o catálogo real de produção, com os números que o defeito errava', () => {
+  /**
+   * Estes dois indicadores são os que mais expunham o defeito. Ficam aqui com
+   * os valores REAIS publicados em produção, para que qualquer volta à regra
+   * absoluta apareça imediatamente.
+   */
+  it('IND-001 BL na Renovação — meta 30, tolerância 10 (limite 27)', () => {
+    expect(statusOf('higher_better', 30, 10, 30)).toBe('conforme');
+    expect(statusOf('higher_better', 30, 10, 27)).toBe('atencao');
+    expect(statusOf('higher_better', 30, 10, 26.9)).toBe('nao_conforme');
+    // A regra absoluta aceitaria 20 como "atenção". A correta, não.
+    expect(statusOf('higher_better', 30, 10, 20)).toBe('nao_conforme');
+  });
+
+  it('IND-006 Churn — meta 1, tolerância 20 (limite 1,2)', () => {
+    expect(statusOf('lower_better', 1, 20, 1)).toBe('conforme');
+    expect(statusOf('lower_better', 1, 20, 1.2)).toBe('atencao');
+    expect(statusOf('lower_better', 1, 20, 1.3)).toBe('nao_conforme');
+    // O caso mais grave do defeito: 15% de churn era classificado "atenção".
+    expect(statusOf('lower_better', 1, 20, 15)).toBe('nao_conforme');
   });
 });

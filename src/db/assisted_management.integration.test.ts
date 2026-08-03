@@ -398,17 +398,28 @@ describe('Gestão Assistida — ciclo semanal (0039–0041)', () => {
 
   // -------------------------------------------------------------------------
   describe('cálculo do status', () => {
+    // A TOLERÂNCIA É PORCENTAGEM DA META (0053). Limites calculados:
+    //   higher_better meta 80 tol 5  ->  80 × 0,95 = 76
+    //   lower_better  meta 10 tol 2  ->  10 × 1,02 = 10,2
     const casos: Array<[string, number, number, number, string]> = [
       ['higher_better', 80, 5, 85, 'conforme'],
       ['higher_better', 80, 5, 80, 'conforme'],
       ['higher_better', 80, 5, 76, 'atencao'],
-      ['higher_better', 80, 5, 75, 'atencao'],
-      ['higher_better', 80, 5, 74.9, 'nao_conforme'],
+      ['higher_better', 80, 5, 75.9, 'nao_conforme'],
+      // 75 era "atenção" na regra absoluta (80 − 5). Não é mais.
+      ['higher_better', 80, 5, 75, 'nao_conforme'],
       ['lower_better', 10, 2, 8, 'conforme'],
       ['lower_better', 10, 2, 10, 'conforme'],
-      ['lower_better', 10, 2, 11, 'atencao'],
-      ['lower_better', 10, 2, 12, 'atencao'],
-      ['lower_better', 10, 2, 12.1, 'nao_conforme'],
+      ['lower_better', 10, 2, 10.2, 'atencao'],
+      ['lower_better', 10, 2, 10.3, 'nao_conforme'],
+      // 11 e 12 eram "atenção" na regra absoluta (10 + 2). Não são mais.
+      ['lower_better', 10, 2, 11, 'nao_conforme'],
+      ['lower_better', 10, 2, 12, 'nao_conforme'],
+      // O catálogo real de produção, onde o defeito era mais grave.
+      ['higher_better', 30, 10, 27, 'atencao'],
+      ['higher_better', 30, 10, 20, 'nao_conforme'],
+      ['lower_better', 1, 20, 1.2, 'atencao'],
+      ['lower_better', 1, 20, 15, 'nao_conforme'],
     ];
 
     it.each(casos)('%s meta=%d tol=%d realizado=%d → %s', async (dir, t, tol, act, esperado) => {
@@ -469,7 +480,7 @@ describe('Gestão Assistida — ciclo semanal (0039–0041)', () => {
         sourceReference: 'Painel semanal, aba Conversao',
       });
       expect(e.status).toBe('conforme');
-      expect(e.ruleVersion).toBe('assisted-status/1.3.5-a');
+      expect(e.ruleVersion).toBe('assisted-status/1.3.5-b');
       expect(e.recordedBy).toBe(ID.uGcA);
     });
 
@@ -733,7 +744,7 @@ describe('Gestão Assistida — ciclo semanal (0039–0041)', () => {
       const fechado = await fechar(db, ID.uGcA, c.id);
       expect(fechado.status).toBe('closed');
       expect(fechado.closedAt).not.toBeNull();
-      expect(fechado.ruleVersion).toBe('assisted-status/1.3.5-a');
+      expect(fechado.ruleVersion).toBe('assisted-status/1.3.5-b');
     });
 
     it('CONFORME não exige plano nem diagnóstico', async () => {

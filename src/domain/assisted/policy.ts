@@ -101,13 +101,24 @@ export function statusOf(
   if (direction === 'target_band') throw new TargetBandSemRegraError();
   if (actual === null || actual === undefined || Number.isNaN(actual)) return 'sem_dado';
 
+  // A tolerância é uma PORCENTAGEM DA META, não uma diferença absoluta. É assim
+  // desde antes da 1.3.5 (`indicatorStatus.ts`), é o que o formulário de
+  // cadastro declara e é o que a prévia de `yellowLimitPreview` mostra.
+  //
+  // A 1.3.5 nasceu tratando este campo como valor absoluto, e isso era um
+  // DEFEITO: com meta 1 e tolerância 20, `Churn` aceitava até 21 como "atenção"
+  // em vez de até 1,2. Corrigido aqui e em `app.assisted_status_of` (0053).
   const tol = Math.abs(tolerance ?? 0);
+  const limite = direction === 'higher_better'
+    ? target * (1 - tol / 100)
+    : target * (1 + tol / 100);
+
   if (direction === 'higher_better') {
     if (actual >= target) return 'conforme';
-    return actual >= target - tol ? 'atencao' : 'nao_conforme';
+    return actual >= limite ? 'atencao' : 'nao_conforme';
   }
   if (actual <= target) return 'conforme';
-  return actual <= target + tol ? 'atencao' : 'nao_conforme';
+  return actual <= limite ? 'atencao' : 'nao_conforme';
 }
 
 /** Texto do status. Nunca só cor — a tela precisa dizer a palavra. */
