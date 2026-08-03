@@ -367,3 +367,145 @@ As 61 `not_evaluated` são as 45 originais mais as 16 do registro novo.
 > Semanal. Na **Gestão Assistida**, `app.is_assisted_operator` exige `channel_manager` com
 > vínculo, e o administrador **não** consegue abrir ciclo. Os dois modelos convivem de
 > propósito, e confundi-los gera falso diagnóstico.
+
+---
+
+## 12. Segunda rodada — o modelo legado sai de operação
+
+> **O §11 anterior chamava a criação da quinta Auditoria Semanal de "prova positiva". O
+> proprietário rejeitou essa leitura, e estava certo: uma consulta que grava é defeito, não
+> evidência.** Esta seção corrige o registro e documenta o que foi feito a respeito.
+
+### A apuração
+
+| Camada | Onde |
+|---|---|
+| Tela | `OperationDetailScreen` (ficha do Parceiro) |
+| Ação | botão **"Checklist semanal legado"**, `onPress={() => void launch('weekly')}` |
+| Cadeia | `launch()` → `EvaluationsProvider.startEvaluation` → `SupabaseEvaluationsRepository.startEvaluation` → RPC `public.start_evaluation` |
+
+**Duas conclusões, e uma desmente o diagnóstico inicial:**
+
+1. **Navegar e consultar NÃO gravava.** Os dois `useEffect` da ficha chamam apenas
+   `getOperationPeople` e `listAudits`, ambos de leitura. Abrir a ficha nunca criou nada.
+2. **O botão criava na hora, sem confirmação** — e o rótulo "Checklist semanal legado"
+   parecia navegação. Esse era o defeito de desenho.
+
+**Sobre a autorização:** `start_evaluation` sempre exigiu apenas `app.has_operation_access`,
+desde as migrations `0006`/`0031` — o administrador **estava autorizado pelo sistema**. Mas a
+**Matriz de Permissões nunca teve seção para o modelo legado**; a linha "consultar global" que
+se citou era da Gestão Assistida. Era lacuna documental, não violação. Fechada agora na
+[Matriz §12](AAPEX-135-MATRIZ-DE-PERMISSOES.md).
+
+**Sobre proliferação:** `start_evaluation` é idempotente por `(operação, frequência, rascunho)`
+— clicar de novo no mesmo parceiro reaproveitava. Outro parceiro criaria outro. A idempotência
+é por **status**, não por período (achado O-06, já conhecido).
+
+### O que foi feito — migration 0052
+
+**Estrutural. Não apaga nada por si.**
+
+- a guarda de cutover passa a valer para as **duas** frequências, não só `weekly`;
+- a **cláusula de escape** para rascunho existente foi **removida** — a exigência agora é
+  impedir *qualquer* abertura nova, e os rascunhos deixaram de existir;
+- a chave `weekly_audit_cutover_date` é **preservada**, com o nome declarado histórico e a
+  linhagem **A-02** mantida na descrição;
+- nova RPC **`admin_purge_legacy_evaluations`**: só administrador, motivo obrigatório, e
+  **recusa** se houver avaliação fora de rascunho, snapshot, validação, diagnóstico, evidência
+  ou plano vinculado.
+
+**A interface:** os dois botões e a função `launch` saíram. O histórico legado continua
+visível e somente leitura. **A interface nunca foi a guarda** — quem recusa é o servidor.
+
+### Backup e prova antes de apagar
+
+`E:\AACE_Backups\producao-pre-expurgo-legado-20260802-2334` (+ espelho em `C:`) — **67
+arquivos, 45 tabelas, 239 linhas**, verificados relendo do disco nas duas cópias.
+
+`INVENTARIO-PRE-EXPURGO.json` guarda as **5 avaliações**, as **64 respostas** e a **trilha**
+integrais, com SHA-256 por registro e por conjunto:
+
+```
+avaliacoes  FF335291B2900EBF14D6E853F9BF96CD1B851F1A735704F809D67C27DF5D0356
+respostas   083873E204AE0E0F4DB84AF7BB081E83223CBC41D313DD9AF5E92D954BE5E969
+trilha      E4A81E6DEFC89DAAD78880D0B3A9EC5384C6F7B1A9A6A571B1C28C3EB412239A
+```
+
+**Prova de que nada concluído se perde**, medida antes:
+
+```
+fora de rascunho 0 · snapshots 0 · validacoes 0 · diagnosticos 0
+evidencias 0 · vinculos de evidencia 0 · planos vinculados 0 · Storage 0
+```
+
+**Nenhuma auditoria legada jamais foi concluída nesta produção.**
+
+### Validação em homologação, antes de produção
+
+0052 aplicada lá primeiro. E o melhor resultado foi uma **recusa**: o expurgo foi negado
+porque a homologação tem **2 avaliações aprovadas, 2 snapshots, 2 evidências e 1 plano
+vinculado**. A guarda foi provada contra histórico real, e a fixture da Fase 11 ficou intacta.
+
+### Execução em produção
+
+| Ordem | Ato | Resultado |
+|---|---|---|
+| 1 | migration 0052 | **52/52**, zero divergência |
+| 2 | cutover | **2026-08-02**, fuso `America/Sao_Paulo`, `weeklyAuditClosed: true` |
+| 3 | expurgo | **5 avaliações · 64 respostas** |
+
+Fechar a porta **antes** de limpar, para que nada pudesse nascer no intervalo.
+
+### Validação
+
+| Exigência | Resultado |
+|---|---|
+| `evaluations = 0` | ✅ |
+| `evaluation_answers = 0` | ✅ |
+| snapshots oficiais = 0 | ✅ |
+| nenhum botão legado visível | ✅ **0 ocorrências** no bundle servido |
+| abrir novo legado é recusado | ✅ **4/4** — admin e GC, semanal e mensal |
+| Gestão Assistida disponível | ✅ leitura permitida ao GC |
+| Auditoria Mensal ainda desligada | ✅ `audit_criteria = 0` |
+| produção sem erro | ✅ |
+| backup e rollback preservados | ✅ dois backups + inventário + runbook |
+
+**A trilha não foi apagada.** `audit_logs.object_id` é `text` sem FK, então o evento do smoke
+sobreviveu. A produção terminou com **três** eventos:
+
+```
+evaluation.created         02/08 22:55  — PRESERVADO, do smoke que originou tudo
+weekly_audit_cutover_set   02/08 23:43
+legacy_evaluations_purged  02/08 23:44  — motivo, 5 apagadas, 64 respostas, ids, fuso, ator
+```
+
+**Preservado, como exigido:** tabelas, catálogo legado (1 modelo, 1 versão, **24 itens**),
+migrations, 13 configurações regionais, 14 operações, 17 usuários, o plano de ação legado, as
+medições e os resultados de indicador. **Nenhuma remoção física. Nenhuma reestruturação.**
+
+### Smoke final — o teste que faltou da primeira vez
+
+Consulta apenas, pelo Administrador: versão 1.3.5, dashboard, ausência dos botões, histórico
+presente, Gestão Assistida e Auditoria Mensal alcançáveis.
+
+**Confirmação do proprietário:** *"smoke ativação feito e aprovado"* (03/08/2026).
+
+**E as contagens foram reconferidas depois da navegação:**
+
+```
+ANTES  evaluations 0 · answers 0 · snapshots 0 · trilha 3 · ciclos 0 · planos 1
+DEPOIS evaluations 0 · answers 0 · snapshots 0 · trilha 3 · ciclos 0 · planos 1
+```
+
+**Idênticas, e a trilha com os mesmos três eventos.** Navegar não grava. O defeito de 02/08
+está fechado por medição, não por promessa.
+
+### Testes
+
+`legacy_purge.integration.test.ts` (13 casos) e `legacyCheckoutRemoved.test.ts` (11 casos).
+Suíte: **2.329 verdes em 138 arquivos** (eram 2.305 em 136).
+
+> **Três casos de `weekly_audit_cutover` foram reescritos e um de terminologia atualizado.**
+> Eles codificavam o contrato antigo — escape para rascunho, `monthly` nunca afetado, botão
+> obrigatório. A decisão mudou, então o teste que a encodava mudou junto, **com a razão escrita
+> no próprio arquivo**. Nenhuma asserção foi apagada em silêncio.

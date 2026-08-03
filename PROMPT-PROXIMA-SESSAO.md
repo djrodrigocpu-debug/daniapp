@@ -15,8 +15,12 @@
 > RPS, com metas/tolerâncias/pesos **idênticos ao catálogo vigente (13/13, zero divergentes)**.
 > Relatório em `AAPEX-135-FASE-12B-ATIVACAO.md`.
 >
-> **Gestão Assistida ATIVA. Auditoria Mensal DESLIGADA. Cutover DESATIVADO.
-> Ponderação VAZIA. Os quatro rascunhos INTACTOS** — tudo por decisão expressa.
+> **SEGUNDA RODADA (opção 4):** o modelo legado saiu de operação. Migration **0052**,
+> cutover **02/08/2026** nas DUAS frequências, botões removidos da interface e as
+> **5 avaliações + 64 respostas EXPURGADAS**. Produção começa com zero dado operacional.
+>
+> **Gestão Assistida ATIVA e único caminho semanal. Auditoria Mensal DESLIGADA.
+> Cutover ATIVO. Ponderação VAZIA.**
 >
 > Smoke pelo **Caminho A (Administrador)**: versão, dashboard, 14 operações e 13
 > configurações confirmados. **LIMITAÇÃO REGISTRADA:** a abertura de ciclo pela interface,
@@ -36,17 +40,17 @@ main       = origin/main                 ponta documental da Fase 12-B
 branch     aapex-1.3.5-assisted-management-monthly-audit  = origin, ponta 11a10c7
 árvore     limpa
 versão     1.3.5 · build 9              PUBLICADA
-migrations 0001-0051 · próximo livre 0052
-testes     2305 verdes em 136 arquivos
+migrations 0001-0052 · próximo livre 0053
+testes     2329 verdes em 138 arquivos
 REPORT_FORMAT_VERSION          1.3.3   (PRESERVAR)
 MONTHLY_REPORT_FORMAT_VERSION  1.3.5
 
-producao      plnbgdabciwygsmnyddy   0001-0051, Local = Remote 51/51
+producao      plnbgdabciwygsmnyddy   0001-0052, Local = Remote 52/52
                                      tema GERAL + 13 config. regionais PUBLICADAS
                                      region_weightings 0 · audit_criteria 0
-                                     cutover JSON null · 5 avaliacoes em draft
-                                     (4 originais de 29/07 + 1 aberta no smoke de 02/08)
-                                     audit_logs = 1 (primeiro evento real da producao)
+                                     cutover 2026-08-02 ATIVO (America/Sao_Paulo)
+                                     evaluations 0 · evaluation_answers 0 · snapshots 0
+                                     assisted_cycles 0 · action_plans 1 · audit_logs 3
 homologacao   qjvpkaurihjvzktlinhp   51 migrations, fixture sintetica — CLI vinculada a ela
 staging       qcixfsdyfpankpatbays   CONGELADO e INTOCADO
 ```
@@ -78,8 +82,8 @@ staging       qcixfsdyfpankpatbays   CONGELADO e INTOCADO
 |---|---|---|
 | ~~**BACKFILL**~~ ✅ | ~~configuração regional do catálogo legado~~ | **EXECUTADO** — tema `GERAL` + 13 configurações publicadas, idempotente |
 | **Critérios mensais** 🔴 | nenhum definido | **0** em `audit_criteria`. Bloqueia ligar a Auditoria Mensal |
-| **A-02** | data de cutover | **desativado por decisão** — `weekly_audit_cutover_date` = JSON null |
-| **A-03** | os 4 drafts | **em rascunho por decisão** — cancelar/arquivar exigiria migration nova |
+| ~~**A-02**~~ ✅ | data de cutover | **ATIVADO em 02/08/2026** — fecha semanal E mensal (0052) |
+| ~~**A-03**~~ ✅ | os drafts | **EXPURGADOS** — 5 avaliações e 64 respostas, com inventário e trilha |
 | **A-04** | pesos empresariais reais | **não configurada por decisão** — `region_weightings` vazia |
 | **A-01** | regra de status para `target_band` | **inerte**: 10 `higher_better`, 3 `lower_better`, zero `target_band` |
 | **A-07** | autoridade regional | sem mudança |
@@ -100,9 +104,13 @@ staging       qcixfsdyfpankpatbays   CONGELADO e INTOCADO
 5. A-02 (cutover) so depois de confianca operacional na Gestao Assistida
 ```
 
-**Armadilha registrada:** os **2 rascunhos semanais** mantêm a Auditoria Semanal aberta
-**só para aquelas 2 operações** mesmo depois do cutover — é a cláusula da 0047 que evita
-rascunho órfão. **A-02 e A-03 se conversam.**
+**Armadilha resolvida:** a cláusula de escape da 0047, que mantinha a semanal aberta para quem
+tivesse rascunho, foi **removida pela 0052**. Não há mais rascunho e não há mais escape.
+
+**Armadilha que permanece, e vale decorar:** no fluxo **legado** `start_evaluation` exigia só
+`has_operation_access` — por isso um **admin abria** checklist. Na **Gestão Assistida**,
+`is_assisted_operator` exige `channel_manager` **com vínculo**, e o **admin não abre** ciclo.
+Admin vendo bloco vazio **não é defeito de escopo**.
 
 ## Restrições permanentes
 
@@ -135,20 +143,26 @@ a homologacao qjvpkaurihjvzktlinhp, sem nenhuma escrita.
 
 O BACKFILL FOI EXECUTADO: tema GERAL + 13 configuracoes regionais publicadas na
 regiao RPS, com metas/tolerancias/pesos IDENTICOS ao catalogo vigente (13/13,
-zero divergentes) e idempotencia provada. A Gestao Assistida esta ATIVA.
+zero divergentes) e idempotencia provada.
 
-Por DECISAO EXPRESSA do responsavel, seguem NAO ativadas: A-02 (cutover segue
-JSON null), A-03 (os 4 rascunhos seguem em draft) e A-04 (ponderacao segue
-vazia). Nao sao esquecimento; reabri-las e decisao nova. A-01 esta INERTE (zero
-target_band). O que bloqueia a Auditoria Mensal e a ausencia de CRITERIOS
-mensais, que nao existem em producao.
+O MODELO LEGADO FOI ENCERRADO (migration 0052): cutover 2026-08-02 ativo nas
+DUAS frequencias, botoes removidos da interface, e as 5 avaliacoes com 64
+respostas EXPURGADAS por RPC auditada. Producao esta com evaluations 0,
+evaluation_answers 0 e snapshots 0. A trilha tem 3 eventos, incluindo o
+evaluation.created preservado. Backup e inventario com hash por registro em
+E:\AACE_Backups\producao-pre-expurgo-legado-20260802-2334 (espelho em C:).
+
+A Gestao Assistida e agora o UNICO caminho semanal, e esta ATIVA. Por decisao,
+A-04 segue vazia. A-01 esta INERTE (zero target_band). O que bloqueia a
+Auditoria Mensal e a ausencia de CRITERIOS mensais, que nao existem em producao.
 
 RESSALVAS: o gate 17 Etapa B (leitor de tela) NAO foi exercitado; dispensado
 pelo responsavel. Nao declarar "25/25 sem ressalvas". E a abertura do PRIMEIRO
 CICLO de Gestao Assistida pela interface, com um Gerente de Canal, NUNCA rodou
-em producao (assisted_cycles = 0): o smoke foi pelo Administrador, que consulta
-mas nao lanca. Essa prova continua devida.
+em producao (assisted_cycles = 0): os dois smokes foram pelo Administrador, que
+consulta mas nao lanca, e as credenciais dos GCs nao foram localizadas. Essa
+prova continua devida — e agora ela e o UNICO caminho semanal que existe.
 
-Migrations aditivas apenas, proximo numero livre 0052. Autoria exclusiva do
+Migrations aditivas apenas, proximo numero livre 0053. Autoria exclusiva do
 proprietario e sem mencao a IA. A Fase 13 NAO foi iniciada.
 ```
