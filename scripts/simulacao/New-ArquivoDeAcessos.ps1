@@ -103,7 +103,21 @@ foreach ($r in @($acl.Access)) { [void]$acl.RemoveAccessRule($r) }
 foreach ($id in @("$env:USERDOMAIN\$env:USERNAME", 'NT AUTHORITY\SYSTEM')) {
   $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule($id, 'FullControl', 'Allow')))
 }
-Set-Acl -Path $Destino -AclObject $acl
+# Reexecucao pode falhar com PrivilegeNotHeld quando a ACL JA esta protegida —
+# reescrever o dono exige SeSecurityPrivilege. Isso nao e falha do arquivo: o
+# estado restritivo ja e o desejado. Avisar e seguir, em vez de abortar e deixar
+# o operador achando que o arquivo nao foi gravado.
+try {
+  Set-Acl -Path $Destino -AclObject $acl -ErrorAction Stop
+  Write-Host 'ACL restrita aplicada (usuario atual + SYSTEM, sem heranca).'
+} catch {
+  $atual = Get-Acl $Destino
+  if ($atual.AreAccessRulesProtected) {
+    Write-Host 'ACL restrita JA estava aplicada; nada a mudar.'
+  } else {
+    Write-Warning "NAO foi possivel restringir a ACL: $($_.Exception.Message)"
+  }
+}
 
 Write-Host "Arquivo de acessos gravado em: $Destino"
 Write-Host ("Contas: " + $ordem.Count + " | permissoes restritas ao usuario atual e ao SYSTEM")
