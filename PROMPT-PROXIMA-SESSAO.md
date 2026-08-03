@@ -1,15 +1,22 @@
-# PROMPT PARA A PRÓXIMA SESSÃO — AAPEx 1.3.5 PUBLICADA EM PRODUÇÃO
+# PROMPT PARA A PRÓXIMA SESSÃO — AAPEx 1.3.5 PUBLICADA E ATIVADA
 
 > **Antes de colar:** conferir que a árvore está limpa e que `main` local e
 > `origin/main` apontam para o **mesmo** commit.
 
-> ## ✅ A FASE 12 ESTÁ CONCLUÍDA — **AAPEx 1.3.5 em produção**
+> ## ✅ FASE 12 e FASE 12-B CONCLUÍDAS
 >
-> Publicada em **02/08/2026**. Migrations `0036–0051` aplicadas em
-> `plnbgdabciwygsmnyddy`, merge `--no-ff` em `main`, deployment **Ready** e smoke do
-> proprietário confirmado (**`SMOKE PRODUÇÃO APROVADO`**).
+> **Fase 12 (publicação)** — 02/08/2026: migrations `0036–0051` aplicadas em
+> `plnbgdabciwygsmnyddy`, merge `--no-ff` em `main`, deployment **Ready**,
+> **`SMOKE PRODUÇÃO APROVADO`**. Relatório em `AAPEX-135-FASE-12-PRODUCAO.md`.
 >
-> Relatório completo em `docs/architecture/AAPEX-135-FASE-12-PRODUCAO.md`.
+> **Fase 12-B (ativação)** — 02/08/2026: decisões `T:A · M:A · A-04:A · A-02:A · A-03:A`
+> aprovadas pelo responsável e registradas em `AAPEX-135-DECISOES-EMPRESARIAIS.md §9`.
+> **Backfill executado e idempotente**: tema `GERAL` + 13 configurações regionais na região
+> RPS, com metas/tolerâncias/pesos **idênticos ao catálogo vigente (13/13, zero divergentes)**.
+> Relatório em `AAPEX-135-FASE-12B-ATIVACAO.md`.
+>
+> **Gestão Assistida ATIVA. Auditoria Mensal DESLIGADA. Cutover DESATIVADO.
+> Ponderação VAZIA. Os quatro rascunhos INTACTOS** — tudo por decisão expressa.
 >
 > **A Fase 13 NÃO foi iniciada.**
 
@@ -18,7 +25,9 @@
 ## Estado a confirmar
 
 ```
-main       ba6b7bf  (= origin/main)     merge --no-ff da branch da 1.3.5
+main       = origin/main                 ponta documental da Fase 12-B
+           ba6b7bf                       merge --no-ff que publicou a 1.3.5
+           e964488                       fecho documental da Fase 12
 branch     aapex-1.3.5-assisted-management-monthly-audit  = origin, ponta 11a10c7
 árvore     limpa
 versão     1.3.5 · build 9              PUBLICADA
@@ -28,17 +37,21 @@ REPORT_FORMAT_VERSION          1.3.3   (PRESERVAR)
 MONTHLY_REPORT_FORMAT_VERSION  1.3.5
 
 producao      plnbgdabciwygsmnyddy   0001-0051, Local = Remote 51/51
+                                     tema GERAL + 13 config. regionais PUBLICADAS
+                                     region_weightings 0 · audit_criteria 0
+                                     cutover JSON null · 4 avaliacoes em draft
 homologacao   qjvpkaurihjvzktlinhp   51 migrations, fixture sintetica — CLI vinculada a ela
 staging       qcixfsdyfpankpatbays   CONGELADO e INTOCADO
 ```
 
 **Diante de divergência não compreendida: PARE.**
 
-## O que a Fase 12 provou (não repetir)
+## O que as Fases 12 e 12-B provaram (não repetir)
 
 | Prova | Resultado |
 |---|---|
-| Backup de produção | 52 arquivos, 192 linhas, verificado relendo do disco |
+| Backup pré-publicação | `producao-pre-135-20260802-2013` — 52 arquivos, 192 linhas |
+| Backup pré-ativação | `producao-pre-135-ativacao-20260802-2146` — 66 arquivos, 193 linhas, **com cópia espelho** |
 | **PITR** | **DESABILITADO** e sem backup físico — o export lógico é o único recurso |
 | Migrations em produção | `0036–0051`, `migration list` **51/51 sem divergência** |
 | Esquema × homologado | **idêntico em 10 categorias**, com `c=38 f=116 p=45 u=27` |
@@ -47,35 +60,41 @@ staging       qcixfsdyfpankpatbays   CONGELADO e INTOCADO
 | Página em produção | `VERSÃO 1.3.5` · `Autenticação corporativa (Supabase)` · sem erro |
 | Sondas negativas | 16 recusas; anon lê `[]` via REST em tabelas com 17/4/14/1 linhas |
 | Signup público | **desligado** (`signup_disabled`) |
+| **Backfill** | tema `GERAL` + **13 configurações**, valores **13/13 idênticos** ao catálogo vigente |
+| **Idempotência** | reexecução em simulação: `A CRIAR: 0`, zero alterações |
+| Auditoria Semanal após o backfill | **`weeklyAuditClosed: false`**, 16 itens intactos |
+| Ponderação | `configured: false · "Ponderacao nao configurada"` — servidor não inventa |
 
-## Pendências abertas — todas são DECISÃO EMPRESARIAL
+## Pendências abertas
 
 | # | Pendência | Estado em produção |
 |---|---|---|
-| **BACKFILL** 🔴 | configuração regional do catálogo legado | 13 indicadores globais, **0 configurações**. **Bloqueia o cutover** |
-| **A-02** | data de cutover | `weekly_audit_cutover_date` = **JSON null** |
-| **A-03** | decisão nominal dos 4 drafts | 4 avaliações em `draft`, **intactas** |
-| **A-04** | pesos empresariais reais | `region_weightings` **vazia** |
-| **A-01** | regra de status para `target_band` | aberta, com falha explícita |
+| ~~**BACKFILL**~~ ✅ | ~~configuração regional do catálogo legado~~ | **EXECUTADO** — tema `GERAL` + 13 configurações publicadas, idempotente |
+| **Critérios mensais** 🔴 | nenhum definido | **0** em `audit_criteria`. Bloqueia ligar a Auditoria Mensal |
+| **A-02** | data de cutover | **desativado por decisão** — `weekly_audit_cutover_date` = JSON null |
+| **A-03** | os 4 drafts | **em rascunho por decisão** — cancelar/arquivar exigiria migration nova |
+| **A-04** | pesos empresariais reais | **não configurada por decisão** — `region_weightings` vazia |
+| **A-01** | regra de status para `target_band` | **inerte**: 10 `higher_better`, 3 `lower_better`, zero `target_band` |
 | **A-07** | autoridade regional | sem mudança |
 | **Gate 17 · Etapa B** | **leitor de tela não exercitado** | dívida conhecida da 1.3.5 |
 | **40 códigos** | remedição | exigiria o staging congelado |
 
-> **Nada disso pode ser arbitrado.** Tema, meta, tolerância, peso, ordem, flags de módulo
-> e critérios são decisão de cada região. Um backfill inventado produziria uma operação
-> que ninguém aprovou, com aparência de configurada.
+> **A-02, A-03 e A-04 não estão pendentes por esquecimento: foram decididas como
+> "não ativar agora".** Reabri-las é decisão nova do responsável, não continuação.
 
-## Ordem obrigatória, se a próxima sessão for ativar a 1.3.5
+## Se a próxima sessão for ligar a Auditoria Mensal
 
 ```
-1. BACKFILL (mapeamento nominal, região a região, publicado)
-2. A-04  (pesos reais)      -> sem ele nao ha indice ponderado
-3. A-02  (data de cutover)  -> so DEPOIS do backfill
-4. A-03  (os quatro drafts, um a um)
+1. definir os CRITERIOS mensais por indicador (decisao empresarial, nao existe nenhum)
+2. publica-los pelo catalogo regional
+3. so entao virar include_in_monthly_audit para true
+4. A-04 (pesos) passa a ter efeito visivel, porque o eixo de processo ganha nota
+5. A-02 (cutover) so depois de confianca operacional na Gestao Assistida
 ```
 
-Desligar a Auditoria Semanal antes do backfill deixaria as regiões **sem indicador
-operável nenhum**.
+**Armadilha registrada:** os **2 rascunhos semanais** mantêm a Auditoria Semanal aberta
+**só para aquelas 2 operações** mesmo depois do cutover — é a cláusula da 0047 que evita
+rascunho órfão. **A-02 e A-03 se conversam.**
 
 ## Restrições permanentes
 
@@ -92,22 +111,29 @@ operável nenhum**.
 ## Variante curta
 
 ```
-Continue a AAPEx 1.3.5. A FASE 12 esta CONCLUIDA: a 1.3.5 esta PUBLICADA EM
-PRODUCAO desde 02/08/2026. Leia
-docs/architecture/AAPEX-135-FASE-12-PRODUCAO.md antes de qualquer coisa.
+Continue a AAPEx 1.3.5. As FASES 12 e 12-B estao CONCLUIDAS: a 1.3.5 esta
+PUBLICADA e OPERACIONALMENTE ATIVADA desde 02/08/2026. Leia
+docs/architecture/AAPEX-135-FASE-12-PRODUCAO.md e
+docs/architecture/AAPEX-135-FASE-12B-ATIVACAO.md antes de qualquer coisa.
 
-main = origin/main = ba6b7bf. Producao plnbgdabciwygsmnyddy em 0001-0051,
-Local = Remote 51/51. Deployment Ready, smoke do proprietario aprovado.
-Backup em E:\AACE_Backups\producao-pre-135-20260802-2013 (PITR DESABILITADO —
-esse export e o unico recurso de recuperacao).
+Producao plnbgdabciwygsmnyddy em 0001-0051, Local = Remote 51/51. Deployment
+Ready, smoke do proprietario aprovado. Dois backups em E:\AACE_Backups:
+producao-pre-135-20260802-2013 (antes da publicacao) e
+producao-pre-135-ativacao-20260802-2146 (antes do backfill, com espelho em C:).
+PITR DESABILITADO — esses exports sao o unico recurso de recuperacao.
 
 PROIBIDO tocar o staging congelado qcixfsdyfpankpatbays. A CLI ficou vinculada
 a homologacao qjvpkaurihjvzktlinhp, sem nenhuma escrita.
 
-CONTINUAM ABERTAS, e sao DECISAO EMPRESARIAL, nao divida tecnica: o BACKFILL do
-catalogo legado (13 indicadores globais, 0 configuracoes regionais), A-02
-(cutover segue JSON null), A-03 (4 drafts intactos), A-04 (ponderacao vazia),
-A-01 e A-07. A ordem obrigatoria e BACKFILL -> A-04 -> A-02 -> A-03.
+O BACKFILL FOI EXECUTADO: tema GERAL + 13 configuracoes regionais publicadas na
+regiao RPS, com metas/tolerancias/pesos IDENTICOS ao catalogo vigente (13/13,
+zero divergentes) e idempotencia provada. A Gestao Assistida esta ATIVA.
+
+Por DECISAO EXPRESSA do responsavel, seguem NAO ativadas: A-02 (cutover segue
+JSON null), A-03 (os 4 rascunhos seguem em draft) e A-04 (ponderacao segue
+vazia). Nao sao esquecimento; reabri-las e decisao nova. A-01 esta INERTE (zero
+target_band). O que bloqueia a Auditoria Mensal e a ausencia de CRITERIOS
+mensais, que nao existem em producao.
 
 RESSALVA: o gate 17 Etapa B (leitor de tela) NAO foi exercitado; dispensado
 pelo responsavel. Nao declarar "25/25 sem ressalvas".

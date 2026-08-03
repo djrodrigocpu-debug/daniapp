@@ -371,3 +371,81 @@ Terminologia D8 **inalterada**: *"Relatório oficial da operação"* é a fonte 
 **A-01** (`target_band`) · **A-02** (data de cutover) · **A-03** (os quatro drafts de produção) ·
 **A-04** (**pesos empresariais reais**) · **A-07** (autoridade regional). Nenhuma foi preenchida por
 inferência. O cutover continua **nulo** e `region_weightings` continua **vazia**.
+
+---
+
+## 9. Decisões da Fase 12-B — ativação operacional (02/08/2026)
+
+**Responsável:** proprietário do produto · **Data:** 02/08/2026 ·
+**Forma:** resposta consolidada `T: A ; M: A ; A-04: A ; A-02: A ; A-03: A`, dada depois de
+apresentadas as opções permitidas pelo contrato, as consequências e a recomendação técnica.
+
+**Justificativa comum a todas:** ativar o mínimo que torna a Gestão Assistida operável,
+**sem arbitrar nenhum valor empresarial** e sem alterar o que já funciona. Cada decisão adiada
+permanece adiada de forma explícita, não por esquecimento.
+
+### T ✅ **APROVADA** — um único tema provisório
+
+Os 13 indicadores passam a responder por um tema **global** único, código `GERAL`, nome
+*"Geral"*. A descrição registra, no próprio dado, que **nenhuma subdivisão temática foi
+decidida** e que o tema vale até o responsável definir os seus.
+
+**Por que não os oito pilares do checklist legado:** eles existem em `audit_items.pillar` e
+descrevem *itens de auditoria*, não indicadores. Não existe, em lugar nenhum, mapeamento de
+indicador para pilar — criá-lo seria arbitrar taxonomia empresarial.
+
+### M ✅ **APROVADA** — somente Gestão Assistida
+
+`include_in_assisted_management = true` e `include_in_monthly_audit = false` nos 13.
+
+**A Auditoria Mensal permanece desligada por impossibilidade técnica declarada, não por
+preferência:** a guarda da 0038 exige *"ao menos um critério publicado e ativo para este
+indicador na região"*, e **não existe nenhum critério mensal** em produção. Ligá-la exige antes
+a definição empresarial dos critérios.
+
+### A-04 ✅ **APROVADA — permanece NÃO CONFIGURADA**
+
+`region_weightings` continua **vazia**, por decisão expressa.
+
+**Consequência medida, não suposta:** `get_weighting_status()` devolve
+`configured: false · "Ponderacao nao configurada"`, e o índice consolidado **não é calculado**.
+Publicar peso agora não produziria efeito visível de qualquer modo, porque o eixo de processo
+não tem nota enquanto a Auditoria Mensal estiver desligada.
+
+### A-02 ✅ **APROVADA — cutover permanece DESATIVADO**
+
+`weekly_audit_cutover_date` continua **JSON null**. A Auditoria Semanal segue integralmente
+operável — `weeklyAuditClosed: false`, os 16 itens semanais intactos.
+
+**Ordem preservada:** o cutover não pode preceder o backfill, e agora que o backfill existe ele
+ainda depende de confiança operacional na Gestão Assistida rodando com dado real.
+
+### A-03 ✅ **APROVADA — os quatro rascunhos permanecem como estão**
+
+**Achado que determinou a decisão, e que o contrato original não previa:** das 48 respostas dos
+quatro rascunhos, **45 estão `not_evaluated`**, e há **zero evidências** em produção contra 24
+itens que exigem evidência. As três opções que a §5 previa não são todas executáveis:
+
+| Opção do contrato | Situação real |
+|---|---|
+| **Concluir como legado** | **impossível** — `submit_evaluation` barra por resposta faltante e por evidência ausente. Executá-la exigiria fabricar dado |
+| **Cancelar formalmente** | **não existe mecanismo** — `app.evaluation_status` é `draft · submitted · returned · approved · superseded` |
+| **Arquivar** | **não existe mecanismo**, pelo mesmo motivo |
+
+Deixá-los em rascunho é, portanto, **o único caminho que não fabrica dado nem cria
+funcionalidade**. Criar estado de cancelamento exigiria migration nova — funcionalidade, fora do
+escopo declarado da Fase 12-B.
+
+**Efeito colateral registrado:** os **2 rascunhos semanais** mantêm o caminho da Auditoria
+Semanal aberto **só para essas duas operações** (de 14) mesmo depois de um eventual cutover,
+pela cláusula de proteção da 0047 que evita rascunho órfão. **A-02 e A-03 se conversam**, e quem
+ativar o cutover precisa saber disso. As operações envolvidas se identificam por consulta, e
+não são nomeadas aqui: nome de parceiro é dado real e não se versiona.
+
+### O que a Fase 12-B deliberadamente NÃO decidiu
+
+**A-01** (`target_band`) — **inerte e comprovado**: os 13 indicadores são 10 `higher_better` e
+3 `lower_better`; **zero** `target_band`. Não bloqueia nada hoje.
+**A-07** (autoridade regional) — sem mudança.
+**Critérios da Auditoria Mensal** — não definidos; bloqueiam M=B.
+**Os 40 códigos** — não necessários à ativação; não foram criados preventivamente.
