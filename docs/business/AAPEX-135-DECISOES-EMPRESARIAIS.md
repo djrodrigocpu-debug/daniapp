@@ -528,3 +528,29 @@ Sem mudança. **A-01 segue inerte** (zero `target_band`).
 **Quem pode iniciar avaliação no modelo legado** deixou de ser questão prática — o modelo
 está fechado. Mas a **lacuna documental permanece**: se um dia o legado for reaberto, a
 Matriz precisa declarar o que nunca declarou. Fica registrado em §11 da Matriz.
+
+---
+
+## 11. Encerramento da Fase 12-B — o primeiro ciclo não é gate (03/08/2026)
+
+**Decisão do responsável:** a conferência humana da Gestão Assistida com um Gerente de Canal
+**deixa de ser pendência bloqueante**. O primeiro ciclo real será aberto **naturalmente quando
+o aplicativo entrar em uso**.
+
+**Fundamento aceito:** os testes automatizados de autorização e de impersonação já realizados
+são considerados suficientes. A **lógica** do ciclo está provada em 2.329 testes contra PGlite
+com as **mesmas 52 migrations**; a **autorização e o alcance dos quatro papéis** estão provados
+**em produção**, com as contas reais, por impersonação.
+
+**Nada foi alterado para chegar a essa conclusão:** nenhuma permissão, papel, conta, política
+de RLS ou fluxo operacional foi tocado. É decisão de escopo de release, não mudança de sistema.
+
+**O que continua sendo verdade, e não se disfarça:** `assisted_cycles = 0`. Nenhum ciclo real
+foi aberto em produção pela interface, e este documento **não afirma** que esse caminho tenha
+sido testado lá.
+
+> **Não confundir com a dívida do leitor de tela.** Aquela permanece **aberta**: ninguém a
+> executou e nenhum uso normal a produz. Esta se resolve na primeira semana de operação, por
+> definição.
+
+**Com isso a Fase 12-B fica ENCERRADA.** A Fase 13 não foi iniciada.

@@ -3,7 +3,7 @@
 > **Antes de colar:** conferir que a árvore está limpa e que `main` local e
 > `origin/main` apontam para o **mesmo** commit.
 
-> ## ✅ FASE 12 e FASE 12-B CONCLUÍDAS
+> ## ✅ FASE 12 e FASE 12-B ENCERRADAS — sem pendência bloqueante
 >
 > **Fase 12 (publicação)** — 02/08/2026: migrations `0036–0051` aplicadas em
 > `plnbgdabciwygsmnyddy`, merge `--no-ff` em `main`, deployment **Ready**,
@@ -87,8 +87,7 @@ staging       qcixfsdyfpankpatbays   CONGELADO e INTOCADO
 | **A-04** | pesos empresariais reais | **não configurada por decisão** — `region_weightings` vazia |
 | **A-01** | regra de status para `target_band` | **inerte**: 10 `higher_better`, 3 `lower_better`, zero `target_band` |
 | **A-07** | autoridade regional | sem mudança |
-| **Gate 17 · Etapa B** | **leitor de tela não exercitado** | dívida conhecida da 1.3.5 |
-| **1º ciclo real** 🔴 | **nunca aberto** | `assisted_cycles = 0`. A abertura pela interface, por um GC, **nunca rodou em produção** |
+| **Gate 17 · Etapa B** 🔴 | **leitor de tela não exercitado** | **única dívida técnica aberta** da 1.3.5 |
 | **40 códigos** | remedição | exigiria o staging congelado |
 
 > **A-02, A-03 e A-04 não estão pendentes por esquecimento: foram decididas como
@@ -156,12 +155,13 @@ A Gestao Assistida e agora o UNICO caminho semanal, e esta ATIVA. Por decisao,
 A-04 segue vazia. A-01 esta INERTE (zero target_band). O que bloqueia a
 Auditoria Mensal e a ausencia de CRITERIOS mensais, que nao existem em producao.
 
-RESSALVAS: o gate 17 Etapa B (leitor de tela) NAO foi exercitado; dispensado
-pelo responsavel. Nao declarar "25/25 sem ressalvas". E a abertura do PRIMEIRO
-CICLO de Gestao Assistida pela interface, com um Gerente de Canal, NUNCA rodou
-em producao (assisted_cycles = 0): os dois smokes foram pelo Administrador, que
-consulta mas nao lanca, e as credenciais dos GCs nao foram localizadas. Essa
-prova continua devida — e agora ela e o UNICO caminho semanal que existe.
+RESSALVA QUE CONTINUA ABERTA: o gate 17 Etapa B (leitor de tela) NAO foi
+exercitado; dispensado pelo responsavel. Nao declarar "25/25 sem ressalvas".
+
+NAO E PENDENCIA: assisted_cycles = 0 e nenhum ciclo real foi aberto pela
+interface. Por decisao do responsavel em 03/08/2026 isso NAO e gate de release
+— o primeiro ciclo nasce do uso normal. A logica esta provada em PGlite com as
+mesmas 52 migrations e a autorizacao esta provada em producao por impersonacao.
 
 Migrations aditivas apenas, proximo numero livre 0053. Autoria exclusiva do
 proprietario e sem mencao a IA. A Fase 13 NAO foi iniciada.

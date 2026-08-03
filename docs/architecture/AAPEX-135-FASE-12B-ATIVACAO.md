@@ -242,34 +242,40 @@ e em SC igualmente. Configurar "por estado" criaria estrutura que o modelo não 
 
 ---
 
-## 7. O que NÃO foi exercitado, e por quê
+## 7. O primeiro ciclo real — NÃO é gate de release
 
-**A projeção do ciclo da Gestão Assistida em produção, pela interface, com um Gerente de
-Canal.** `get_assisted_cycle` devolve nulo porque `assisted_cycles = 0`, e só o GC responsável
-pode abrir o primeiro ciclo.
+**Decisão do responsável, 03/08/2026:** a conferência humana com um Gerente de Canal **deixa de
+ser pendência bloqueante**. O primeiro ciclo real da Gestão Assistida será aberto
+**naturalmente quando o aplicativo entrar em uso**, e não constitui gate de release.
 
-**Limitação declarada pelo responsável em 02/08/2026:** as credenciais dos Gerentes de Canal
-não foram localizadas, e o responsável **não autorizou** redefinir senha de usuário real nem
-criar conta artificial em produção apenas para o teste. A decisão é acertada — as duas
-alternativas eram pior do que a lacuna: uma altera credencial de terceiro, a outra injeta dado
-sintético em base real.
+**Nada foi alterado para chegar a isso.** Nenhuma permissão, papel, conta, política de RLS ou
+fluxo operacional foi tocado. É reclassificação de escopo, não mudança de sistema.
 
-**O que ficou provado no lugar, e o que não ficou:**
+### O que está provado, e em que camada
 
-| Camada | Situação |
-|---|---|
-| Regra de projeção, cálculo e status | ✅ suíte automatizada, 2.305 testes contra PGlite com as mesmas 51 migrations |
-| Autorização e alcance dos quatro papéis em produção | ✅ por impersonação de papel, com as contas reais |
-| Configuração visível ao GC em produção | ✅ 13/13 lidas com as claims de um GC real |
-| **Abertura e preenchimento de ciclo pela interface, em produção** | ❌ **NÃO EXERCITADO** |
+| Camada | Prova | Onde |
+|---|---|---|
+| Regra de projeção, cálculo, status e fechamento | ✅ **2.329 testes** contra PGlite, com as **mesmas 52 migrations** | suíte |
+| Abertura de ciclo, idempotência concorrente, `SEM DADO` ≠ zero, imutabilidade | ✅ exercitado ponta a ponta | suíte + Fase 11 |
+| `open_assisted_cycle` funcionando **depois** do cutover e do expurgo | ✅ caso dedicado | `legacy_purge.integration.test.ts` |
+| Autorização e alcance dos quatro papéis, **em produção** | ✅ por impersonação, com as contas reais | Fase 12-B §6-A |
+| Configuração visível ao GC, **em produção** | ✅ **13/13** com as claims de um GC real | Fase 12-B §6-A |
+| `anon` recusado nas tabelas e RPCs novas | ✅ `42501` em todas | Fase 12 e 12-B |
+| GC recusado ao publicar catálogo ou criar tema | ✅ recusas por papel | Fase 12-B §6-A |
 
-Fica declarado como **não exercitado**, não como verde. **O primeiro ciclo real de Gestão
-Assistida em produção ainda não existe**, e a primeira vez que um GC abrir a tela será a
-primeira execução real desse caminho.
+**O que continua sem ter acontecido, e é dito sem eufemismo:** `assisted_cycles = 0`. **Nenhum
+ciclo real foi aberto em produção pela interface.** Não se afirma aqui que esse caminho foi
+testado em produção — ele não foi.
 
-> É o mesmo tipo de lacuna já registrada na 1.3.3, quando o Relatório Oficial em PDF nunca havia
-> rodado sobre dado real de produção. Registrar vale mais do que mascarar: quem ler depois
-> precisa saber que essa prova é devida.
+**Por que isso não bloqueia a release.** O que faltava era o *round-trip de interface* sobre um
+caminho cuja **lógica** está provada contra o mesmo esquema e cuja **autorização** está provada
+contra o banco real. As duas formas de forçar o teste eram piores que a lacuna: redefinir senha
+de um gerente real, ou injetar conta sintética em base de produção. O responsável recusou as
+duas, e decidiu que o uso real é o exercício adequado.
+
+> **Diferença em relação à dívida do leitor de tela.** Aquela continua **aberta**: é uma
+> verificação que ninguém fez e que nenhum uso normal produz sozinho. Esta se resolve na
+> primeira semana de operação, por definição — e o app já recusa tudo que não deve permitir.
 
 ---
 
@@ -285,6 +291,7 @@ primeira execução real desse caminho.
 | **A-07** | aberta | sem mudança |
 | **Gate 17 · Etapa B** | devido | leitor de tela, dívida conhecida da 1.3.5 |
 | **Os 40 códigos** | não tratados | exigiriam o staging congelado |
+| ~~1º ciclo real pela interface~~ | ~~devido~~ | **NÃO É GATE** — decisão de 03/08/2026, ver §7 |
 
 **A ordem obrigatória foi respeitada:** `BACKFILL → A-04 → A-02 → A-03`. O backfill foi
 executado; as três seguintes foram decididas como *não ativar*, o que é uma decisão tomada, e
@@ -509,3 +516,48 @@ Suíte: **2.329 verdes em 138 arquivos** (eram 2.305 em 136).
 > Eles codificavam o contrato antigo — escape para rascunho, `monthly` nunca afetado, botão
 > obrigatório. A decisão mudou, então o teste que a encodava mudou junto, **com a razão escrita
 > no próprio arquivo**. Nenhuma asserção foi apagada em silêncio.
+
+---
+
+## 13. Encerramento definitivo
+
+**A Fase 12-B está ENCERRADA em 03/08/2026**, sem pendência bloqueante.
+
+### O que a fase entregou
+
+1. **Decisões empresariais tomadas e registradas** — `T`, `M`, `A-04`, `A-02`, `A-03`, mais a
+   segunda rodada (opção 4). A-02 e A-03 foram **decididas duas vezes no mesmo dia**, e as duas
+   versões estão no registro, porque a virada teve causa e a causa importa.
+2. **Backfill executado e idempotente** — tema `GERAL` + 13 configurações regionais, com valores
+   **13/13 idênticos** ao catálogo vigente. Nenhum valor empresarial arbitrado.
+3. **Modelo legado encerrado** — migration `0052`, cutover nas duas frequências, botões
+   removidos, 5 avaliações e 64 respostas expurgadas com inventário e trilha preservada.
+4. **Um defeito real encontrado, apurado e corrigido** — o botão que gravava sem confirmação,
+   achado pelo próprio smoke.
+5. **Uma lacuna documental fechada** — a Matriz de Permissões nunca declarara o modelo legado.
+
+### Estado em que a produção fica
+
+```
+plnbgdabciwygsmnyddy   migrations 0001-0052, Local = Remote 52/52
+                       cutover 2026-08-02 ATIVO (America/Sao_Paulo)
+                       evaluations 0 · evaluation_answers 0 · official_snapshots 0
+                       assisted_cycles 0 · action_plans 1 · audit_logs 3
+                       tema GERAL + 13 configuracoes regionais publicadas
+                       region_weightings 0 · audit_criteria 0
+```
+
+**Gestão Assistida ativa e único caminho semanal. Auditoria Mensal desligada.**
+
+### O que continua aberto, e nenhum deles bloqueia
+
+| Pendência | Natureza |
+|---|---|
+| **Critérios da Auditoria Mensal** | decisão empresarial — é o que impede ligar a Mensal |
+| **A-04** (pesos) | decisão empresarial; sem efeito visível enquanto a Mensal estiver desligada |
+| **A-07** (autoridade regional) | decisão empresarial, sem mudança |
+| **Gate 17 · Etapa B** (leitor de tela) | **dívida técnica real e aberta** da 1.3.5 |
+| **Os 40 códigos** | exigiriam o staging congelado, proibido |
+| **Quem pode iniciar o legado**, se reaberto | nunca decidido, só herdado do código |
+
+**A Fase 13 não foi iniciada.**
