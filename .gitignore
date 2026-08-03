@@ -55,8 +55,10 @@ DADOS APP.xlsx
 *.xlsx
 relatorio-importacao*.json
 
-# Laboratorio de simulacao — credenciais sinteticas NUNCA no Git
+# Laboratorio de simulacao ï¿½ credenciais sinteticas NUNCA no Git
 AAPEx-135-SIMULACAO-ACESSOS.txt
 scratchpad/
 dist-prova-producao/
 
+.vercel
+.env*
