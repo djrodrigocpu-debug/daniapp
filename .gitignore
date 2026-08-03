@@ -54,3 +54,9 @@ supabase/.branches/
 DADOS APP.xlsx
 *.xlsx
 relatorio-importacao*.json
+
+# Laboratorio de simulacao — credenciais sinteticas NUNCA no Git
+AAPEx-135-SIMULACAO-ACESSOS.txt
+scratchpad/
+dist-prova-producao/
+

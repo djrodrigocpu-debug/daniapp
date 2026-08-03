@@ -12,12 +12,17 @@ import { ValidationsProvider } from './src/context/ValidationsProvider';
 import { AdminProvider } from './src/context/AdminProvider';
 import { SyncProvider } from './src/context/SyncProvider';
 import { AppNavigator } from './src/navigation/AppNavigator';
+import { SimulationBanner } from './src/components/SimulationBanner';
 import { colors } from './src/theme';
 
 export default function App() {
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
+      {/* FORA de todos os providers e ACIMA do navegador: a faixa de simulação
+          precisa aparecer em toda tela e não depender de sessão, repositório
+          nem rota. Em build de produção ela devolve `null` e não ocupa nada. */}
+      <SimulationBanner />
       <View style={styles.page}>
         <View style={styles.appFrame}>
           {/* AuthProvider: sessão corporativa (§8). RepositoryProvider: camada de
